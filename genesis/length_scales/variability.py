@@ -3,6 +3,13 @@ Methods for quantifying coherent length-scales in the convection boundary-layer
 """
 import numpy as np
 from scipy import ndimage
+from tqdm import tqdm
+
+from genesis import utils
+
+
+model_name = 'uclales'
+case_name = 'rico'
 
 def _patch_average_splitting(d, s, shuffle_mask=False):
     """
@@ -17,7 +24,7 @@ def _patch_average_splitting(d, s, shuffle_mask=False):
 
     def make_mask(s):
         m = 2**s
-        patch_size = N/m
+        patch_size = int(N/m)
         mask = (i / (patch_size)) + m*(j / (patch_size))
         if np.any(np.isnan(mask)):
             raise Exception("Can't make mask of with this splitting")
@@ -85,7 +92,7 @@ def _patch_average(d, patch_size, shuffle_mask=False):
     return np.array(_d_std_err)
 
 
-def calc_variability_vs_lengthscae(d, dx, retained_target=0.90,
+def calc_variability_vs_lengthscale(d, dx, retained_target=0.90,
                                    method='coarse'):
     Nx, Ny = d.shape
     N = Nx
@@ -178,3 +185,102 @@ def find_variability_lengthscale(d, dx, retained_target=0.90,
         return patch_size, variability_retained
     else:
         return patch_size*dx
+
+
+
+def get_variability_lengthscale_with_height(param_name, var_name, tn,
+                                            variability_target, z_max):
+
+    data = utils.get_data(model_name=model_name, case_name=case_name,
+                          var_name=var_name, tn=tn, param_name=param_name)
+
+    z_ = data.zm[np.logical_and(data.zm > 0.0, data.zm <= z_max)]
+    dx = np.diff(data.xt).min()
+
+    _arr = []
+    for z in tqdm(z_):
+
+        d = data[var_name].isel(time=0, drop=True)\
+                          .where(data.zm==z, drop=True).squeeze().values
+
+        bl_l = find_variability_lengthscale(
+            d, dx=dx, retained_target=variability_target,
+        )
+
+        _arr.append((z, bl_l))
+
+    _arr = np.array(_arr)
+    z = _arr[:,0]
+    bl_l = _arr[:,1]
+
+    return z, bl_l
+
+
+
+if __name__ == "__main__":
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plot
+
+    import argparse
+    argparser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+    argparser.add_argument('--param_name', nargs='+')
+    argparser.add_argument('--tn', nargs="+", type=int)
+    argparser.add_argument('--var_name', nargs="+")
+    argparser.add_argument('--z_max', default=700.)
+    argparser.add_argument('--variability_target', nargs='+', default=[0.90,],
+                           type=float)
+
+    args = argparser.parse_args()
+
+    combined = len(args.param_name) > 1
+
+    param_name = args.param_name
+
+    if combined:
+        plot.figure()
+
+    for param_name in args.param_name:
+        for var_name in args.var_name:
+            for tn in args.tn:
+                if not combined:
+                    plot.figure()
+
+                for var_target in args.variability_target:
+                    z, bl_l = get_variability_lengthscale_with_height(
+                        param_name, var_name, tn=tn, variability_target=var_target,
+                        z_max=args.z_max
+                    )
+
+                    if combined:
+                        label = "{}%, {}".format(100.*var_target, param_name)
+                        title = """Varibility length-scale of {} in RICO at t={}min
+                                """.format(var_name, tn)
+                    else:
+                        label = "{}%".format(100.*var_target)
+                        title = """Varibility length-scale of {} in RICO {} at t={}min
+                                """.format(var_name, param_name, tn)
+                    plot.plot(bl_l, z, marker='x', label=label)
+                    plot.xlabel('length-scale [m]')
+                    plot.ylabel('height [m]')
+
+                plot.legend()
+                plot.title(title)
+
+                if not combined:
+                    fn = "{}__{}__tn{}.pdf".format(
+                        param_name.replace('/', "_"), var_name, tn
+                    )
+
+                    plot.savefig(fn)
+                    print("Plot saved to {}".format(fn))
+
+    if combined:
+        fn = "{}__tn{}.pdf".format(
+            param_name.replace('/', "_"), var_name, tn
+        )
+
+        plot.savefig(fn)
+        print("Plot saved to {}".format(fn))
