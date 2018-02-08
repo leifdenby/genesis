@@ -167,33 +167,33 @@ def _find_width(data, theta, max_width=2000.):
     x = data.coords['x']
     x_ = x[np.abs(x) < max_width/2.]
 
-    sample = _get_line_sample_func(data, theta)
+    sample_fn = _get_line_sample_func(data, theta)
 
     d_max = data.values.max()
-    d_at_inf = sample(x.max())[1]
+    d_at_inf = sample_fn(x.max())[1]
 
-    def sample_normed(x):
+    def sample_fn_normed(mu):
         """
         Normalize with value at infinity so that root finding method can find
         halfway value if there is net positive correlation of the entire domain
         """
-        d_val = sample(x)[1]
+        pts_xy, d_val = sample_fn(mu)
 
-        return (d_val - d_at_inf)/(d_max - d_at_inf)
+        return pts_xy, (d_val - d_at_inf)/(d_max - d_at_inf)
 
 
     def root_fn(mu):
-        return sample_normed(mu) - 0.5
+        return sample_fn_normed(mu)[1] - 0.5
 
     def find_edge(dir):
         # first find when data drops below zero away from x=0, this will set limit
         # range for root finding
         mu_coarse = np.linspace(0.0, dir*max_width, 100)
-        (x_coarse, y_coarse), d_coarse = sample(mu=mu_coarse)
+        _, d_coarse = sample_fn_normed(mu=mu_coarse)
 
         try:
             i_isneg = np.min(np.argwhere(d_coarse < 0.0))
-            mu_lim = x_coarse[i_isneg]
+            mu_lim = mu_coarse[i_isneg]
         except ValueError:
             mu_lim = dir*max_width
 
