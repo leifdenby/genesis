@@ -3,11 +3,11 @@ Contains routines to analyse coherent structures in 2D using 2nd-order cumulant
 analysis
 """
 import numpy as np
-from numpy import linalg
 from scipy.constants import pi
 import scipy.optimize
 from intergrid import intergrid
 import xarray as xr
+from tqdm import tqdm
 
 
 def calc_2nd_cumulant(v1, v2):
@@ -65,7 +65,8 @@ def identify_principle_axis(C, sI_N=100):
     if theta < 0.0:
         theta += pi
 
-    return theta
+    return xr.DataArray(theta, attrs=dict(units='radians'),
+                        coords=dict(zt=C.zt))
 
 
 def covariance_plot(v1, v2, s_N=200, extra_title="", theta_win_N=100):
@@ -98,13 +99,13 @@ def covariance_plot(v1, v2, s_N=200, extra_title="", theta_win_N=100):
     plot.xlabel('x-distance [m]')
     plot.ylabel('y-distance [m]')
 
-    fn_l = lambda x: np.tan(theta)*x
     s_line = slice(Nx/2 - s_N/2, Nx/2 + s_N/2)
-    x__ = v1.coords['x'][s_line]
+    mu_l = v1.coords['x'][s_line]
+    fn_line = _get_line_sample_func(C_vv, theta)
 
-    plot.plot(x__, fn_l(x__), linestyle='--', color='red')
+    plot.plot(*fn_line(mu=mu_l)[0], linestyle='--', color='red')
     plot.text(0.1, 0.1, r"$\theta_{{princip}}={:.2f}^{{\circ}}$"
-              "".format(theta*180./pi), transform=ax.transAxes,
+              "".format(theta.values*180./pi), transform=ax.transAxes,
               color='red')
 
     if 'zt' in v1:
@@ -123,6 +124,7 @@ def covariance_plot(v1, v2, s_N=200, extra_title="", theta_win_N=100):
 
     return plot.gca()
 
+
 def _get_line_sample_func(data, theta):
     x = data.coords['x']
     y = data.coords['y']
@@ -136,9 +138,13 @@ def _get_line_sample_func(data, theta):
     interp_f = intergrid.Intergrid(data.values/d_max,
                                    lo=lo, hi=hi, maps=maps, verbose=0)
 
-    def sample(x_l):
-        y_l = np.tan(theta)*x_l
-        return interp_f(np.array([x_l, y_l]).T)*d_max
+    def sample(mu):
+        """
+        mu is the distance along the rotated coordinate
+        """
+        x_ = np.cos(float(theta))*mu
+        y_ = np.sin(float(theta))*mu
+        return (x_, y_), interp_f(np.array([x_, y_]).T)*d_max
 
     return sample
 
@@ -150,38 +156,54 @@ def _line_sample(data, theta, max_dist):
     sample = _get_line_sample_func(data, theta)
 
     x = data.coords['x']
-    x_ = x[np.abs(x) < max_dist]
+    mu_l = x[np.abs(x) < max_dist]
 
-    return x_, sample(x_)
+    return mu_l, sample(mu_l)[1]
 
 
 def _find_width(data, theta, max_width=2000.):
     assert data.dims == ('x', 'y')
 
-    sample = _get_line_sample_func(data, theta)
-
     x = data.coords['x']
     x_ = x[np.abs(x) < max_width/2.]
 
-    d_max = data.values.max()
+    sample = _get_line_sample_func(data, theta)
 
-    def root_fn(x_l):
-        return sample(x_l) - 0.5*sample(0.0)
+    d_max = data.values.max()
+    d_at_inf = sample(x.max())[1]
+
+    def sample_normed(x):
+        """
+        Normalize with value at infinity so that root finding method can find
+        halfway value if there is net positive correlation of the entire domain
+        """
+        d_val = sample(x)[1]
+
+        return (d_val - d_at_inf)/(d_max - d_at_inf)
+
+
+    def root_fn(mu):
+        return sample_normed(mu) - 0.5
 
     def find_edge(dir):
         # first find when data drops below zero away from x=0, this will set limit
         # range for root finding
-        x_coarse = np.linspace(0.0, dir*max_width, 100)
-        d_coarse = sample(x_coarse)
+        mu_coarse = np.linspace(0.0, dir*max_width, 100)
+        (x_coarse, y_coarse), d_coarse = sample(mu=mu_coarse)
 
-        i_isneg = np.min(np.argwhere(d_coarse < 0.0))
-        x_lim = x_coarse[i_isneg] if d_coarse[i_isneg] < 0.0 else dir*max_width
+        try:
+            i_isneg = np.min(np.argwhere(d_coarse < 0.0))
+            mu_lim = x_coarse[i_isneg]
+        except ValueError:
+            mu_lim = dir*max_width
 
-        x_hwhm = scipy.optimize.brentq(f=root_fn, a=0.0, b=x_lim)
+        x_hwhm = scipy.optimize.brentq(f=root_fn, a=0.0, b=mu_lim)
 
         return x_hwhm
 
-    return find_edge(1.0) - find_edge(-1.0)
+    width = find_edge(1.0) - find_edge(-1.0)
+
+    return xr.DataArray(width, coords=dict(zt=data.zt), attrs=dict(units='m'))
 
 
 def covariance_direction_plot(v1, v2, s_N=200, theta_win_N=100):
@@ -205,15 +227,15 @@ def covariance_direction_plot(v1, v2, s_N=200, theta_win_N=100):
     C_vv = calc_2nd_cumulant(v1, v2)
     theta = identify_principle_axis(C_vv, sI_N=theta_win_N)
 
-    x_l, C_vv_l = _line_sample(data=C_vv, theta=theta, max_dist=2000.)
+    mu_l, C_vv_l = _line_sample(data=C_vv, theta=theta, max_dist=2000.)
 
-    line, = plot.plot(x_l, C_vv_l, label=r'$\theta=\theta_{princip}$')
+    line, = plot.plot(mu_l, C_vv_l, label=r'$\theta=\theta_{princip}$')
     width = _find_width(C_vv, theta)
     plot.axvline(-0.5*width, linestyle='--', color=line.get_color())
     plot.axvline(0.5*width, linestyle='--', color=line.get_color())
 
-    x_l, C_vv_l = _line_sample(data=C_vv, theta=theta+pi/2., max_dist=2000.)
-    line, = plot.plot(x_l, C_vv_l, label=r'$\theta=\theta_{princip} + 90^{\circ}$')
+    mu_l, C_vv_l = _line_sample(data=C_vv, theta=theta+pi/2., max_dist=2000.)
+    line, = plot.plot(mu_l, C_vv_l, label=r'$\theta=\theta_{princip} + 90^{\circ}$')
     width = _find_width(C_vv, theta+pi/2.)
     plot.axvline(-0.5*width, linestyle='--', color=line.get_color())
     plot.axvline(0.5*width, linestyle='--', color=line.get_color())
@@ -223,7 +245,7 @@ def covariance_direction_plot(v1, v2, s_N=200, theta_win_N=100):
     plot.ylabel('covariance [{}]'.format(C_vv.units))
     ax = plot.gca()
     plot.text(0.05, 0.9, r"$\theta_{{princip}}={:.2f}^{{\circ}}$"
-              "".format(theta*180./pi), transform=ax.transAxes)
+              "".format(theta.values*180./pi), transform=ax.transAxes)
 
     if 'zt' in v1:
         z_var = 'zt'
@@ -234,6 +256,7 @@ def covariance_direction_plot(v1, v2, s_N=200, theta_win_N=100):
                "at z={z}{z_units}".format(
                    C_vv.longname, z=float(v1[z_var]), z_units=v1[z_var].units
                ))
+
 
 def charactistic_scales(v1, v2, s_N=100):
     """
@@ -256,4 +279,11 @@ def charactistic_scales(v1, v2, s_N=100):
     width_principle_axis = _find_width(C_vv, theta)
     width_perpendicular = _find_width(C_vv, theta+pi/2.)
 
-    return theta*180./pi, (width_principle_axis, width_perpendicular)
+    theta_deg = xr.DataArray(theta.values*180./pi, dims=theta.dims,
+                             attrs=dict(units='deg'))
+
+    return xr.Dataset(dict(
+        principle_axis=theta_deg,
+        width_principle=width_principle_axis,
+        width_perpendicular=width_perpendicular
+    ))
