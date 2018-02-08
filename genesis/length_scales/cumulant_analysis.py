@@ -9,6 +9,10 @@ from intergrid import intergrid
 import xarray as xr
 from tqdm import tqdm
 
+_var_name_mapping = {
+    "q": "q_t",
+    "t": "\theta_l",
+}
 
 def calc_2nd_cumulant(v1, v2):
     """
@@ -29,11 +33,20 @@ def calc_2nd_cumulant(v1, v2):
     c_vv = c_vv_fft.real/(Nx*Ny)
     c_vv = np.roll(np.roll(c_vv, shift=Ny/2, axis=1), shift=Nx/2, axis=0)
 
-    attrs = dict(
-        longname="cumulant({},{})".format(v1.longname, v2.longname),
-        units="{} {}".format(v1.units, v2.units))
 
-    return xr.DataArray(c_vv, dims=v1.dims, coords=v1.coords, attrs=attrs)
+    # let's give it a useful name and description
+    longname = r"$C({},{})$".format(
+        _var_name_mapping.get(v1.name, v1.longname),
+        _var_name_mapping.get(v2.name, v2.longname),
+    )
+    v1_name = v1.name if v1.name is not None else v1.longname
+    v2_name = v2.name if v2.name is not None else v2.longname
+    name = "C({},{})".format(v1_name, v2_name)
+
+    attrs = dict(units="{} {}".format(v1.units, v2.units), longname=longname)
+
+    return xr.DataArray(c_vv, dims=v1.dims, coords=v1.coords, attrs=attrs,
+                        name=name)
 
 
 def identify_principle_axis(C, sI_N=100):
@@ -287,6 +300,6 @@ def charactistic_scales(v1, v2, s_N=100):
         width_principle=width_principle_axis,
         width_perpendicular=width_perpendicular
     ))
-    dataset.attrs['cumulant'] = C_vv.longname
+    dataset['cumulant'] = C_vv.name
 
     return dataset
