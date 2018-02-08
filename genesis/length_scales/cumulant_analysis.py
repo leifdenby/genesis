@@ -282,8 +282,11 @@ def charactistic_scales(v1, v2, s_N=100):
     theta_deg = xr.DataArray(theta.values*180./pi, dims=theta.dims,
                              attrs=dict(units='deg'))
 
-    return xr.Dataset(dict(
+    dataset = xr.Dataset(dict(
         principle_axis=theta_deg,
         width_principle=width_principle_axis,
         width_perpendicular=width_perpendicular
     ))
+    dataset.attrs['cumulant'] = C_vv.longname
+
+    return dataset
