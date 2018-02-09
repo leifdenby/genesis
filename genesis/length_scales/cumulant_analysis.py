@@ -10,8 +10,10 @@ import xarray as xr
 from tqdm import tqdm
 
 _var_name_mapping = {
-    "q": "q_t",
-    "t": "\theta_l",
+    "q": r"q_t",
+    "t": r"\theta_l",
+    "q_flux": r"\overline{w'q'}",
+    "t_flux": r"\overline{w'\theta_l'}",
 }
 
 def calc_2nd_cumulant(v1, v2):
@@ -127,10 +129,9 @@ def covariance_plot(v1, v2, s_N=200, extra_title="", theta_win_N=100):
         z_var = 'zm'
 
     plot.title(
-        """Covariance length-scale
-        for ({v1},{v2})
+        """Covariance length-scale for\n{C_vv}
         t={t}{t_units} z={z}{z_units}
-        """.format(v1=v1.longname, v2=v2.longname,
+        """.format(C_vv=C_vv.longname,
                    t=float(v1.time), t_units=v1.time.units,
                    z=float(v1[z_var]), z_units=v1[z_var].units)
     )
