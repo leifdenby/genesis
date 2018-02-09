@@ -8,6 +8,7 @@ import scipy.optimize
 from intergrid import intergrid
 import xarray as xr
 from tqdm import tqdm
+import warnings
 
 _var_name_mapping = {
     "q": r"q_t",
@@ -175,7 +176,7 @@ def _line_sample(data, theta, max_dist):
     return mu_l, sample(mu_l)[1]
 
 
-def _find_width(data, theta, max_width=2000.):
+def _find_width(data, theta, width_peak_fraction=0.5, max_width=5000.):
     assert data.dims == ('x', 'y')
 
     x = data.coords['x']
@@ -197,7 +198,7 @@ def _find_width(data, theta, max_width=2000.):
 
 
     def root_fn(mu):
-        return sample_fn_normed(mu)[1] - 0.5
+        return sample_fn_normed(mu)[1] - width_peak_fraction
 
     def find_edge(dir):
         # first find when data drops below zero away from x=0, this will set limit
@@ -211,7 +212,13 @@ def _find_width(data, theta, max_width=2000.):
         except ValueError:
             mu_lim = dir*max_width
 
-        x_hwhm = scipy.optimize.brentq(f=root_fn, a=0.0, b=mu_lim)
+        try:
+            x_hwhm = scipy.optimize.brentq(f=root_fn, a=0.0, b=mu_lim)
+        except ValueError as e:
+            warnings.warn("Couldn't find width smaller than `{}` assuming"
+                          " that the cumulant spreads to infinity".format(
+                          max_width))
+            x_hwhm = np.inf
 
         return x_hwhm
 
@@ -220,7 +227,8 @@ def _find_width(data, theta, max_width=2000.):
     return xr.DataArray(width, coords=dict(zt=data.zt), attrs=dict(units='m'))
 
 
-def covariance_direction_plot(v1, v2, s_N=200, theta_win_N=100):
+def covariance_direction_plot(v1, v2, s_N=200, theta_win_N=100,
+                              width_peak_fraction=0.5):
     """
     Compute 2nd-order cumulant between v1 and v2 and sample and perpendicular
     to pricinple axis. `s_N` sets plot window
@@ -243,16 +251,16 @@ def covariance_direction_plot(v1, v2, s_N=200, theta_win_N=100):
 
     mu_l, C_vv_l = _line_sample(data=C_vv, theta=theta, max_dist=2000.)
 
-    line, = plot.plot(mu_l, C_vv_l, label=r'$\theta=\theta_{princip}$')
-    width = _find_width(C_vv, theta)
-    plot.axvline(-0.5*width, linestyle='--', color=line.get_color())
-    plot.axvline(0.5*width, linestyle='--', color=line.get_color())
+    line_1, = plot.plot(mu_l, C_vv_l, label=r'$\theta=\theta_{princip}$')
+    width = _find_width(C_vv, theta, width_peak_fraction)
+    plot.axvline(-0.5*width, linestyle='--', color=line_1.get_color())
+    plot.axvline(0.5*width, linestyle='--', color=line_1.get_color())
 
     mu_l, C_vv_l = _line_sample(data=C_vv, theta=theta+pi/2., max_dist=2000.)
-    line, = plot.plot(mu_l, C_vv_l, label=r'$\theta=\theta_{princip} + 90^{\circ}$')
-    width = _find_width(C_vv, theta+pi/2.)
-    plot.axvline(-0.5*width, linestyle='--', color=line.get_color())
-    plot.axvline(0.5*width, linestyle='--', color=line.get_color())
+    line_2, = plot.plot(mu_l, C_vv_l, label=r'$\theta=\theta_{princip} + 90^{\circ}$')
+    width = _find_width(C_vv, theta+pi/2., width_peak_fraction)
+    plot.axvline(-0.5*width, linestyle='--', color=line_2.get_color())
+    plot.axvline(0.5*width, linestyle='--', color=line_2.get_color())
 
     plot.legend()
     plot.xlabel('distance [m]')
@@ -271,8 +279,9 @@ def covariance_direction_plot(v1, v2, s_N=200, theta_win_N=100):
                    C_vv.longname, z=float(v1[z_var]), z_units=v1[z_var].units
                ))
 
+    return [line_1, line_2]
 
-def charactistic_scales(v1, v2, s_N=100):
+def charactistic_scales(v1, v2, s_N=100, width_peak_fraction=0.5):
     """
     From 2nd-order cumulant of v1 and v2 compute principle axis angle,
     characteristic length-scales along and perpendicular to principle axis (as
@@ -290,8 +299,8 @@ def charactistic_scales(v1, v2, s_N=100):
     C_vv = calc_2nd_cumulant(v1, v2)
     theta = identify_principle_axis(C_vv, sI_N=s_N)
 
-    width_principle_axis = _find_width(C_vv, theta)
-    width_perpendicular = _find_width(C_vv, theta+pi/2.)
+    width_principle_axis = _find_width(C_vv, theta, width_peak_fraction)
+    width_perpendicular = _find_width(C_vv, theta+pi/2., width_peak_fraction)
 
     theta_deg = xr.DataArray(theta.values*180./pi, dims=theta.dims,
                              attrs=dict(units='deg'))
