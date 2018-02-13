@@ -53,10 +53,10 @@ def plot_full_suite(data, marker=''):
         z_cb = d_.where(d_.width_principle>0.1, drop=True).zt.min()
         ax.axhline(z_cb, linestyle=':', color='grey', alpha=0.6)
 
-        for p in data.param_name.values:
+        for p in data.dataset_name.values:
 
             cumulant = "C({},{})".format(var_name, var_name)
-            d = data.sel(param_name=p, drop=True).sel(cumulant=cumulant, drop=True)
+            d = data.sel(dataset_name=p, drop=True).sel(cumulant=cumulant, drop=True)
 
             line, = plot.plot(d.width_principle, d.zt, marker=marker, label=str(p))
             line2, = plot.plot(d.width_perpendicular, d.zt, marker=marker, label=str(p),
@@ -86,18 +86,26 @@ def plot_full_suite(data, marker=''):
     lgd = plot.figlegend(lines, [l.get_label() for l in lines], loc='lower center', ncol=2)
 
 
-def plot_default(data, marker=''):
-    plot.figure(figsize=(2.5*len(data.cumulant), 4))
+def plot_default(data, marker='', z_max=None, cumulants=[]):
+
+    if len(cumulants) == 0:
+        cumulants = data.cumulant.values
+
+    if z_max is not None:
+        data = data.copy().where(data.zt < z_max, drop=True)
+
+    plot.figure(figsize=(2.5*len(cumulants), 4))
 
     z_ = data.zt
+
     ax = None
-    for n in range(len(data.cumulant)):
-        cumulant = data.cumulant[n]
+    for i, cumulant in enumerate(cumulants):
+        n = data.cumulant.values.tolist().index(cumulant)
         s = data.isel(cumulant=n, drop=True).squeeze()
-        ax = plot.subplot(1,len(data.cumulant),n+1, sharey=ax)
+        ax = plot.subplot(1,len(cumulants),i+1, sharey=ax)
         lines = []
-        for p in data.param_name.values:
-            d = data.sel(param_name=p, drop=True).sel(cumulant=cumulant, drop=True)
+        for p in data.dataset_name.values:
+            d = data.sel(dataset_name=p, drop=True).sel(cumulant=cumulant, drop=True)
 
             line, = plot.plot(d.width_principle, d.zt, marker='.', label=str(p))
             line2, = plot.plot(d.width_perpendicular, d.zt, marker='.', label=str(p),
@@ -106,10 +114,11 @@ def plot_default(data, marker=''):
             lines.append(line)
             lines.append(line2)
 
-        plot.title(data.cumulant.values[n])
+        plot.title(fix_cumulant_name(cumulant))
         plot.tight_layout()
+        plot.xlabel("characterisc width [m]")
         
-        if n == 0:
+        if i == 0:
             plot.ylabel('height [m]')
         else:
             plot.setp(ax.get_yticklabels(), visible=False)
@@ -129,26 +138,47 @@ if __name__ == "__main__":
     import argparse
     argparser = argparse.ArgumentParser(__doc__)
     argparser.add_argument('input', help='input netCDF file')
+    argparser.add_argument('--vars', help='variables for cumulants', nargs='*',
+        default=[], type=str,)
+    argparser.add_argument('--z_max', help='max height', default=None,
+        type=float,)
 
     args = argparser.parse_args()
 
     dataset = xr.open_dataset(args.input)
 
-    full_suite_cumulants = [
-        "C({},{})".format(v,v) for v in FULL_SUITE_PLOT_PARTS.keys()
+    do_full_suite_plot = None
+    variables = args.vars
+    if len(variables) == 0:
+        variables = FULL_SUITE_PLOT_PARTS.keys()
+        do_full_suite_plot = True
+    else:
+        do_full_suite_plot = False
+
+
+    cumulants = [
+        "C({},{})".format(v,v) for v in variables
     ]
 
     missing_cumulants = [
-        c for c in full_suite_cumulants if not c in dataset.cumulant.values
+        c for c in cumulants if not c in dataset.cumulant.values
     ]
 
-    if not len(missing_cumulants) == 0:
-        warnings.warn("Not all variables for full suite plot, missing: {}"
-                      "".format(", ".join(missing_cumulants)))
+    if do_full_suite_plot:
+        if not len(missing_cumulants) == 0:
+            warnings.warn("Not all variables for full suite plot, missing: {}"
+                          "".format(", ".join(missing_cumulants)))
 
-        plot_default(dataset)
+            plot_default(dataset, z_max=args.z_max, cumulants=cumulants)
+        else:
+            plot_full_suite(dataset)
     else:
-        plot_full_suite(dataset)
+        if not len(missing_cumulants) == 0:
+            raise Exception("Not all variables for plot, missing: {}"
+                          "".format(", ".join(missing_cumulants)))
+
+        else:
+            plot_default(dataset, z_max=args.z_max, cumulants=cumulants)
 
     sns.despine()
 

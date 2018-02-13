@@ -122,13 +122,13 @@ def process(model_name, case_name, param_names, variable_sets, z_min, z_max, tn)
                 v1_3d=v1_3d, v2_3d=v2_3d, z_max=z_max, z_min=z_min,
             )
 
-            characteristic_scales['dataset'] = "{}__{}".format(case_name, param_name)
+            characteristic_scales['dataset_name'] = "{}__{}".format(case_name, param_name)
             param_datasets.append(characteristic_scales)
 
         dataset_param = xr.concat(param_datasets, dim='cumulant')
         # all cumulant calculations were for the same dataset, set one value
         # so we can concat later across `dataset`
-        dataset_param['dataset'] = dataset_param.dataset.values[0]
+        dataset_param['dataset_name'] = dataset_param.dataset_name.values[0]
 
         datasets.append(dataset_param)
 
@@ -150,7 +150,7 @@ def get_data(model_name, case_name, param_name, var_name, tn):
 
     fn = get_fn(model_name, case_name, param_name, var_name, tn)
     try:
-        phi_da = xr.open_dataarray(fn, decode_times=False)
+        phi_da = xr.open_dataarray(fn, decode_times=False,)
         phi_da = phi_da.rename(dict(xt='x', yt='y'))
         phi_da.name = var_name
     except IOError:
@@ -166,7 +166,7 @@ def get_data(model_name, case_name, param_name, var_name, tn):
         return phi_da
     else:
         fn_w = get_fn(model_name, case_name, param_name, 'w', tn)
-        w_da = xr.open_dataarray(fn_w, decode_times=False)
+        w_da = xr.open_dataarray(fn_w, decode_times=False,)
         w_da = w_da.rename(dict(xt='x', yt='y'))
 
         phi_flux_da = compute_vertical_flux(phi_da=phi_da, w_da=w_da)
@@ -222,7 +222,7 @@ if __name__ == "__main__":
 
     argparser.add_argument('case_name', help='e.g. `rico`', type=str)
     argparser.add_argument('--param_name',
-        help='e.g. `fixed_flux_shear/nx800`', type=str, default='',
+        help='e.g. `fixed_flux_shear/nx800`', type=str, default=['',],
         nargs='+')
     argparser.add_argument('tn', type=int)
     argparser.add_argument('--vars', default=DEFAULT_VARS, nargs="+")
