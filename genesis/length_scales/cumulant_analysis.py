@@ -129,11 +129,13 @@ def covariance_plot(v1, v2, s_N=200, extra_title="", theta_win_N=100):
     else:
         z_var = 'zm'
 
+    t_units = 's' if 'seconds' in v1.time.units else v1.time.units
+
     plot.title(
         """Covariance length-scale for\n{C_vv}
         t={t}{t_units} z={z}{z_units}
         """.format(C_vv=C_vv.longname,
-                   t=float(v1.time), t_units=v1.time.units,
+                   t=float(v1.time), t_units=t_units,
                    z=float(v1[z_var]), z_units=v1[z_var].units)
     )
 
@@ -275,7 +277,7 @@ def covariance_direction_plot(v1, v2, s_N=200, theta_win_N=100,
         z_var = 'zm'
 
     plot.title("{} sampled along and\n perpendicular to principle axis "
-               "at z={z}{z_units}".format(
+               "at z={z}{z_units}\n".format(
                    C_vv.longname, z=float(v1[z_var]), z_units=v1[z_var].units
                ))
 
