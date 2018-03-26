@@ -18,8 +18,9 @@ import matplotlib.pyplot as plot
 import numpy as np
 
 
-def height_dist_plot(dataset, var_name, t, dz, scaling=25.*4, z_max=700.,
-                     dvar=0.05, mask_zero=False, cumulative=False, marker='.'):
+def height_dist_plot(dataset, var_name, t, scaling=25.*4, z_max=700.,
+                     dvar=0.05, mask_zero=False, cumulative=False, marker='.',
+                     offset=True, skip_interval=1):
 
     z_var = dataset[var_name].coords[
         'zt' if 'zt' in dataset[var_name].coords else 'zm'
@@ -42,10 +43,12 @@ def height_dist_plot(dataset, var_name, t, dz, scaling=25.*4, z_max=700.,
     def get_zdata(zvar_name, z_):
         return dataset.sel(**{zvar_name: z_, "drop": True, "time":t})
 
-    for k, z_ in enumerate(z_var):
+    lines = []
+
+    for k, z_ in enumerate(z_var[::skip_interval]):
         dataset_ = get_zdata(z_var.name, z_=z_)
 
-        d = np.array(dataset_[var_name])
+        d = dataset_[var_name].values
 
         units = dataset_[var_name].units
 
@@ -57,13 +60,32 @@ def height_dist_plot(dataset, var_name, t, dz, scaling=25.*4, z_max=700.,
             d, normed=True, bins=n_bins, range=bin_range
         )
 
-        if cumulative:
-            bin_counts = np.cumsum(bin_counts[::-1])[::-1]
-
         bin_centers = 0.5*(bin_edges[1:] + bin_edges[:-1])
-        s = scaling/bin_counts.max()
-        plot.plot(bin_centers, bin_counts*s+np.array(z_), marker=marker,)
-        plot.axhline(z_, linestyle=':', color='grey', alpha=0.3)
+
+        if cumulative:
+            # bin_counts = np.cumsum(bin_counts[::-1])[::-1]
+            total_flux = bin_counts*bin_centers
+            # bin_counts = np.cumsum(total_flux)
+            nx, ny = d.shape
+            ncells = nx*ny
+            bin_counts = np.cumsum(total_flux[::-1])[::-1]/ncells
+
+        if not cumulative:
+            s = scaling/bin_counts.max()
+        else:
+            s = 1.0
+
+        l, = plot.plot(
+            bin_centers,
+            bin_counts*s+offset*np.array(z_),
+            marker=marker,
+            label="z={}m".format(z_.values)
+        )
+
+        if offset:
+            plot.axhline(z_, linestyle=':', color='grey', alpha=0.3)
+
+        lines.append(l)
 
         # print float(z_), d.min(), d.max(), dataset_[var_name].shape
 
@@ -83,20 +105,28 @@ def height_dist_plot(dataset, var_name, t, dz, scaling=25.*4, z_max=700.,
     else:
         plot.xlabel('{} [{}]'.format(dataset[var_name].longname, units))
     # plot.ylabel('{} [{}]'.format(z_var.longname, z_var.units))
-    plot.ylabel('{} [{}]'.format("height", z_var.units))
+
+    if cumulative:
+        plot.ylabel('cumulative {} [{}]'.format(dataset[var_name].longname,
+                                                dataset[var_name].units))
+    else:
+        plot.ylabel('{} [{}]'.format("height", z_var.units))
 
     plot.title("t={}s".format(t))
 
+    return lines
 
-def find_dz(dataset):
-    z_var = 'zt' if 'zt' in dataset[var_name].coords else 'zm'
-    dz_ = np.diff(dataset[z_var])
-
-    assert np.min(dz_) == np.max(dz_)
-
-    return np.min(dz_)
 
 def _add_flux_var(dataset, var_name):
+    def find_dz(dataset):
+        z_var = 'zt' if 'zt' in dataset[var_name].coords else 'zm'
+        dz_ = np.diff(dataset[z_var])
+
+        assert np.min(dz_) == np.max(dz_)
+
+        return np.min(dz_)
+
+    dz = find_dz(dataset)
     z_up = float(z_) + 0.5*dz
     w_up = get_zdata('zm', z_up)['w']
     z_down = float(z_) - 0.5*dz
@@ -188,8 +218,6 @@ if __name__ == "__main__":
             else:
                 dataset = d2
 
-    dz = find_dz(dataset)
-
     if args.time is None:
         num_timesteps = 1
         times = dataset.time.values
@@ -204,7 +232,7 @@ if __name__ == "__main__":
             plot.subplot(num_vars, num_timesteps, n*num_timesteps + m+1)
             scaling = default_scalings.get(var_name, 100.)
             binsize = default_binsize.get(var_name, 0.1)
-            height_dist_plot(dataset, var_name, dz=dz, scaling=scaling,
+            height_dist_plot(dataset, var_name, scaling=scaling,
                              t=t, dvar=binsize, z_max=args.z_max,
                              cumulative=args.cumulative,
                              marker=args.bin_marker)
