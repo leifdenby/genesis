@@ -12,6 +12,8 @@ import xarray as xr
 
 import seaborn as sns
 
+from tqdm import tqdm
+
 sns.set(style='ticks', color_codes=True)
 sns.despine()
 
@@ -33,6 +35,9 @@ def main(dataset_name):
     t_hours = t/60./60.
 
     t_hours_unique = np.unique(t_hours.astype(int))
+    if t_hours_unique[0] == 0.:
+        # nothing interesting happens right from the beginning
+        t_hours_unique = t_hours_unique[1:]
     dt_step = int(t_hours_unique.max()/5)
     nt = len(t_hours_unique[::dt_step])
 
@@ -66,7 +71,7 @@ def main(dataset_name):
 
         for tn_, (x__, y__) in enumerate(zip(x_, y_)):
             ax.annotate(
-                'tn={}'.format(tn_), xy=(x__, y__),
+                tn_, xy=(x__, y__),
                 xytext=(0, 10), color='red',
                 textcoords='offset pixels',
                 horizontalalignment='center', verticalalignment='bottom'
@@ -76,28 +81,49 @@ def main(dataset_name):
         'cross_sections', 'runtime_slices',
         '{}.out.xy.lwp.nc'.format(dataset_name)
     )
+
     if not os.path.exists(fn):
         raise Exception("Can't find `{}`, needed for overview plots"
                         "".format(fn))
-    lwp = xr.open_dataarray(fn)
-    for n, t_ in enumerate(t_hours_unique[::dt_step]):
+    da = xr.open_dataarray(fn, decode_times=False)
+
+    if not da.time.units.startswith('seconds'):
+        raise Exception("The `{}` has the incorrect time units (should be"
+                        " seconds) which is likely because cdo mangled it."
+                        " Recreate the file making sure that cdo is explicitly"
+                        " told to use a *relative* time axis. The current"
+                        " units are `{}`.".format(fn, da.time.units))
+
+    for n, t_ in enumerate(tqdm(t_hours_unique[::dt_step])):
         plot.subplot2grid((5, nt), (4, n))
 
-        d = lwp.sel(
-            time=t_/24., drop=True, tolerance=24.*60.*60./4.,
-            method='nearest'
+        d = da.sel(
+            time=t_*60.*60., drop=True, tolerance=5.*60., method='nearest'
         )
 
-        x, y = lwp.xt, lwp.yt
+        x, y = da.xt, da.yt
+
+        has_units = hasattr(x, 'units') and hasattr(y, 'units')
+
+        s = 1.0
+        if has_units and x.units == 'm' and y.units == 'm':
+            s = 1.0e-3
+            units = 'km'
+            assert x.units == y.units
+        else:
+            units = None
 
         plot.pcolormesh(
-            x/1000, y/1000, d > 0.001,
+            x, y, d > 0.001,
             cmap=plot.get_cmap('Greys_r'),
             rasterized=True
         )
-        plot.xlabel('horizontal dist. [km]')
-        if n == 0:
-            plot.ylabel('horizontal dist. [km]')
+
+        if has_units:
+            plot.xlabel('horizontal dist. [{}]'.format(units))
+            if n == 0:
+                plot.ylabel('horizontal dist. [{}]'.format(units))
+
         plot.title('t={}hrs'.format(t_))
         plot.gca().set_aspect(1)
 
