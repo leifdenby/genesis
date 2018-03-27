@@ -76,6 +76,9 @@ def main(dataset_name):
         'cross_sections', 'runtime_slices',
         '{}.out.xy.lwp.nc'.format(dataset_name)
     )
+    if not os.path.exists(fn):
+        raise Exception("Can't find `{}`, needed for overview plots"
+                        "".format(fn))
     lwp = xr.open_dataarray(fn)
     for n, t_ in enumerate(t_hours_unique[::dt_step]):
         plot.subplot2grid((5, nt), (4, n))
