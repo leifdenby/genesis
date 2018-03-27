@@ -41,7 +41,7 @@ def height_dist_plot(dataset, var_name, t, scaling=25.*4, z_max=700.,
         else:
             return (v_min, v_max), n
 
-    def get_zdata(zvar_name, z_):
+    def get_zdata(zvar_name, z_, dataset=dataset):
         return dataset.sel(**{zvar_name: z_, "drop": True, "time":t})
 
     lines = []
@@ -50,11 +50,13 @@ def height_dist_plot(dataset, var_name, t, scaling=25.*4, z_max=700.,
         dataset_ = get_zdata(z_var.name, z_=z_)
 
         d = dataset_[var_name].values
+        nx, ny = d.shape
 
         units = dataset_[var_name].units.replace(' ', '*')
 
         if not mask is None:
-            d = d[mask]
+            mask_slice = get_zdata(zvar_name=z_var.name, z_=z_, dataset=mask)
+            d = d[mask_slice.values]
 
         bin_range, n_bins = calc_bins(d, dvar)
         bin_counts, bin_edges = np.histogram(
@@ -67,7 +69,6 @@ def height_dist_plot(dataset, var_name, t, scaling=25.*4, z_max=700.,
             # bin_counts = np.cumsum(bin_counts[::-1])[::-1]
             total_flux = bin_counts*bin_centers
             # bin_counts = np.cumsum(total_flux)
-            nx, ny = d.shape
             ncells = nx*ny
             bin_counts = np.cumsum(total_flux[::-1])[::-1]/ncells
 
@@ -165,6 +166,7 @@ if __name__ == "__main__":
     argparser.add_argument('--cumulative', default=False, action="store_true")
     argparser.add_argument('--bin-marker', default='', type=str)
     argparser.add_argument('--mask-name', default=None, type=str)
+    argparser.add_argument('--invert-mask', default=False, action="store_true")
     argparser.add_argument('--output-in-cwd', default=False, action='store_true')
     argparser.add_argument('--skip-interval', default=1, type=int)
     argparser.add_argument('--no-offset', default=False, action='store_true')
@@ -231,7 +233,20 @@ if __name__ == "__main__":
 
     if not args.mask_name is None:
         fn_mask = "{}.{}.mask.nc".format(input_name, args.mask_name)
-        mask = xr.open_dataarray(fn_mask)
+        if not os.path.exists(fn_mask):
+            raise Exception("Can't find mask file `{}`".format(fn_mask))
+        mask = xr.open_dataarray(fn_mask, decode_times=False)
+        if args.invert_mask:
+            mask_attrs = mask.attrs
+            mask = ~mask
+            out_filename = out_filename.replace(
+                '.pdf', '.masked.not__{}.pdf'.format(args.mask_name)
+            )
+            mask.attrs.update(mask_attrs)
+        else:
+            out_filename = out_filename.replace(
+                '.pdf', '.masked.{}.pdf'.format(args.mask_name)
+            )
     else:
         mask = None
 
@@ -269,11 +284,24 @@ if __name__ == "__main__":
     plot.tight_layout()
 
     if args.with_legend:
-        plot.subplots_adjust(top=0.9, bottom=0.2)
+        plot.subplots_adjust(top=0.85, bottom=0.2)
 
-    plot.suptitle("{}distribution in {}".format(
+    print fn_mask, mask.attrs
+
+    mask_description = ''
+    if not mask is None:
+        if 'longname' in mask.attrs:
+            mask_description = mask.attrs['longname']
+        else:
+            mask_description = args.mask_name
+
+        if args.invert_mask:
+            mask_description = "not " + mask_description
+
+    plot.suptitle("{}distribution in {}{}".format(
         ["", "Cumulative "][args.cumulative],
-        input_name
+        input_name,
+        ["", "\nwith '{}' mask".format(mask_description)][not mask is None]
     ))
 
     plot.savefig(out_filename)
