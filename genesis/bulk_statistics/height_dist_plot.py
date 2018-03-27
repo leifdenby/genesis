@@ -16,11 +16,12 @@ matplotlib.use("Agg")
 import xarray as xr
 import matplotlib.pyplot as plot
 import numpy as np
+import textwrap
 
 
 def height_dist_plot(dataset, var_name, t, scaling=25.*4, z_max=700.,
-                     dvar=0.05, mask_zero=False, cumulative=False, marker='.',
-                     offset=True, skip_interval=1):
+                     dvar=0.05, cumulative=False, marker='.',
+                     offset=True, skip_interval=1, mask=None):
 
     z_var = dataset[var_name].coords[
         'zt' if 'zt' in dataset[var_name].coords else 'zm'
@@ -50,10 +51,10 @@ def height_dist_plot(dataset, var_name, t, scaling=25.*4, z_max=700.,
 
         d = dataset_[var_name].values
 
-        units = dataset_[var_name].units
+        units = dataset_[var_name].units.replace(' ', '*')
 
-        if mask_zero:
-            d = d[~(d == 0)]
+        if not mask is None:
+            d = d[mask]
 
         bin_range, n_bins = calc_bins(d, dvar)
         bin_counts, bin_edges = np.histogram(
@@ -107,8 +108,10 @@ def height_dist_plot(dataset, var_name, t, scaling=25.*4, z_max=700.,
     # plot.ylabel('{} [{}]'.format(z_var.longname, z_var.units))
 
     if cumulative:
-        plot.ylabel('cumulative {} [{}]'.format(dataset[var_name].longname,
-                                                dataset[var_name].units))
+        text = 'cumulative {} [{}]'.format(
+            dataset[var_name].longname,dataset[var_name].units.replace(' ', '*')
+        )
+        plot.ylabel(textwrap.fill(text, 20))
     else:
         plot.ylabel('{} [{}]'.format("height", z_var.units))
 
@@ -161,6 +164,11 @@ if __name__ == "__main__":
     argparser.add_argument('--z_max', type=float, default=650.)
     argparser.add_argument('--cumulative', default=False, action="store_true")
     argparser.add_argument('--bin-marker', default='', type=str)
+    argparser.add_argument('--mask-name', default=None, type=str)
+    argparser.add_argument('--output-in-cwd', default=False, action='store_true')
+    argparser.add_argument('--skip-interval', default=1, type=int)
+    argparser.add_argument('--no-offset', default=False, action='store_true')
+    argparser.add_argument('--with-legend', default=False, action='store_true')
 
     args = argparser.parse_args()
 
@@ -218,12 +226,24 @@ if __name__ == "__main__":
             else:
                 dataset = d2
 
+    if args.cumulative is True:
+        out_filename = out_filename.replace('.pdf', '.cumulative.pdf')
+
+    if not args.mask_name is None:
+        fn_mask = "{}.{}.mask.nc".format(input_name, args.mask_name)
+        mask = xr.open_dataarray(fn_mask)
+    else:
+        mask = None
+
     if args.time is None:
         num_timesteps = 1
         times = dataset.time.values
     else:
         num_timesteps = len(args.time)
         times = args.time
+
+    if args.output_in_cwd:
+        out_filename = out_filename.replace('/', '__')
 
     plot.figure(figsize=(5*num_timesteps,3*num_vars))
 
@@ -232,13 +252,24 @@ if __name__ == "__main__":
             plot.subplot(num_vars, num_timesteps, n*num_timesteps + m+1)
             scaling = default_scalings.get(var_name, 100.)
             binsize = default_binsize.get(var_name, 0.1)
-            height_dist_plot(dataset, var_name, scaling=scaling,
-                             t=t, dvar=binsize, z_max=args.z_max,
-                             cumulative=args.cumulative,
-                             marker=args.bin_marker)
+            lines = height_dist_plot(dataset, var_name, scaling=scaling,
+                                     t=t, dvar=binsize, z_max=args.z_max,
+                                     cumulative=args.cumulative,
+                                     marker=args.bin_marker, mask=mask,
+                                     skip_interval=args.skip_interval,
+                                     offset=not args.no_offset)
 
+
+    if args.with_legend:
+        plot.figlegend(
+            lines, [l.get_label() for l in lines],
+            loc='lower center', ncol=3
+        )
 
     plot.tight_layout()
+
+    if args.with_legend:
+        plot.subplots_adjust(top=0.9, bottom=0.2)
 
     plot.suptitle("{}distribution in {}".format(
         ["", "Cumulative "][args.cumulative],
