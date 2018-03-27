@@ -36,10 +36,6 @@ def main(dataset_name):
     dt_step = int(t_hours_unique.max()/5)
     nt = len(t_hours_unique[::dt_step])
 
-    # fn_3d = os.path.join('raw_data', '{}.0000.0000.nc'.format(dataset_name))
-    # data_3d = xr.open_dataset(fn_3d)
-    # print data_3d.time
-
     for n, var in enumerate(VARS):
         plot.subplot2grid((5,nt), (n,0), colspan=nt)
         ax = plot.gca()
@@ -61,13 +57,28 @@ def main(dataset_name):
         plot.title(data.longname)
 
 
+    fn_3d = os.path.join('raw_data', '{}.00000000.nc'.format(dataset_name))
+    if os.path.exists(fn_3d):
+        data_3d = xr.open_dataset(fn_3d, decode_times=False)
+
+        x_, y_ = data_3d.time/60./60., np.zeros_like(data_3d.time)
+        plot.plot(x_, y_, marker='o', linestyle='', color='red')
+
+        for tn_, (x__, y__) in enumerate(zip(x_, y_)):
+            ax.annotate(
+                'tn={}'.format(tn_), xy=(x__, y__),
+                xytext=(0, 10), color='red',
+                textcoords='offset pixels',
+                horizontalalignment='center', verticalalignment='bottom'
+            )
+
     fn = os.path.join(
         'cross_sections', 'runtime_slices',
         '{}.out.xy.lwp.nc'.format(dataset_name)
     )
     lwp = xr.open_dataarray(fn)
     for n, t_ in enumerate(t_hours_unique[::dt_step]):
-        plot.subplot2grid((5, nt), (nt-1, n))
+        plot.subplot2grid((5, nt), (4, n))
 
         d = lwp.sel(
             time=t_/24., drop=True, tolerance=24.*60.*60./4.,
