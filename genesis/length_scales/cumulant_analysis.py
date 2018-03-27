@@ -15,14 +15,30 @@ _var_name_mapping = {
     "t": r"\theta_l",
     "q_flux": r"\overline{w'q'}",
     "t_flux": r"\overline{w'\theta_l'}",
+    "w0400": r"w^{400m}",
 }
 
-def calc_2nd_cumulant(v1, v2):
+def calc_2nd_cumulant(v1, v2, mask=None):
     """
-    Calculate 2nd-order cumulant of v1 and v2 in Fourier space
+    Calculate 2nd-order cumulant of v1 and v2 in Fourier space. If mask is
+    supplied the region outside the mask is set to the mean of the masked
+    region, so that this region does not contribute to the cumulant
     """
     assert v1.shape == v2.shape
     Nx, Ny = v1.shape
+    if mask is not None:
+        assert v1.shape == mask.shape
+
+        # don't want to modify the input
+        v1 = v1.copy()
+        v2 = v2.copy()
+
+        # set outside the masked region to the mean so that values in this
+        # region don't correlate with the rest of the domain
+        v1_mean = v1.values[mask.values].mean()
+        v2_mean = v2.values[mask.values].mean()
+        v1.values[~mask.values] = v1_mean
+        v2.values[~mask.values] = v2_mean
 
     V1 = np.fft.fft2(v1)
     if np.all(v1 == v2):
@@ -45,6 +61,10 @@ def calc_2nd_cumulant(v1, v2):
     v1_name = v1.name if v1.name is not None else v1.longname
     v2_name = v2.name if v2.name is not None else v2.longname
     name = "C({},{})".format(v1_name, v2_name)
+
+    if mask is not None:
+        longname = "{} masked by {}".format(longname, mask.longname)
+        name = "{} {} mask".format(name, mask.name)
 
     attrs = dict(units="{} {}".format(v1.units, v2.units), longname=longname)
 
@@ -85,7 +105,8 @@ def identify_principle_axis(C, sI_N=100):
                         coords=dict(zt=C.zt))
 
 
-def covariance_plot(v1, v2, s_N=200, extra_title="", theta_win_N=100):
+def covariance_plot(v1, v2, s_N=200, extra_title="", theta_win_N=100,
+                    mask=None):
     """
     Make a 2D covariance plot of v1 and v2 (both are expected to be
     xarray.DataArray) and identify principle axis. Covariance analysis is
@@ -102,7 +123,7 @@ def covariance_plot(v1, v2, s_N=200, extra_title="", theta_win_N=100):
 
     x, y = np.meshgrid(v1.coords['x'], v1.coords['y'], indexing='ij')
 
-    C_vv = calc_2nd_cumulant(v1, v2)
+    C_vv = calc_2nd_cumulant(v1, v2, mask=mask)
     theta = identify_principle_axis(C_vv, sI_N=theta_win_N)
 
     s_win = slice(Nx/2 - s_N/2, Nx/2 + s_N/2), slice(Ny/2 - s_N/2, Ny/2 + s_N/2)
@@ -230,7 +251,7 @@ def _find_width(data, theta, width_peak_fraction=0.5, max_width=5000.):
 
 
 def covariance_direction_plot(v1, v2, s_N=200, theta_win_N=100,
-                              width_peak_fraction=0.5):
+                              width_peak_fraction=0.5, mask=None):
     """
     Compute 2nd-order cumulant between v1 and v2 and sample and perpendicular
     to pricinple axis. `s_N` sets plot window
@@ -248,7 +269,7 @@ def covariance_direction_plot(v1, v2, s_N=200, theta_win_N=100,
     # below
     x, y = np.meshgrid(v1.coords['x'], v1.coords['y'], indexing='ij')
 
-    C_vv = calc_2nd_cumulant(v1, v2)
+    C_vv = calc_2nd_cumulant(v1, v2, mask=mask)
     theta = identify_principle_axis(C_vv, sI_N=theta_win_N)
 
     mu_l, C_vv_l = _line_sample(data=C_vv, theta=theta, max_dist=2000.)
@@ -283,7 +304,7 @@ def covariance_direction_plot(v1, v2, s_N=200, theta_win_N=100,
 
     return [line_1, line_2]
 
-def charactistic_scales(v1, v2, s_N=100, width_peak_fraction=0.5):
+def charactistic_scales(v1, v2, s_N=100, width_peak_fraction=0.5, mask=None):
     """
     From 2nd-order cumulant of v1 and v2 compute principle axis angle,
     characteristic length-scales along and perpendicular to principle axis (as
@@ -298,7 +319,7 @@ def charactistic_scales(v1, v2, s_N=100, width_peak_fraction=0.5):
     assert np.all(v1.coords['y'] == v2.coords['y'])
     assert v1.dims == ('x', 'y')
 
-    C_vv = calc_2nd_cumulant(v1, v2)
+    C_vv = calc_2nd_cumulant(v1, v2, mask=mask)
     theta = identify_principle_axis(C_vv, sI_N=s_N)
 
     width_principle_axis = _find_width(C_vv, theta, width_peak_fraction)
