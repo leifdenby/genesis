@@ -19,13 +19,33 @@ import numpy as np
 import textwrap
 
 
-def height_dist_plot(dataset, var_name, t, scaling=25.*4, z_max=700.,
-                     dvar=0.05, cumulative=False, marker='.',
-                     offset=True, skip_interval=1, mask=None):
+default_scalings = dict(
+    q=400.,
+    w=200.
+)
+
+default_binsize = dict(
+    q=0.00008,
+    t=0.005,
+    t_flux=1.0e-2,
+    q_flux=4.0e-5
+)
+
+
+def height_dist_plot(dataset, var_name, t, scaling=None, z_max=700.,
+                     binsize=None, cumulative=False, z_min=0.0,
+                     offset=True, skip_interval=1, mask=None, 
+                     reverse_cumulative=True, **kwargs):
 
     z_var = dataset[var_name].coords[
         'zt' if 'zt' in dataset[var_name].coords else 'zm'
     ]
+
+    if binsize is None:
+        binsize = default_binsize.get(var_name, 0.1)
+    if scaling is None:
+        scaling = default_scalings.get(var_name, 100.)
+
 
     def calc_bins(v_, dv_):
         try:
@@ -47,6 +67,9 @@ def height_dist_plot(dataset, var_name, t, scaling=25.*4, z_max=700.,
     lines = []
 
     for k, z_ in enumerate(z_var[::skip_interval]):
+        if z_ < z_min:
+            continue
+
         dataset_ = get_zdata(z_var.name, z_=z_)
 
         d = dataset_[var_name].values
@@ -58,7 +81,7 @@ def height_dist_plot(dataset, var_name, t, scaling=25.*4, z_max=700.,
             mask_slice = get_zdata(zvar_name=z_var.name, z_=z_, dataset=mask)
             d = d[mask_slice.values]
 
-        bin_range, n_bins = calc_bins(d, dvar)
+        bin_range, n_bins = calc_bins(d, binsize)
         bin_counts, bin_edges = np.histogram(
             d, normed=True, bins=n_bins, range=bin_range
         )
@@ -70,7 +93,10 @@ def height_dist_plot(dataset, var_name, t, scaling=25.*4, z_max=700.,
             total_flux = bin_counts*bin_centers
             # bin_counts = np.cumsum(total_flux)
             ncells = nx*ny
-            bin_counts = np.cumsum(total_flux[::-1])[::-1]/ncells
+            if reverse_cumulative:
+                bin_counts = np.cumsum(total_flux[::-1])[::-1]/ncells
+            else:
+                bin_counts = np.cumsum(total_flux)/ncells
 
         if not cumulative:
             s = scaling/bin_counts.max()
@@ -80,8 +106,8 @@ def height_dist_plot(dataset, var_name, t, scaling=25.*4, z_max=700.,
         l, = plot.plot(
             bin_centers,
             bin_counts*s+offset*np.array(z_),
-            marker=marker,
-            label="z={}m".format(z_.values)
+            label="z={}m".format(z_.values),
+            **kwargs
         )
 
         if offset:
@@ -154,6 +180,51 @@ def _add_flux_var(dataset, var_name):
     return dataset
 
 
+def get_dataset(input_name, variables, generate_output_filename=False):
+    if input_name.endswith('.nc'):
+        dataset = xr.open_dataset(input_name, decode_times=False)
+
+        for var_name in enumerate(variables):
+            if var_name.endswith('_flux') and not var_name in dataset:
+                _add_flux_var(dataset, var_name.replace('_flux', ''))
+
+        out_filename = input_name.replace('.nc', '.bl_hist_plots.pdf')
+    else:
+        out_filename = input_name + '.bl_hist_plots.pdf'
+
+        # have to handle `w` seperately because it is staggered
+        filenames = [
+            "{}.{}.nc".format(input_name, var_name) for var_name in variables
+            if not var_name == 'w'
+        ]
+        missing = [
+            fn for fn in filenames if not os.path.exists(fn)
+        ]
+
+        if len(filenames) > 0:
+            if len(missing) > 0:
+                raise Exception("Missing files: {}".format(", ".join(missing)))
+
+            dataset = xr.open_mfdataset(filenames, decode_times=False,
+                                        concat_dim=None, chunks=dict(zt=20))
+        else:
+            dataset = None
+
+        if 'w' in variables:
+            d2 = xr.open_dataset("{}.w.nc".format(input_name),
+                                 decode_times=False, chunks=dict(zm=20))
+
+            if not dataset is None:
+                dataset = xr.merge([dataset, d2])
+            else:
+                dataset = d2
+
+    if generate_output_filename:
+        return dataset, out_filename
+    else:
+        return dataset
+
+
 if __name__ == "__main__":
     import argparse
     argparser = argparse.ArgumentParser(__doc__)
@@ -176,57 +247,12 @@ if __name__ == "__main__":
 
     num_vars = len(args.vars)
 
-    default_scalings = dict(
-        q=400.,
-        w=200.
-    )
-
-    default_binsize = dict(
-        q=0.00008,
-        t=0.005,
-        t_flux=1.0e-2,
-        q_flux=4.0e-5
-    )
-
     input_name = args.input
 
-    if input_name.endswith('.nc'):
-        dataset = xr.open_dataset(input_name, decode_times=False)
-
-        for var_name in enumerate(args.vars):
-            if var_name.endswith('_flux') and not var_name in dataset:
-                _add_flux_var(dataset, var_name.replace('_flux', ''))
-
-        out_filename = input_name.replace('.nc', '.bl_hist_plots.pdf')
-    else:
-        out_filename = input_name + '.bl_hist_plots.pdf'
-
-        # have to handle `w` seperately because it is staggered
-        filenames = [
-            "{}.{}.nc".format(input_name, var_name) for var_name in args.vars
-            if not var_name == 'w'
-        ]
-        missing = [
-            fn for fn in filenames if not os.path.exists(fn)
-        ]
-
-        if len(filenames) > 0:
-            if len(missing) > 0:
-                raise Exception("Missing files: {}".format(", ".join(missing)))
-
-            dataset = xr.open_mfdataset(filenames, decode_times=False,
-                                        concat_dim=None, chunks=dict(zt=20))
-        else:
-            dataset = None
-
-        if 'w' in args.vars:
-            d2 = xr.open_dataset("{}.w.nc".format(input_name),
-                                 decode_times=False, chunks=dict(zm=20))
-
-            if not dataset is None:
-                dataset = xr.merge([dataset, d2])
-            else:
-                dataset = d2
+    dataset, out_filename = get_dataset(
+        input_name=input_name, generate_output_filename=True,
+        variables=args.vars,
+    )
 
     if args.cumulative is True:
         out_filename = out_filename.replace('.pdf', '.cumulative.pdf')
@@ -265,10 +291,8 @@ if __name__ == "__main__":
     for n, var_name in enumerate(args.vars):
         for m, t in enumerate(times):
             plot.subplot(num_vars, num_timesteps, n*num_timesteps + m+1)
-            scaling = default_scalings.get(var_name, 100.)
-            binsize = default_binsize.get(var_name, 0.1)
-            lines = height_dist_plot(dataset, var_name, scaling=scaling,
-                                     t=t, dvar=binsize, z_max=args.z_max,
+            lines = height_dist_plot(dataset, var_name,
+                                     t=t, z_max=args.z_max,
                                      cumulative=args.cumulative,
                                      marker=args.bin_marker, mask=mask,
                                      skip_interval=args.skip_interval,
