@@ -129,7 +129,7 @@ def height_dist_plot(dataset, var_name, t, scaling=None, z_max=700.,
         if var_label == 't':
             var_label = '\\theta_l'
 
-        plot.xlabel(r"$\overline{w'%s'}$ [%s]" % (var_label, units))
+        plot.xlabel(r"$w'%s'$ [%s]" % (var_label, units))
     else:
         plot.xlabel('{} [{}]'.format(dataset[var_name].longname, units))
     # plot.ylabel('{} [{}]'.format(z_var.longname, z_var.units))
