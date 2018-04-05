@@ -128,7 +128,7 @@ def covariance_plot(v1, v2, s_N=200, extra_title="", theta_win_N=100,
 
     s_win = slice(Nx/2 - s_N/2, Nx/2 + s_N/2), slice(Ny/2 - s_N/2, Ny/2 + s_N/2)
     x_, y_, C_vv_ = x[s_win], y[s_win], C_vv[s_win]
-    plot.pcolormesh(x_, y_, C_vv_)
+    plot.pcolormesh(x_, y_, C_vv_, rasterized=True)
     plot.colorbar()
 
     ax = plot.gca()
