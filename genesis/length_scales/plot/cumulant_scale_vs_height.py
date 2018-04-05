@@ -6,6 +6,7 @@ import os
 
 import xarray as xr
 from matplotlib.gridspec import GridSpec
+import matplotlib.pyplot as plot
 
 
 FULL_SUITE_PLOT_PARTS = dict(
@@ -58,8 +59,10 @@ def plot_full_suite(data, marker=''):
             cumulant = "C({},{})".format(var_name, var_name)
             d = data.sel(dataset_name=p, drop=True).sel(cumulant=cumulant, drop=True)
 
-            line, = plot.plot(d.width_principle, d.zt, marker=marker, label=str(p))
-            line2, = plot.plot(d.width_perpendicular, d.zt, marker=marker, label=str(p),
+            line, = plot.plot(d.width_principle, d.zt, marker=marker,
+                              label="{} principle".format(str(p)))
+            line2, = plot.plot(d.width_perpendicular, d.zt, marker=marker,
+                               label="{} orthog.".format(str(p)),
                                linestyle='--', color=line.get_color())
 
             plot.title(fix_cumulant_name(cumulant))
@@ -107,8 +110,10 @@ def plot_default(data, marker='', z_max=None, cumulants=[]):
         for p in data.dataset_name.values:
             d = data.sel(dataset_name=p, drop=True).sel(cumulant=cumulant, drop=True)
 
-            line, = plot.plot(d.width_principle, d.zt, marker='.', label=str(p))
-            line2, = plot.plot(d.width_perpendicular, d.zt, marker='.', label=str(p),
+            line, = plot.plot(d.width_principle, d.zt, marker=marker,
+                              label="{} principle".format(str(p)))
+            line2, = plot.plot(d.width_perpendicular, d.zt, marker=marker,
+                               label="{} orthog.".format(str(p)),
                                linestyle='--', color=line.get_color())
 
             lines.append(line)

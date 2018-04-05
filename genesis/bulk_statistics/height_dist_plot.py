@@ -69,6 +69,8 @@ def height_dist_plot(dataset, var_name, t, scaling=None, z_max=700.,
     for k, z_ in enumerate(z_var[::skip_interval]):
         if z_ < z_min:
             continue
+        elif z_ > z_max:
+            break
 
         dataset_ = get_zdata(z_var.name, z_=z_)
 
@@ -80,6 +82,10 @@ def height_dist_plot(dataset, var_name, t, scaling=None, z_max=700.,
         if not mask is None:
             mask_slice = get_zdata(zvar_name=z_var.name, z_=z_, dataset=mask)
             d = d[mask_slice.values]
+
+        if 'g/kg' in units:
+            d *= 1000.
+            units = units.replace('g/kg', 'kg/kg')
 
         bin_range, n_bins = calc_bins(d, binsize)
         bin_counts, bin_edges = np.histogram(
@@ -117,9 +123,6 @@ def height_dist_plot(dataset, var_name, t, scaling=None, z_max=700.,
 
         # print float(z_), d.min(), d.max(), dataset_[var_name].shape
 
-        if z_ > z_max:
-            break
-
     if d.min() < 0.0 < d.max():
         plot.axvline(0.0, linestyle=':', color='grey')
 
@@ -135,10 +138,10 @@ def height_dist_plot(dataset, var_name, t, scaling=None, z_max=700.,
     # plot.ylabel('{} [{}]'.format(z_var.longname, z_var.units))
 
     if cumulative:
-        text = 'cumulative {} [{}]'.format(
-            dataset[var_name].longname,dataset[var_name].units.replace(' ', '*')
+        text = r"cumulative $\overline{{w'{}'}}$ [{}]".format(
+            var_label, units
         )
-        plot.ylabel(textwrap.fill(text, 20))
+        plot.ylabel(textwrap.fill(text, 30))
     else:
         plot.ylabel('{} [{}]'.format("height", z_var.units))
 

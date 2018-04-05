@@ -140,6 +140,7 @@ def process(model_name, case_name, param_names, variable_sets, z_min, z_max, tn)
 
 def get_fn(model_name, case_name, param_name, var_name, tn):
     return os.path.join(DATA_ROOT, model_name, case_name, param_name, 
+                        '3d_blocks', 'full_domain',
                         '{}.tn{}.{}.nc'.format(case_name, tn, var_name))
 
 def get_data(model_name, case_name, param_name, var_name, tn):
