@@ -28,10 +28,13 @@ if __name__ == "__main__":
         filename = "{}.{}.nc".format(args.base_name, v)
         if not os.path.exists(filename):
             raise Exception("Can't find required var `{}` for mask "
-                            "function `{}`".format(v, args.fn))
+                            "function `{}`, `{}`".format(v, args.fn, filename))
 
-        kwargs[v] = xr.open_dataarray(filename, decode_times=False,
-                                      chunks=dict(zt=10))
+        try:
+            kwargs[v] = xr.open_dataarray(filename, decode_times=False,
+                                          chunks=dict(zt=10))
+        except ValueError:
+            kwargs[v] = xr.open_dataarray(filename, decode_times=False)
 
     mask = fn(**kwargs)
     mask.name = "mask"
