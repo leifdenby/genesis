@@ -3,6 +3,7 @@ Utility script to process all 3D dataset and calculate cumulant length-scales
 in 2D domain-wide cross-sections
 """
 import os
+import warnings
 
 import xarray as xr
 import numpy as np
@@ -14,7 +15,7 @@ from genesis.length_scales import cumulant_analysis
 
 
 DATA_ROOT = os.environ.get(
-    'DATA_ROOT','/nfs/see-fs-02_users/earlcd/datastore/a289/LES_datasets/'
+    'DATA_ROOT','/nfs/see-fs-02_users/earlcd/datastore/a289/LES_analysis_output/'
 )
 
 def z_center_field(phi_da):
@@ -66,28 +67,37 @@ def compute_vertical_flux(phi_da, w_da):
 
     return v_flux
 
-def get_height_variation_of_characteristic_scales(v1_3d, v2_3d, z_max, z_min=0.0):
+def _extract_vertical(da, z):
+    fn = da.from_file
+
+    fn_slice = fn.replace('.nc', '.z{}m.nc'.format(z.values))
+
+    if not os.path.exists(fn_slice):
+        da_slice = da.isel(time=0, drop=True)\
+                     .where(da.zt==z, drop=True).squeeze()
+
+        da_slice = da_slice.transpose('x', 'y')
+
+        # copy over the shorthand name so that they can be used when naming the
+        # cumulant
+        da_slice.name = da.name
+
+        da_slice.to_netcdf(fn_slice)
+        da_slice.close()
+
+    return xr.open_dataarray(fn_slice, decode_times=False)
+
+def get_height_variation_of_characteristic_scales(v1_3d, v2_3d, z_max,
+                                                  z_min=0.0, mask=None):
     datasets = []
 
     z_ = v1_3d.zt[np.logical_and(v1_3d.zt > z_min, v1_3d.zt <= z_max)]
 
     for z in tqdm(z_):
-        v1 = v1_3d.isel(time=0, drop=True)\
-                  .where(v1_3d.zt==z, drop=True).squeeze()
+        v1 = _extract_vertical(v1_3d, z=z)
+        v2 = _extract_vertical(v2_3d, z=z)
 
-        v2 = v2_3d.isel(time=0, drop=True)\
-                  .where(v2_3d.zt==z, drop=True).squeeze()
-
-        v1 = v1.transpose('x', 'y')
-        v2 = v2.transpose('x', 'y')
-
-        # copy over the shorthand name so that they can be used when naming the
-        # cumulant
-        v1.name = v1_3d.name
-        v2.name = v2_3d.name
-
-
-        scales = cumulant_analysis.charactistic_scales(v1=v1, v2=v2)
+        scales = cumulant_analysis.charactistic_scales(v1=v1, v2=v2, mask=mask)
 
         datasets.append(scales)
 
@@ -101,7 +111,8 @@ def get_height_variation_of_characteristic_scales(v1_3d, v2_3d, z_max, z_min=0.0
     return d
 
 
-def process(model_name, case_name, param_names, variable_sets, z_min, z_max, tn):
+def process(model_name, case_name, param_names, variable_sets, z_min, z_max, tn,
+            mask=None):
     datasets = []
 
     for param_name in param_names:
@@ -119,10 +130,11 @@ def process(model_name, case_name, param_names, variable_sets, z_min, z_max, tn)
 
 
             characteristic_scales = get_height_variation_of_characteristic_scales(
-                v1_3d=v1_3d, v2_3d=v2_3d, z_max=z_max, z_min=z_min,
+                v1_3d=v1_3d, v2_3d=v2_3d, z_max=z_max, z_min=z_min, mask=mask
             )
 
-            characteristic_scales['dataset_name'] = "{}__{}".format(case_name, param_name)
+            characteristic_scales['dataset_name'] = "{}__{}".format(
+                case_name, param_name, mask=mask)
             param_datasets.append(characteristic_scales)
 
         dataset_param = xr.concat(param_datasets, dim='cumulant')
@@ -132,7 +144,7 @@ def process(model_name, case_name, param_names, variable_sets, z_min, z_max, tn)
 
         datasets.append(dataset_param)
 
-    all_data = xr.concat(datasets, dim='dataset')
+    all_data = xr.concat(datasets, dim='dataset_name')
 
 
     return all_data
@@ -143,17 +155,32 @@ def get_fn(model_name, case_name, param_name, var_name, tn):
                         '3d_blocks', 'full_domain',
                         '{}.tn{}.{}.nc'.format(case_name, tn, var_name))
 
+
+def _check_coords(da):
+    if not 'x' in da.coords or not 'y' in da.coords:
+        warnings.warn("Coordinates for x and y are missing input, assuming "
+                      "dx=25m for now, but these files need regenerating "
+                      "after EGU")
+        dx = 25.0
+
+        da['x'] = dx*np.arange(len(da.x)) - dx*len(da.x)/2
+        da['y'] = dx*np.arange(len(da.y)) - dx*len(da.y)/2
+
+    return da
+
 def get_data(model_name, case_name, param_name, var_name, tn):
     compute_flux = False
-    if var_name.endswith('_flux'):
-        var_name = var_name.replace('_flux', '')
-        compute_flux = True
 
     fn = get_fn(model_name, case_name, param_name, var_name, tn)
+    if var_name.endswith('_flux') and not os.path.exists(fn):
+        var_name = var_name.replace('_flux', '')
+        compute_flux = True
     try:
-        phi_da = xr.open_dataarray(fn, decode_times=False,)
+        phi_da = xr.open_dataarray(fn, decode_times=False,
+                                   chunks=dict(zt=20))
         phi_da = phi_da.rename(dict(xt='x', yt='y'))
         phi_da.name = var_name
+        print("Using {}".format(fn))
     except IOError:
         print fn
         raise
@@ -162,9 +189,12 @@ def get_data(model_name, case_name, param_name, var_name, tn):
     if var_name == 'w':
         phi_da = z_center_field(phi_da=phi_da)
 
+    # so we can store horizontal slices later
+    phi_da.attrs['from_file'] = os.path.realpath(fn)
+
 
     if not compute_flux:
-        return phi_da
+        return _check_coords(phi_da)
     else:
         fn_w = get_fn(model_name, case_name, param_name, 'w', tn)
         w_da = xr.open_dataarray(fn_w, decode_times=False,)
@@ -173,7 +203,7 @@ def get_data(model_name, case_name, param_name, var_name, tn):
         phi_flux_da = compute_vertical_flux(phi_da=phi_da, w_da=w_da)
         phi_flux_da.name = "{}_flux".format(var_name)
 
-        return phi_flux_da
+        return _check_coords(phi_flux_da)
 
 
 def get_cross_section(model_name, case_name, var_name, z, tn,
@@ -230,11 +260,40 @@ if __name__ == "__main__":
     argparser.add_argument('--model', default='uclales')
     argparser.add_argument('--z_max', default=700., type=float)
     argparser.add_argument('--z_min', default=0., type=float)
+    argparser.add_argument('--mask-name', default=None, type=str)
+    argparser.add_argument('--invert-mask', default=False, action="store_true")
 
     args = argparser.parse_args()
 
     if args.model != 'uclales':
         raise NotImplementedError
+
+
+    out_filename = "{}.tn{}.cumulant_length_scales.nc".format(
+        args.case_name, args.tn
+    )
+
+    if not args.mask_name is None:
+        input_name = '{}.tn{}'.format(args.case_name, args.tn)
+        fn_mask = "{}.{}.mask.nc".format(input_name, args.mask_name)
+        if not os.path.exists(fn_mask):
+            raise Exception("Can't find mask file `{}`".format(fn_mask))
+        mask = xr.open_dataarray(fn_mask, decode_times=False)
+        if args.invert_mask:
+            mask_attrs = mask.attrs
+            mask = ~mask
+            mask.name = 'not_{}'.format(mask.name)
+            out_filename = out_filename.replace(
+                '.nc', '.masked.not__{}.nc'.format(args.mask_name)
+            )
+            mask.attrs.update(mask_attrs)
+        else:
+            out_filename = out_filename.replace(
+                '.nc', '.masked.{}.nc'.format(args.mask_name)
+            )
+    else:
+        mask = None
+
 
     variable_sets = zip(args.vars, args.vars)
 
@@ -245,10 +304,9 @@ if __name__ == "__main__":
         variable_sets=variable_sets,
         z_min=args.z_min,
         z_max=args.z_max,
-        tn=args.tn
+        tn=args.tn,
+        mask=mask
     )
 
-    fn = os.path.basename(__file__).replace('.pyc', '.nc')\
-                                   .replace('.py', '.nc')
-    data.to_netcdf(fn)
-    print("Output written to {}".format(fn))
+    data.to_netcdf(out_filename, mode='w')
+    print("Output written to {}".format(out_filename))

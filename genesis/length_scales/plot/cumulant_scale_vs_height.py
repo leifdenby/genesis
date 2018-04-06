@@ -3,6 +3,7 @@ Routines for plotting cumulant characteristics from netCDF datafile
 """
 import warnings
 import os
+import re
 
 import xarray as xr
 from matplotlib.gridspec import GridSpec
@@ -30,12 +31,12 @@ def fix_cumulant_name(name):
         'l_flux': r"\overline{w'q_l'}",
     }
 
-    v1, v2 = name.replace("C(", "").replace(")","").split(",")
+    v1, v2, extra = re.match('C\((\w+),(\w+)\)(.*)', name).groups()
 
     v1_latex = name_mapping.get(v1, v1)
     v2_latex = name_mapping.get(v2, v2)
 
-    return r"$C({},{})$".format(v1_latex, v2_latex)
+    return r"$C({},{})$".format(v1_latex, v2_latex) + '\n' + extra
 
 
 def plot_full_suite(data, marker=''):
@@ -48,13 +49,13 @@ def plot_full_suite(data, marker=''):
     ax = None
     for var_name, s in FULL_SUITE_PLOT_PARTS.items():
         ax = plot.subplot(gs[s], sharey=ax, adjustable='box-forced')
-        lines = []
 
         d_ = data.sel(cumulant='C(l,l)', drop=True)
         z_cb = d_.where(d_.width_principle>0.1, drop=True).zt.min()
         ax.axhline(z_cb, linestyle=':', color='grey', alpha=0.6)
 
         for p in data.dataset_name.values:
+            lines = []
 
             cumulant = "C({},{})".format(var_name, var_name)
             d = data.sel(dataset_name=p, drop=True).sel(cumulant=cumulant, drop=True)
@@ -89,7 +90,7 @@ def plot_full_suite(data, marker=''):
     lgd = plot.figlegend(lines, [l.get_label() for l in lines], loc='lower center', ncol=2)
 
 
-def plot_default(data, marker='', z_max=None, cumulants=[]):
+def plot_default(data, marker='', z_max=None, cumulants=[], split_subplots=True):
 
     if len(cumulants) == 0:
         cumulants = data.cumulant.values
@@ -97,16 +98,21 @@ def plot_default(data, marker='', z_max=None, cumulants=[]):
     if z_max is not None:
         data = data.copy().where(data.zt < z_max, drop=True)
 
-    plot.figure(figsize=(2.5*len(cumulants), 4))
+    if split_subplots:
+        plot.figure(figsize=(2.5*len(cumulants), 4))
 
     z_ = data.zt
 
     ax = None
+
     for i, cumulant in enumerate(cumulants):
+        lines = []
         n = data.cumulant.values.tolist().index(cumulant)
         s = data.isel(cumulant=n, drop=True).squeeze()
-        ax = plot.subplot(1,len(cumulants),i+1, sharey=ax)
-        lines = []
+        if split_subplots:
+            ax = plot.subplot(1,len(cumulants),i+1, sharey=ax)
+        else:
+            ax = plot.gca()
         for p in data.dataset_name.values:
             d = data.sel(dataset_name=p, drop=True).sel(cumulant=cumulant, drop=True)
 

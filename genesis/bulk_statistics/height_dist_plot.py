@@ -17,6 +17,7 @@ import xarray as xr
 import matplotlib.pyplot as plot
 import numpy as np
 import textwrap
+from tqdm import tqdm
 
 
 default_scalings = dict(
@@ -66,7 +67,9 @@ def height_dist_plot(dataset, var_name, t, scaling=None, z_max=700.,
 
     lines = []
 
-    for k, z_ in enumerate(z_var[::skip_interval]):
+    z__ = z_var.sel(zt=slice(z_min, z_max))[::skip_interval]
+
+    for k, z_ in enumerate(tqdm(z__)):
         if z_ < z_min:
             continue
         elif z_ > z_max:
@@ -80,7 +83,15 @@ def height_dist_plot(dataset, var_name, t, scaling=None, z_max=700.,
         units = dataset_[var_name].units.replace(' ', '*')
 
         if not mask is None:
-            mask_slice = get_zdata(zvar_name=z_var.name, z_=z_, dataset=mask)
+            if not 'zt' in mask and len(mask.shape):
+                if not mask.dims == dataset_[var_name].dims:
+                    raise Exception("Problem with dimensions on 2D mask: "
+                                    "mask: {} vs data: {}".format(mask.dims,
+                                    dataset_[var_name].dims))
+
+                mask_slice = mask
+            else:
+                mask_slice = get_zdata(zvar_name=z_var.name, z_=z_, dataset=mask)
             d = d[mask_slice.values]
 
         if 'g/kg' in units:
@@ -313,8 +324,6 @@ if __name__ == "__main__":
     if args.with_legend:
         plot.subplots_adjust(top=0.85, bottom=0.2)
 
-    print fn_mask, mask.attrs
-
     mask_description = ''
     if not mask is None:
         if 'longname' in mask.attrs:
@@ -331,6 +340,6 @@ if __name__ == "__main__":
         ["", "\nwith '{}' mask".format(mask_description)][not mask is None]
     ))
 
-    plot.savefig(out_filename)
+    plot.savefig(out_filename, bbox_inches='tight')
 
     print("Plots saved to {}".format(out_filename))

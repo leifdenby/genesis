@@ -37,7 +37,7 @@ if __name__ == "__main__":
             kwargs[v] = xr.open_dataarray(filename, decode_times=False)
 
     mask = fn(**kwargs)
-    mask.name = "mask"
+    mask.name = args.fn
 
     if hasattr(fn, "description"):
         mask.attrs['longname'] = fn.description
