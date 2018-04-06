@@ -26,22 +26,22 @@ def calc_2nd_cumulant(v1, v2, mask=None):
     """
     assert v1.shape == v2.shape
     Nx, Ny = v1.shape
+    identical_vars = np.all(v1 == v2)
+
     if mask is not None:
         assert v1.shape == mask.shape
 
-        # don't want to modify the input
-        v1 = v1.copy()
-        v2 = v2.copy()
-
         # set outside the masked region to the mean so that values in this
         # region don't correlate with the rest of the domain
-        v1_mean = v1.values[mask.values].mean()
-        v2_mean = v2.values[mask.values].mean()
-        v1.values[~mask.values] = v1_mean
-        v2.values[~mask.values] = v2_mean
+        v1 = v1.where(mask.values, other=v1.mean().values)
+
+        if identical_vars:
+            v2 = v1
+        else:
+            v2 = v2.where(mask.values, other=v2.mean().values)
 
     V1 = np.fft.fft2(v1)
-    if np.all(v1 == v2):
+    if identical_vars:
         V2 = V1
     else:
         V2 = np.fft.fft2(v2)
@@ -64,7 +64,7 @@ def calc_2nd_cumulant(v1, v2, mask=None):
 
     if mask is not None:
         longname = "{} masked by {}".format(longname, mask.longname)
-        name = "{} {} mask".format(name, mask.name)
+        name = "{} `{}` mask".format(name, mask.name)
 
     attrs = dict(units="{} {}".format(v1.units, v2.units), longname=longname)
 
@@ -95,7 +95,7 @@ def identify_principle_axis(C, sI_N=100):
 
     la, v = np.linalg.eig(I)
 
-    theta = np.arctan2(v[0][1], v[0][0])
+    theta = np.arctan2(v[0][0], v[0][1])
 
     # easier to work with positive angles
     if theta < 0.0:
@@ -121,13 +121,16 @@ def covariance_plot(v1, v2, s_N=200, extra_title="", theta_win_N=100,
     assert np.all(v1.coords['y'] == v2.coords['y'])
     assert v1.dims == ('x', 'y')
 
-    x, y = np.meshgrid(v1.coords['x'], v1.coords['y'], indexing='ij')
+    x, y = v1.coords['x'], v1.coords['y']
+    x_c, y_c = x[Nx/2], y[Ny/2]
+    x -= x_c
+    y -= y_c
 
     C_vv = calc_2nd_cumulant(v1, v2, mask=mask)
     theta = identify_principle_axis(C_vv, sI_N=theta_win_N)
 
-    s_win = slice(Nx/2 - s_N/2, Nx/2 + s_N/2), slice(Ny/2 - s_N/2, Ny/2 + s_N/2)
-    x_, y_, C_vv_ = x[s_win], y[s_win], C_vv[s_win]
+    s_x, s_y = slice(Nx/2 - s_N/2, Nx/2 + s_N/2), slice(Ny/2 - s_N/2, Ny/2 + s_N/2)
+    x_, y_, C_vv_ = x[s_x], y[s_y], C_vv[s_x, s_y]
     plot.pcolormesh(x_, y_, C_vv_, rasterized=True)
     plot.colorbar()
 
@@ -136,8 +139,7 @@ def covariance_plot(v1, v2, s_N=200, extra_title="", theta_win_N=100,
     plot.xlabel('x-distance [m]')
     plot.ylabel('y-distance [m]')
 
-    s_line = slice(Nx/2 - s_N/2, Nx/2 + s_N/2)
-    mu_l = v1.coords['x'][s_line]
+    mu_l = x[s_x]
     fn_line = _get_line_sample_func(C_vv, theta)
 
     plot.plot(*fn_line(mu=mu_l)[0], linestyle='--', color='red')
