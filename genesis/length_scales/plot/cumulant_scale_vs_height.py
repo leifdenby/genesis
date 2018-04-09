@@ -90,7 +90,8 @@ def plot_full_suite(data, marker=''):
     lgd = plot.figlegend(lines, [l.get_label() for l in lines], loc='lower center', ncol=2)
 
 
-def plot_default(data, marker='', z_max=None, cumulants=[], split_subplots=True):
+def plot_default(data, marker='', z_max=None, cumulants=[], split_subplots=True,
+                 with_legend=True, fig=None):
 
     if len(cumulants) == 0:
         cumulants = data.cumulant.values
@@ -98,8 +99,8 @@ def plot_default(data, marker='', z_max=None, cumulants=[], split_subplots=True)
     if z_max is not None:
         data = data.copy().where(data.zt < z_max, drop=True)
 
-    if split_subplots:
-        plot.figure(figsize=(2.5*len(cumulants), 4))
+    if fig is None and split_subplots:
+        fig = plot.figure(figsize=(2.5*len(cumulants), 4))
 
     z_ = data.zt
 
@@ -134,8 +135,9 @@ def plot_default(data, marker='', z_max=None, cumulants=[], split_subplots=True)
         else:
             plot.setp(ax.get_yticklabels(), visible=False)
 
-    plot.subplots_adjust(bottom=0.24)
-    lgd = plot.figlegend(lines, [l.get_label() for l in lines], loc='lower center', ncol=2)
+    if with_legend:
+        plot.subplots_adjust(bottom=0.24)
+        lgd = plot.figlegend(lines, [l.get_label() for l in lines], loc='lower center', ncol=2)
 
 
 if __name__ == "__main__":
