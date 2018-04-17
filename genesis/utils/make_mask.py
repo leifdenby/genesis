@@ -9,6 +9,10 @@ import xarray as xr
 
 import mask_functions
 
+# register a progressbar so we can see progress of dask'ed operations with xarray
+from dask.diagnostics import ProgressBar
+ProgressBar().register()
+
 
 if __name__ == "__main__":
     import argparse
@@ -20,21 +24,41 @@ if __name__ == "__main__":
 
     fn = getattr(mask_functions, args.fn)
 
-    needed_vars, _, _, _ = inspect.getargspec(fn)
+    fn_argspec = inspect.getargspec(fn)
+    needed_vars = fn_argspec.args
+    default_values = dict(
+        zip(fn_argspec.args[-len(fn_argspec.defaults):],fn_argspec.defaults)
+    )
 
     kwargs = {}
 
     for v in needed_vars:
-        filename = "{}.{}.nc".format(args.base_name, v)
-        if not os.path.exists(filename):
-            raise Exception("Can't find required var `{}` for mask "
-                            "function `{}`, `{}`".format(v, args.fn, filename))
+        if v in default_values:
+            print("Using default value `{}` for argument `{}`".format(
+                default_values.get(v), v
+            ))
+            kwargs[v] = default_values.get(v)
+            continue
 
-        try:
-            kwargs[v] = xr.open_dataarray(filename, decode_times=False,
-                                          chunks=dict(zt=10))
-        except ValueError:
-            kwargs[v] = xr.open_dataarray(filename, decode_times=False)
+        if v == "ds_profile":
+            case_name = args.base_name.split('.')[0]
+            filename = "{}.ps.nc".format(case_name)
+            if not os.path.exists(filename):
+                raise Exception("Could not find profile file, looked in "
+                                "`{}`".format(filename))
+            kwargs[v] = xr.open_dataset(filename, decode_times=False,
+                                        chunks=dict(time=1))
+        else:
+            filename = "{}.{}.nc".format(args.base_name, v)
+            if not os.path.exists(filename):
+                raise Exception("Can't find required var `{}` for mask "
+                                "function `{}`, `{}`".format(v, args.fn, filename))
+
+            try:
+                kwargs[v] = xr.open_dataarray(filename, decode_times=False,
+                                              chunks=dict(zt=1))
+            except ValueError:
+                kwargs[v] = xr.open_dataarray(filename, decode_times=False)
 
     mask = fn(**kwargs)
     mask.name = args.fn
