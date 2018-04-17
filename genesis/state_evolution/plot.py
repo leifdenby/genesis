@@ -18,15 +18,19 @@ sns.set(style='ticks', color_codes=True)
 sns.despine()
 
 VARS = [
-    "zbmn", "lwp_bar", "rwp_bar", "cfrac"
+    ("zbmn", "zcmn", "zb", "zc"),
+    ("lwp_bar", "rwp_bar", ),
+    ("cfrac", ),
 ]
+
+N_rows = len(VARS) + 1
 
 def main(dataset_name):
     fn = os.path.join('other', '{}.ts.nc'.format(dataset_name))
     ts = xr.open_dataset(fn, decode_times=False)
 
 
-    fig = plot.figure(figsize=(10, 12))
+    fig = plot.figure(figsize=(10, 9))
 
     font = matplotlib.font_manager.FontProperties()
     font.set_weight("bold")
@@ -41,25 +45,29 @@ def main(dataset_name):
     dt_step = int(t_hours_unique.max()/5)
     nt = len(t_hours_unique[::dt_step])
 
-    for n, var in enumerate(VARS):
-        plot.subplot2grid((5,nt), (n,0), colspan=nt)
-        ax = plot.gca()
-        plot.xlabel('time [hours]')
+    for n, varset in enumerate(VARS):
+        plot.subplot2grid((N_rows,nt), (n,0), colspan=nt)
+        for var in varset:
+            ax = plot.gca()
+            plot.xlabel('time [hours]')
 
-        data = ts[var]
-        plot.plot(t_hours, data[:], label=data.longname)
-        plot.ylabel('%s [%s]' % (data.longname, data.units))
+            data = ts[var]
+            plot.plot(t_hours, data[:], label=data.longname)
+            plot.ylabel('%s [%s]' % (data.longname, data.units))
 
-        if var in ('lwp_bar', 'rwp_bar'):
-            plot.ylim(0, None)
+            if var in ('lwp_bar', 'rwp_bar'):
+                plot.ylim(0, None)
+            else:
+                plot.ylim(0, 1.2*data[:].max())
+
+            plot.grid(True)
+            # ticks = 240.*np.arange(0, 12)
+            # plot.xticks(ticks)
+
+        if len(varset) > 1:
+            plot.legend()
         else:
-            plot.ylim(0, 1.2*data[:].max())
-
-        plot.grid(True)
-        # ticks = 240.*np.arange(0, 12)
-        # plot.xticks(ticks)
-
-        plot.title(data.longname)
+            plot.title(data.longname)
 
 
     fn_3d = os.path.join('raw_data', '{}.00000000.nc'.format(dataset_name))
@@ -95,7 +103,7 @@ def main(dataset_name):
                         " units are `{}`.".format(fn, da.time.units))
 
     for n, t_ in enumerate(tqdm(t_hours_unique[::dt_step])):
-        plot.subplot2grid((5, nt), (4, n))
+        plot.subplot2grid((N_rows, nt), (N_rows-1, n))
 
         d = da.sel(
             time=t_*60.*60., drop=True, tolerance=5.*60., method='nearest'
