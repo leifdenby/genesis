@@ -236,7 +236,8 @@ L_EDGE_DEFAULT = 2000.
 SHEAR_DIRECTION_Z_MAX_DEFAULT = 600.
 
 
-def coldpool_edge(tv0100, aux_filename_base, l_smoothing=1200., l_edge=2000.,):
+def coldpool_edge(tv0100, aux_filename_base, l_smoothing=L_SMOOTHING_DEFUALT,
+                  l_edge=2000.,):
     ds_aux = _find_coldpool_edge(
         tv0100=tv0100, aux_filename_base=aux_filename_base,
         l_smoothing=l_smoothing,
