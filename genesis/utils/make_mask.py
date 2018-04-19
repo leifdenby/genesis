@@ -31,9 +31,12 @@ if __name__ == "__main__":
 
     fn_argspec = inspect.getargspec(fn)
     needed_vars = fn_argspec.args
-    default_values = dict(
-        zip(fn_argspec.args[-len(fn_argspec.defaults):],fn_argspec.defaults)
-    )
+    if not fn_argspec.defaults is None:
+        default_values = dict(
+            zip(fn_argspec.args[-len(fn_argspec.defaults):],fn_argspec.defaults)
+        )
+    else:
+        default_values = {}
 
     kwargs = {}
 
@@ -43,8 +46,6 @@ if __name__ == "__main__":
                 default_values.get(v), v
             ))
             kwargs[v] = default_values.get(v)
-        elif v == "aux_filename_base":
-            kwargs[v] = "{}.{}.mask.aux.nc".format(args.base_name, "{}")
         elif v == "ds_profile":
             case_name = args.base_name.split('.')[0]
             filename = "{}.ps.nc".format(case_name)
@@ -66,7 +67,8 @@ if __name__ == "__main__":
                 kwargs[v] = xr.open_dataarray(filename, decode_times=False)
 
     mask = fn(**kwargs)
-    mask.name = args.fn
+    if isinstance(mask, xr.DataArray):
+        mask.name = args.fn
 
     if hasattr(fn, "description"):
         mask.attrs['longname'] = fn.description

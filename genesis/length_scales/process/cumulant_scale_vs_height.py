@@ -261,6 +261,7 @@ if __name__ == "__main__":
     argparser.add_argument('--z_max', default=700., type=float)
     argparser.add_argument('--z_min', default=0., type=float)
     argparser.add_argument('--mask-name', default=None, type=str)
+    argparser.add_argument('--mask-field', default=None, type=str)
     argparser.add_argument('--invert-mask', default=False, action="store_true")
 
     args = argparser.parse_args()
@@ -274,22 +275,36 @@ if __name__ == "__main__":
     )
 
     if not args.mask_name is None:
+        if args.mask_field is None:
+            mask_field = args.mask_name
+            mask_description = args.mask_name
+        else:
+            mask_field = args.mask_field
+            mask_description = "{}__{}".format(args.mask_name, args.mask_field)
+
         input_name = '{}.tn{}'.format(args.case_name, args.tn)
         fn_mask = "{}.{}.mask.nc".format(input_name, args.mask_name)
         if not os.path.exists(fn_mask):
             raise Exception("Can't find mask file `{}`".format(fn_mask))
-        mask = xr.open_dataarray(fn_mask, decode_times=False)
+
+        ds_mask = xr.open_dataset(fn_mask, decode_times=False)
+        if not mask_field in ds_mask:
+            raise Exception("Can't find `{}` in mask, loaded mask file:\n{}"
+                            "".format(mask_field, str(ds_mask)))
+        else:
+            mask = ds_mask[mask_field]
+
         if args.invert_mask:
             mask_attrs = mask.attrs
             mask = ~mask
             mask.name = 'not_{}'.format(mask.name)
             out_filename = out_filename.replace(
-                '.nc', '.masked.not__{}.nc'.format(args.mask_name)
+                '.nc', '.masked.not__{}.nc'.format(mask_description)
             )
             mask.attrs.update(mask_attrs)
         else:
             out_filename = out_filename.replace(
-                '.nc', '.masked.{}.nc'.format(args.mask_name)
+                '.nc', '.masked.{}.nc'.format(mask_description)
             )
     else:
         mask = None

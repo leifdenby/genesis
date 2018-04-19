@@ -251,6 +251,7 @@ if __name__ == "__main__":
     argparser.add_argument('--cumulative', default=False, action="store_true")
     argparser.add_argument('--bin-marker', default='', type=str)
     argparser.add_argument('--mask-name', default=None, type=str)
+    argparser.add_argument('--mask-field', default=None, type=str)
     argparser.add_argument('--invert-mask', default=False, action="store_true")
     argparser.add_argument('--output-in-cwd', default=False, action='store_true')
     argparser.add_argument('--skip-interval', default=1, type=int)
@@ -272,20 +273,34 @@ if __name__ == "__main__":
         out_filename = out_filename.replace('.pdf', '.cumulative.pdf')
 
     if not args.mask_name is None:
+        if args.mask_field is None:
+            mask_field = args.mask_name
+            mask_description = args.mask_name
+        else:
+            mask_field = args.mask_field
+            mask_description = "{}__{}".format(args.mask_name, args.mask_field)
+
         fn_mask = "{}.{}.mask.nc".format(input_name, args.mask_name)
         if not os.path.exists(fn_mask):
             raise Exception("Can't find mask file `{}`".format(fn_mask))
-        mask = xr.open_dataarray(fn_mask, decode_times=False)
+
+        ds_mask = xr.open_dataset(fn_mask, decode_times=False)
+        if not mask_field in ds_mask:
+            raise Exception("Can't find `{}` in mask, loaded mask file:\n{}"
+                            "".format(mask_field, str(ds_mask)))
+        else:
+            mask = ds_mask[mask_field]
+
         if args.invert_mask:
             mask_attrs = mask.attrs
             mask = ~mask
             out_filename = out_filename.replace(
-                '.pdf', '.masked.not__{}.pdf'.format(args.mask_name)
+                '.pdf', '.masked.not__{}.pdf'.format(mask_description)
             )
             mask.attrs.update(mask_attrs)
         else:
             out_filename = out_filename.replace(
-                '.pdf', '.masked.{}.pdf'.format(args.mask_name)
+                '.pdf', '.masked.{}.pdf'.format(mask_description)
             )
     else:
         mask = None
@@ -329,7 +344,7 @@ if __name__ == "__main__":
         if 'longname' in mask.attrs:
             mask_description = mask.attrs['longname']
         else:
-            mask_description = args.mask_name
+            mask_description = mask_description
 
         if args.invert_mask:
             mask_description = "not " + mask_description
