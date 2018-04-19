@@ -7,7 +7,7 @@ import os
 import numpy as np
 import xarray as xr
 
-import mask_functions
+from . import mask_functions
 
 # register a progressbar so we can see progress of dask'ed operations with xarray
 from dask.diagnostics import ProgressBar
@@ -18,7 +18,12 @@ if __name__ == "__main__":
     import argparse
     argparser = argparse.ArgumentParser(__doc__)
     argparser.add_argument('base_name', type=str)
-    argparser.add_argument('fn', choices=mask_functions.__dict__.keys())
+    mask_function_names = [
+        o[0] for o in inspect.getmembers(mask_functions)
+        if inspect.isfunction(o[1]) and not o[0].startswith('_')
+    ]
+
+    argparser.add_argument('fn', choices=list(mask_function_names))
 
     args = argparser.parse_args()
 
