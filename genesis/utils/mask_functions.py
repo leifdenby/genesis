@@ -45,7 +45,8 @@ def coldpool_edge(tv0100, l_smoothing=L_SMOOTHING_DEFUALT,
     selem = skimage.morphology.disk(nx_disk)
     ds['coldpool'] = (
         ds.coldpool_coarse.dims,
-        skimage.morphology.closing(ds.coldpool_coarse, selem=selem)
+        skimage.morphology.closing(ds.coldpool_coarse, selem=selem),
+        dict(longname="smoothed coldpool mask")
     )
     ds.coldpool.attrs['smoothing_length'] = l_smoothing
 
@@ -65,19 +66,20 @@ def coldpool_edge(tv0100, l_smoothing=L_SMOOTHING_DEFUALT,
 
     ds['coldpool_edge'] = (
         ds.coldpool.dims, 
-        np.logical_and(ds.m_outer, ~ds.m_inner)
+        np.logical_and(ds.m_outer, ~ds.m_inner),
+        dict(longname="coldpool edge")
     )
 
     ds['l_smoothing'] = (
         (),
         l_smoothing,
-        dict(units="m")
+        dict(units="m", longname="smoothing lengthscale for smoothing coldpool perimeter")
     )
 
     ds['l_edge'] = (
         (),
         l_edge,
-        dict(units="m")
+        dict(units="m", longname="with of coldpool edge mask")
     )
 
     return ds
