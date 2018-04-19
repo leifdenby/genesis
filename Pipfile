@@ -1,0 +1,19 @@
+[[source]]
+url = "https://pypi.python.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+xarray = "*"
+matplotlib = "*"
+scikit-image = "*"
+jedi = "*"
+"netcdf4" = "*"
+dask = {extras = ["dataframe"]}
+
+[dev-packages]
+jedi = "*"
+ipdb = "*"
+
+[requires]
+python_version = "3.6"
