@@ -10,6 +10,15 @@ import xarray as xr
 from tqdm import tqdm
 import warnings
 
+try:
+    import pyfftw.interfaces
+    fft = pyfftw.interfaces.numpy_fft
+    pyfftw.interfaces.cache.enable()
+    print("Using pyfftw")
+except ImportError:
+    import numpy.fft as fft
+    print("Using numpy.fft fallback")
+
 _var_name_mapping = {
     "q": r"q_t",
     "t": r"\theta_l",
@@ -18,15 +27,15 @@ _var_name_mapping = {
     "w0400": r"w^{400m}",
 }
 
-def calc_2nd_cumulant(v1, v2, mask=None):
+def calc_2nd_cumulant(v1, v2=None, mask=None):
     """
     Calculate 2nd-order cumulant of v1 and v2 in Fourier space. If mask is
     supplied the region outside the mask is set to the mean of the masked
     region, so that this region does not contribute to the cumulant
     """
-    assert v1.shape == v2.shape
+    if v2 is not None:
+        assert v1.shape == v2.shape
     Nx, Ny = v1.shape
-    identical_vars = np.all(v1 == v2)
 
     if mask is not None:
         assert v1.shape == mask.shape
@@ -35,18 +44,16 @@ def calc_2nd_cumulant(v1, v2, mask=None):
         # region don't correlate with the rest of the domain
         v1 = v1.where(mask.values, other=v1.mean().values)
 
-        if identical_vars:
-            v2 = v1
-        else:
+        if v2 is not None:
             v2 = v2.where(mask.values, other=v2.mean().values)
 
-    V1 = np.fft.fft2(v1)
-    if identical_vars:
+    V1 = fft.fft2(v1)
+    if v2 is None:
         V2 = V1
     else:
-        V2 = np.fft.fft2(v2)
+        V2 = fft.fft2(v2)
 
-    c_vv_fft = np.fft.ifft2(V1*V2.conjugate())
+    c_vv_fft = fft.ifft2(V1*V2.conjugate())
 
     # it's most handy to have this centered on (0,0)
     c_vv = c_vv_fft.real/(Nx*Ny)
@@ -306,7 +313,7 @@ def covariance_direction_plot(v1, v2, s_N=200, theta_win_N=100,
 
     return [line_1, line_2]
 
-def charactistic_scales(v1, v2, s_N=100, width_peak_fraction=0.5, mask=None):
+def charactistic_scales(v1, v2=None, s_N=100, width_peak_fraction=0.5, mask=None):
     """
     From 2nd-order cumulant of v1 and v2 compute principle axis angle,
     characteristic length-scales along and perpendicular to principle axis (as
@@ -314,11 +321,12 @@ def charactistic_scales(v1, v2, s_N=100, width_peak_fraction=0.5, mask=None):
     """
     import matplotlib.pyplot as plot
 
-    assert v1.shape == v2.shape
-    Nx, Ny = v1.shape
+    if v2 is not None:
+        assert v1.shape == v2.shape
+        assert np.all(v1.coords['x'] == v2.coords['x'])
+        assert np.all(v1.coords['y'] == v2.coords['y'])
 
-    assert np.all(v1.coords['x'] == v2.coords['x'])
-    assert np.all(v1.coords['y'] == v2.coords['y'])
+    Nx, Ny = v1.shape
     assert v1.dims == ('x', 'y')
 
     C_vv = calc_2nd_cumulant(v1, v2, mask=mask)
