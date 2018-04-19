@@ -38,9 +38,9 @@ if __name__ == "__main__":
                 default_values.get(v), v
             ))
             kwargs[v] = default_values.get(v)
-            continue
-
-        if v == "ds_profile":
+        elif v == "aux_filename_base":
+            kwargs[v] = "{}.{}.mask.aux.nc".format(args.base_name, "{}")
+        elif v == "ds_profile":
             case_name = args.base_name.split('.')[0]
             filename = "{}.ps.nc".format(case_name)
             if not os.path.exists(filename):
