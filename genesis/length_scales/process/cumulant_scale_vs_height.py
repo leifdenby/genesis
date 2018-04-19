@@ -13,10 +13,10 @@ from collections import OrderedDict
 
 from genesis.length_scales import cumulant_analysis
 
+# register a progressbar so we can see progress of dask'ed operations with xarray
+from dask.diagnostics import ProgressBar
+ProgressBar().register()
 
-DATA_ROOT = os.environ.get(
-    'DATA_ROOT','/nfs/see-fs-02_users/earlcd/datastore/a289/LES_analysis_output/'
-)
 
 def z_center_field(phi_da):
     assert phi_da.dims[-1] == 'zm'
@@ -67,10 +67,20 @@ def compute_vertical_flux(phi_da, w_da):
 
     return v_flux
 
-def _extract_vertical(da, z):
+def _extract_horizontal(da, z):
     fn = da.from_file
 
-    fn_slice = fn.replace('.nc', '.z{}m.nc'.format(z.values))
+    fn_slice = os.path.join(
+        os.path.dirname(fn),
+        'k-slices',
+        os.path.basename(fn).replace('.nc', '.z{}m.nc'.format(z.values))
+    )
+
+    if not os.path.exists(os.path.dirname(fn_slice)):
+        raise Exception("Remember to symlink k-slices into `{}`".format(
+            os.dirname(fn)
+        ))
+
 
     if not os.path.exists(fn_slice):
         da_slice = da.isel(time=0, drop=True)\
@@ -87,15 +97,16 @@ def _extract_vertical(da, z):
 
     return xr.open_dataarray(fn_slice, decode_times=False)
 
-def get_height_variation_of_characteristic_scales(v1_3d, v2_3d, z_max,
+def get_height_variation_of_characteristic_scales(v1_3d, z_max, v2_3d=None,
                                                   z_min=0.0, mask=None):
     datasets = []
 
     z_ = v1_3d.zt[np.logical_and(v1_3d.zt > z_min, v1_3d.zt <= z_max)]
 
     for z in tqdm(z_):
-        v1 = _extract_vertical(v1_3d, z=z)
-        v2 = _extract_vertical(v2_3d, z=z)
+        v1 = _extract_horizontal(v1_3d, z=z)
+        if v2_3d is None:
+            v2 = v1
 
         scales = cumulant_analysis.charactistic_scales(v1=v1, v2=v2, mask=mask)
 
@@ -111,49 +122,34 @@ def get_height_variation_of_characteristic_scales(v1_3d, v2_3d, z_max,
     return d
 
 
-def process(model_name, case_name, param_names, variable_sets, z_min, z_max, tn,
-            mask=None):
-    datasets = []
+def process(base_name, variable_sets, z_min, z_max, mask=None):
+    param_datasets = []
+    for var_name_1, var_name_2 in variable_sets:
+        v1_3d = get_data(base_name=base_name, var_name=var_name_1)
 
-    for param_name in param_names:
-        param_datasets = []
-
-        for var_name_1, var_name_2 in variable_sets:
-            v1_3d = get_data(model_name, case_name, param_name,
-                             var_name=var_name_1, tn=tn)
-
-            if var_name_2 != var_name_2:
-                v2_3d = get_data(model_name, case_name, param_name,
-                                 var_name=var_name_2, tn=tn)
-            else:
-                v2_3d = v1_3d
+        if var_name_2 != var_name_2:
+            v2_3d = get_data(base_name=base_name, var_name=var_name_2)
+        else:
+            v2_3d = None
 
 
-            characteristic_scales = get_height_variation_of_characteristic_scales(
-                v1_3d=v1_3d, v2_3d=v2_3d, z_max=z_max, z_min=z_min, mask=mask
-            )
+        characteristic_scales = get_height_variation_of_characteristic_scales(
+            v1_3d=v1_3d, v2_3d=v2_3d, z_max=z_max, z_min=z_min, mask=mask
+        )
 
-            characteristic_scales['dataset_name'] = "{}__{}".format(
-                case_name, param_name, mask=mask)
-            param_datasets.append(characteristic_scales)
+        characteristic_scales['dataset_name'] = base_name
+        param_datasets.append(characteristic_scales)
 
-        dataset_param = xr.concat(param_datasets, dim='cumulant')
-        # all cumulant calculations were for the same dataset, set one value
-        # so we can concat later across `dataset`
-        dataset_param['dataset_name'] = dataset_param.dataset_name.values[0]
+    ds = xr.concat(param_datasets, dim='cumulant')
+    # all cumulant calculations were for the same dataset, set one value
+    # so we can concat later across `dataset`
+    ds['dataset_name'] = ds.dataset_name.values[0]
 
-        datasets.append(dataset_param)
-
-    all_data = xr.concat(datasets, dim='dataset_name')
+    return ds
 
 
-    return all_data
-
-
-def get_fn(model_name, case_name, param_name, var_name, tn):
-    return os.path.join(DATA_ROOT, model_name, case_name, param_name, 
-                        '3d_blocks', 'full_domain',
-                        '{}.tn{}.{}.nc'.format(case_name, tn, var_name))
+def get_fn(base_name, var_name):
+    return os.path.join('{}.{}.nc'.format(base_name, var_name))
 
 
 def _check_coords(da):
@@ -168,21 +164,21 @@ def _check_coords(da):
 
     return da
 
-def get_data(model_name, case_name, param_name, var_name, tn):
+def get_data(base_name, var_name):
     compute_flux = False
 
-    fn = get_fn(model_name, case_name, param_name, var_name, tn)
+    fn = get_fn(base_name=base_name, var_name=var_name)
     if var_name.endswith('_flux') and not os.path.exists(fn):
         var_name = var_name.replace('_flux', '')
         compute_flux = True
     try:
         phi_da = xr.open_dataarray(fn, decode_times=False,
-                                   chunks=dict(zt=20))
+                                   chunks=dict(zt=1))
         phi_da = phi_da.rename(dict(xt='x', yt='y'))
         phi_da.name = var_name
         print("Using {}".format(fn))
     except IOError:
-        print fn
+        print("Error: Couldn't find {}".format(fn))
         raise
 
 
@@ -196,7 +192,7 @@ def get_data(model_name, case_name, param_name, var_name, tn):
     if not compute_flux:
         return _check_coords(phi_da)
     else:
-        fn_w = get_fn(model_name, case_name, param_name, 'w', tn)
+        fn_w = get_fn(model_name, case_name, param_name, 'w')
         w_da = xr.open_dataarray(fn_w, decode_times=False,)
         w_da = w_da.rename(dict(xt='x', yt='y'))
 
@@ -206,13 +202,11 @@ def get_data(model_name, case_name, param_name, var_name, tn):
         return _check_coords(phi_flux_da)
 
 
-def get_cross_section(model_name, case_name, var_name, z, tn,
-                      param_name, z_max=700., method=None):
+def get_cross_section(base_name, var_name, z, z_max=700., method=None):
 
-    ar = get_data(model_name, case_name, param_name, var_name=var_name, tn=tn)
+    ar = get_data(base_name=base_name, var_name=var_name)
 
     da = ar.sel(zt=z, drop=True, method=method).squeeze()
-
     da = da.transpose('x', 'y')
 
     da['zt'] = ((), z, dict(units='m'))
@@ -221,8 +215,8 @@ def get_cross_section(model_name, case_name, var_name, z, tn,
 
 
 def run_default():
-    model = 'uclales'
-    case_name = 'rico'
+    # XXX: needs fixing
+    base_name = 'rico'
 
     VARIABLE_SETS = (
         ('w', 'w'),
@@ -234,13 +228,7 @@ def run_default():
         ('l_flux', 'l_flux'),
     )
 
-    PARAM_NAMES = [
-        'fixed_flux_shear/nx800',
-        'fixed_flux_noshear/nx800',
-    ]
-
-    return process(model_name, case_name, PARAM_NAMES, VARIABLE_SETS,
-                   z_min=0., z_max=700., tn=3)
+    return process(PARAM_NAMES, VARIABLE_SETS, z_min=0., z_max=700.)
 
 if __name__ == "__main__":
     import argparse
@@ -251,13 +239,8 @@ if __name__ == "__main__":
 
     DEFAULT_VARS = "w q t l q_flux t_flux l_flux".split(" ")
 
-    argparser.add_argument('case_name', help='e.g. `rico`', type=str)
-    argparser.add_argument('--param_name',
-        help='e.g. `fixed_flux_shear/nx800`', type=str, default=['',],
-        nargs='+')
-    argparser.add_argument('tn', type=int)
+    argparser.add_argument('base_name', help='e.g. `rico_gcss`', type=str)
     argparser.add_argument('--vars', default=DEFAULT_VARS, nargs="+")
-    argparser.add_argument('--model', default='uclales')
     argparser.add_argument('--z_max', default=700., type=float)
     argparser.add_argument('--z_min', default=0., type=float)
     argparser.add_argument('--mask-name', default=None, type=str)
@@ -266,13 +249,8 @@ if __name__ == "__main__":
 
     args = argparser.parse_args()
 
-    if args.model != 'uclales':
-        raise NotImplementedError
 
-
-    out_filename = "{}.tn{}.cumulant_length_scales.nc".format(
-        args.case_name, args.tn
-    )
+    out_filename = "{}.cumulant_length_scales.nc".format(args.base_name)
 
     if not args.mask_name is None:
         if args.mask_field is None:
@@ -282,8 +260,7 @@ if __name__ == "__main__":
             mask_field = args.mask_field
             mask_description = "{}__{}".format(args.mask_name, args.mask_field)
 
-        input_name = '{}.tn{}'.format(args.case_name, args.tn)
-        fn_mask = "{}.{}.mask.nc".format(input_name, args.mask_name)
+        fn_mask = "{}.{}.mask.nc".format(args.base_name, args.mask_name)
         if not os.path.exists(fn_mask):
             raise Exception("Can't find mask file `{}`".format(fn_mask))
 
@@ -313,13 +290,10 @@ if __name__ == "__main__":
     variable_sets = zip(args.vars, args.vars)
 
     data = process(
-        model_name=args.model,
-        case_name=args.case_name,
-        param_names=args.param_name,
+        base_name=args.base_name,
         variable_sets=variable_sets,
         z_min=args.z_min,
         z_max=args.z_max,
-        tn=args.tn,
         mask=mask
     )
 
