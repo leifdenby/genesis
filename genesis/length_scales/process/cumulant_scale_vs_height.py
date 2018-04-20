@@ -282,6 +282,7 @@ if __name__ == "__main__":
         mask = None
         mask_description = 'full domain'
 
+    print mask_description
 
     variable_sets = zip(args.vars, args.vars)
 

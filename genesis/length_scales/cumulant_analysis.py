@@ -10,6 +10,9 @@ import xarray as xr
 from tqdm import tqdm
 import warnings
 
+DEFAULT_WIDTH_PEAK_FRACTION = 0.2
+DEFAULT_ANGLE_WINDOW = 20
+
 try:
     import pyfftw.interfaces
     fft = pyfftw.interfaces.numpy_fft
@@ -71,7 +74,6 @@ def calc_2nd_cumulant(v1, v2=None, mask=None):
 
     if mask is not None:
         longname = "{} masked by {}".format(longname, mask.longname)
-        name = "{} `{}` mask".format(name, mask.name)
 
     attrs = dict(units="{} {}".format(v1.units, v2.units), longname=longname)
 
@@ -102,7 +104,11 @@ def identify_principle_axis(C, sI_N=100):
 
     la, v = np.linalg.eig(I)
 
-    theta = np.arctan2(v[0][0], v[0][1])
+    # the eigen values "are not necessarily ordered", but we want the maximum
+    # one
+    eig_max = np.argmax(la)
+
+    theta = np.arctan2(v[eig_max][0], v[eig_max][1])
 
     # easier to work with positive angles
     if theta < 0.0:
@@ -159,15 +165,18 @@ def covariance_plot(v1, v2, s_N=200, extra_title="", theta_win_N=100,
     else:
         z_var = 'zm'
 
-    t_units = 's' if 'seconds' in v1.time.units else v1.time.units
+    try:
+        t_units = 's' if 'seconds' in v1.time.units else v1.time.units
 
-    plot.title(
-        """Covariance length-scale for\n{C_vv}
-        t={t}{t_units} z={z}{z_units}
-        """.format(C_vv=C_vv.longname,
-                   t=float(v1.time), t_units=t_units,
-                   z=float(v1[z_var]), z_units=v1[z_var].units)
-    )
+        plot.title(
+            """Covariance length-scale for\n{C_vv}
+            t={t}{t_units} z={z}{z_units}
+            """.format(C_vv=C_vv.longname,
+                       t=float(v1.time), t_units=t_units,
+                       z=float(v1[z_var]), z_units=v1[z_var].units)
+        )
+    except AttributeError:
+        pass
 
     return plot.gca()
 
@@ -208,7 +217,7 @@ def _line_sample(data, theta, max_dist):
     return mu_l, sample(mu_l)[1]
 
 
-def _find_width(data, theta, width_peak_fraction=0.5, max_width=5000.):
+def _find_width(data, theta, width_peak_fraction=DEFAULT_WIDTH_PEAK_FRACTION, max_width=5000.):
     assert data.dims == ('x', 'y')
 
     x = data.coords['x']
@@ -259,8 +268,8 @@ def _find_width(data, theta, width_peak_fraction=0.5, max_width=5000.):
     return xr.DataArray(width, coords=dict(zt=data.zt), attrs=dict(units='m'))
 
 
-def covariance_direction_plot(v1, v2, s_N=200, theta_win_N=100,
-                              width_peak_fraction=0.5, mask=None):
+def covariance_direction_plot(v1, v2, s_N=200, theta_win_N=400,
+                              width_peak_fraction=DEFAULT_WIDTH_PEAK_FRACTION, mask=None):
     """
     Compute 2nd-order cumulant between v1 and v2 and sample and perpendicular
     to pricinple axis. `s_N` sets plot window
@@ -279,7 +288,9 @@ def covariance_direction_plot(v1, v2, s_N=200, theta_win_N=100,
     x, y = np.meshgrid(v1.coords['x'], v1.coords['y'], indexing='ij')
 
     C_vv = calc_2nd_cumulant(v1, v2, mask=mask)
-    theta = identify_principle_axis(C_vv, sI_N=theta_win_N)
+    theta, _ = _converge_on_analysis_window_for_principle_axis(
+        C_vv=C_vv, sI_N=theta_win_N,
+    )
 
     mu_l, C_vv_l = _line_sample(data=C_vv, theta=theta, max_dist=2000.)
 
@@ -313,7 +324,44 @@ def covariance_direction_plot(v1, v2, s_N=200, theta_win_N=100,
 
     return [line_1, line_2]
 
-def charactistic_scales(v1, v2=None, s_N=100, width_peak_fraction=0.5, mask=None):
+
+def _converge_on_analysis_window_for_principle_axis(C_vv, sI_N, sI_N_max=500,
+        width_peak_fraction=DEFAULT_WIDTH_PEAK_FRACTION
+    ):
+
+    found_reasonable_direction = False
+
+    while not found_reasonable_direction:
+        theta = identify_principle_axis(C_vv, sI_N=sI_N)
+
+        width_principle_axis = _find_width(C_vv, theta, width_peak_fraction)
+        width_perpendicular = _find_width(C_vv, theta+pi/2., width_peak_fraction)
+
+        dw = np.abs(width_principle_axis - width_perpendicular)
+        w_mean = 0.5*(width_principle_axis + width_perpendicular)
+
+        f = dw / w_mean
+
+        print(sI_N, width_principle_axis.values, width_perpendicular.values, f.values)
+
+        if width_principle_axis > width_perpendicular:
+            found_reasonable_direction = True
+        # elif f < 0.05:
+            # print(dw, w_mean, f)
+            # print("Escape hatch!")
+            # found_reasonable_direction = True
+        else:
+            sI_N = int(sI_N*1.1)
+
+            if sI_N > sI_N_max:
+                raise Exception("Couldn't converge on a window for finding "
+                                "the principle axis")
+
+    return theta, (width_principle_axis, width_perpendicular)
+
+
+def charactistic_scales(v1, v2=None, sI_N=DEFAULT_ANGLE_WINDOW,
+        width_peak_fraction=DEFAULT_WIDTH_PEAK_FRACTION, mask=None):
     """
     From 2nd-order cumulant of v1 and v2 compute principle axis angle,
     characteristic length-scales along and perpendicular to principle axis (as
@@ -330,10 +378,11 @@ def charactistic_scales(v1, v2=None, s_N=100, width_peak_fraction=0.5, mask=None
     assert v1.dims == ('x', 'y')
 
     C_vv = calc_2nd_cumulant(v1, v2, mask=mask)
-    theta = identify_principle_axis(C_vv, sI_N=s_N)
 
-    width_principle_axis = _find_width(C_vv, theta, width_peak_fraction)
-    width_perpendicular = _find_width(C_vv, theta+pi/2., width_peak_fraction)
+    theta, widths = _converge_on_analysis_window_for_principle_axis(
+        C_vv=C_vv, sI_N=sI_N
+    )
+    (width_principle_axis, width_perpendicular) = widths
 
     theta_deg = xr.DataArray(theta.values*180./pi, dims=theta.dims,
                              attrs=dict(units='deg'))
