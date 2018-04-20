@@ -13,10 +13,6 @@ from collections import OrderedDict
 
 from genesis.length_scales import cumulant_analysis
 
-# register a progressbar so we can see progress of dask'ed operations with xarray
-from dask.diagnostics import ProgressBar
-ProgressBar().register()
-
 
 def z_center_field(phi_da):
     assert phi_da.dims[-1] == 'zm'
@@ -137,13 +133,11 @@ def process(base_name, variable_sets, z_min, z_max, mask=None):
             v1_3d=v1_3d, v2_3d=v2_3d, z_max=z_max, z_min=z_min, mask=mask
         )
 
-        characteristic_scales['dataset_name'] = base_name
         param_datasets.append(characteristic_scales)
 
     ds = xr.concat(param_datasets, dim='cumulant')
-    # all cumulant calculations were for the same dataset, set one value
-    # so we can concat later across `dataset`
-    ds['dataset_name'] = ds.dataset_name.values[0]
+
+    ds.attrs['dataset_name'] = base_name
 
     return ds
 
@@ -246,6 +240,7 @@ if __name__ == "__main__":
     argparser.add_argument('--mask-name', default=None, type=str)
     argparser.add_argument('--mask-field', default=None, type=str)
     argparser.add_argument('--invert-mask', default=False, action="store_true")
+    argparser.add_argument('--output-in-cwd', default=False, action='store_true')
 
     args = argparser.parse_args()
 
@@ -255,10 +250,9 @@ if __name__ == "__main__":
     if not args.mask_name is None:
         if args.mask_field is None:
             mask_field = args.mask_name
-            mask_description = args.mask_name
         else:
             mask_field = args.mask_field
-            mask_description = "{}__{}".format(args.mask_name, args.mask_field)
+        mask_description = args.mask_field
 
         fn_mask = "{}.{}.mask.nc".format(args.base_name, args.mask_name)
         if not os.path.exists(fn_mask):
@@ -275,8 +269,9 @@ if __name__ == "__main__":
             mask_attrs = mask.attrs
             mask = ~mask
             mask.name = 'not_{}'.format(mask.name)
+            mask_description = "not__{}".format(mask_description)
             out_filename = out_filename.replace(
-                '.nc', '.masked.not__{}.nc'.format(mask_description)
+                '.nc', '.masked.{}.nc'.format(mask_description)
             )
             mask.attrs.update(mask_attrs)
         else:
@@ -285,6 +280,7 @@ if __name__ == "__main__":
             )
     else:
         mask = None
+        mask_description = 'full domain'
 
 
     variable_sets = zip(args.vars, args.vars)
@@ -296,6 +292,11 @@ if __name__ == "__main__":
         z_max=args.z_max,
         mask=mask
     )
+
+    data.attrs['mask'] = mask_description
+
+    if args.output_in_cwd:
+        out_filename = out_filename.replace('/', '__')
 
     data.to_netcdf(out_filename, mode='w')
     print("Output written to {}".format(out_filename))

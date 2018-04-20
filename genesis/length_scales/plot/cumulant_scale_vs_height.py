@@ -1,6 +1,9 @@
 """
 Routines for plotting cumulant characteristics from netCDF datafile
 """
+import matplotlib
+matplotlib.use("Agg")
+
 import warnings
 import os
 import re
