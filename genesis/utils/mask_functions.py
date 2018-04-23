@@ -27,6 +27,12 @@ def moist_updrafts(q_flux):
 moist_updrafts.description = 'regions of vertical moisture flux greater than 0.3 m/s kg/kg'
 
 
+def boundary_layer_moist_updrafts(q_flux, z_max=650.):
+    z = q_flux.zt
+    return np.logical_and(q_flux > 0.3e-3, z < z_max)
+boundary_layer_moist_updrafts.description = 'regions in boundary layer of vertical moisture flux greater than 0.3 m/s kg/kg'
+
+
 L_SMOOTHING_DEFUALT = 1000.
 L_EDGE_DEFAULT = 2000.
 SHEAR_DIRECTION_Z_MAX_DEFAULT = 600.

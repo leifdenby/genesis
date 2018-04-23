@@ -62,11 +62,11 @@ if __name__ == "__main__":
 
             try:
                 kwargs[v] = xr.open_dataarray(filename, decode_times=False,
-                                              chunks=dict(zt=1))
+                                              chunks=dict(zt=10))
             except ValueError:
                 kwargs[v] = xr.open_dataarray(filename, decode_times=False)
 
-    mask = fn(**kwargs)
+    mask = fn(**kwargs).squeeze()
     if isinstance(mask, xr.DataArray):
         mask.name = args.fn
 
@@ -74,6 +74,9 @@ if __name__ == "__main__":
         mask.attrs['longname'] = fn.description
 
     out_filename = "{}.{}.mask.nc".format(args.base_name, args.fn)
+
+    if len(filter(lambda d: d != "time", mask.dims)) == 3:
+        out_filename = out_filename.replace('.mask.', '.mask_3d.')
 
     mask.to_netcdf(out_filename)
 
