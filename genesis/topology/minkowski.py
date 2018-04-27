@@ -19,16 +19,23 @@ def calc_scales(object_labels, dx):
     mf = cloud_identification.topological_scales(labels=object_labels, dx=dx)
     V0 = cloud_identification.N3(object_labels)
 
+    n_objects = mf.shape[1]
+    object_ids = np.arange(n_objects)
+
+    nn = ~np.isnan(mf[0,:])
+    print(mf.shape, V0.shape)
+    mf = mf[:,nn]
+    V0 = V0[nn]
+    object_ids = object_ids[nn]
+
+    print("Found {} objects".format(V0.shape[0]))
+
     planarity = cloud_identification.planarity(mf=mf)
     filamentarity = cloud_identification.filamentarity(mf=mf)
 
-    n_objects = mf.shape[1]
-    print("Found {} objects".format(n_objects))
-    object_ids = np.arange(n_objects)
-
     ds = xr.Dataset(coords=dict(object_id=object_ids))
 
-    mf_variables = "thickness width length genus".split(" ")
+    mf_variables = "length width thickness genus".split(" ")
     for n, v in enumerate(mf_variables):
         units = 'm' if v != "genus" else "1"
         ds[v] = xr.DataArray(data=mf[n,:], coords=dict(object_id=object_ids,),
