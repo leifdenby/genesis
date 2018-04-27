@@ -196,7 +196,9 @@ def coldpool_edge_shear_direction_split(
     shear_dir = np.array([dudz_mean, dvdz_mean])
     shear_dir /= np.linalg.norm(shear_dir)
 
-    ds['mean_shear_direction'] = np.arctan2(*shear_dir)*180./pi
+    # note first argument to arctan is y-component
+    # https://docs.scipy.org/doc/numpy-1.12.0/reference/generated/numpy.arctan2.html
+    ds['mean_shear_direction'] = np.arctan2(shear_dir[1], shear_dir[0])*180./pi
     ds.mean_shear_direction.attrs['units'] = 'deg'
 
 
