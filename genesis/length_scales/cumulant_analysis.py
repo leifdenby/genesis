@@ -35,10 +35,14 @@ def calc_2nd_cumulant(v1, v2=None, mask=None):
     """
     if v2 is not None:
         assert v1.shape == v2.shape
-    Nx, Ny = v1.shape
+    if v1.dims == ('x', 'y'):
+        Nx, Ny = v1.shape
+    else:
+        Ny, Nx = v1.shape
 
     if mask is not None:
         assert v1.shape == mask.shape
+        assert v1.dims == mask.dims
 
         # set outside the masked region to the mean so that values in this
         # region don't correlate with the rest of the domain
@@ -57,7 +61,16 @@ def calc_2nd_cumulant(v1, v2=None, mask=None):
 
     # it's most handy to have this centered on (0,0)
     c_vv = c_vv_fft.real/(Nx*Ny)
-    c_vv = np.roll(np.roll(c_vv, shift=Ny/2, axis=1), shift=Nx/2, axis=0)
+    if v1.dims == ('x', 'y'):
+        c_vv = np.roll(
+            np.roll(c_vv, shift=int(Ny/2), axis=1),
+            shift=int(Nx/2), axis=0
+        )
+    else:
+        c_vv = np.roll(
+            np.roll(c_vv, shift=int(Ny/2), axis=0),
+            shift=int(Nx/2), axis=1
+        )
 
 
     # let's give it a useful name and description
@@ -71,7 +84,6 @@ def calc_2nd_cumulant(v1, v2=None, mask=None):
 
     if mask is not None:
         longname = "{} masked by {}".format(longname, mask.longname)
-        name = "{} `{}` mask".format(name, mask.name)
 
     attrs = dict(units="{} {}".format(v1.units, v2.units), longname=longname)
 
@@ -84,8 +96,11 @@ def identify_principle_axis(C, sI_N=100):
     Using 2nd-order cumulant identify principle axis of correlation in 2D.
     `sI_N` denotes window over which to look for maximum correlation
     """
-    assert C.dims == ('x', 'y')
-    Nx, Ny = C.shape
+    if C.dims == ('x', 'y'):
+        Nx, Ny = C.shape
+    else:
+        Ny, Nx = C.shape
+
     x_ = C.coords['x']
     y_ = C.coords['y']
 
@@ -94,11 +109,15 @@ def identify_principle_axis(C, sI_N=100):
         [np.sum(m*y*x),  np.sum(x**2.*m)]
     ])
 
-    sI_x = slice(Nx/2 - sI_N/2, Nx/2 + sI_N/2)
-    sI_y = slice(Ny/2 - sI_N/2, Ny/2 + sI_N/2)
+    sI_x = slice(Nx//2 - sI_N//2, Nx//2 + sI_N//2)
+    sI_y = slice(Ny//2 - sI_N//2, Ny//2 + sI_N//2)
 
-    x, y = np.meshgrid(x_[sI_x], y_[sI_y], indexing='ij')
-    I = I_func(x, y, C[sI_x, sI_y])
+    if C.dims == ('x', 'y'):
+        x, y = np.meshgrid(x_[sI_x], y_[sI_y], indexing='ij')
+        I = I_func(x, y, C[sI_x, sI_y])
+    else:
+        x, y = np.meshgrid(x_[sI_y], y_[sI_x], indexing='ij')
+        I = I_func(x, y, C[sI_y, sI_x])
 
     la, v = np.linalg.eig(I)
 
@@ -113,7 +132,7 @@ def identify_principle_axis(C, sI_N=100):
 
 
 def covariance_plot(v1, v2, s_N=200, extra_title="", theta_win_N=100,
-                    mask=None):
+                    mask=None, sample_angle=None):
     """
     Make a 2D covariance plot of v1 and v2 (both are expected to be
     xarray.DataArray) and identify principle axis. Covariance analysis is
@@ -122,22 +141,34 @@ def covariance_plot(v1, v2, s_N=200, extra_title="", theta_win_N=100,
     import matplotlib.pyplot as plot
 
     assert v1.shape == v2.shape
-    Nx, Ny = v1.shape
+    if v1.dims == ('x', 'y'):
+        Nx, Ny = v1.shape
+    else:
+        Ny, Nx = v1.shape
 
     assert np.all(v1.coords['x'] == v2.coords['x'])
     assert np.all(v1.coords['y'] == v2.coords['y'])
-    assert v1.dims == ('x', 'y')
 
     x, y = v1.coords['x'], v1.coords['y']
-    x_c, y_c = x[Nx/2], y[Ny/2]
+    x_c, y_c = x[Nx//2], y[Ny//2]
     x -= x_c
     y -= y_c
 
     C_vv = calc_2nd_cumulant(v1, v2, mask=mask)
-    theta = identify_principle_axis(C_vv, sI_N=theta_win_N)
+    if sample_angle is not None:
+        theta = xr.DataArray(sample_angle*pi/180., attrs=dict(units='radians'),
+                        coords=dict(zt=v1.zt))
+    else:
+        theta = identify_principle_axis(C_vv, sI_N=theta_win_N)
 
-    s_x, s_y = slice(Nx/2 - s_N/2, Nx/2 + s_N/2), slice(Ny/2 - s_N/2, Ny/2 + s_N/2)
-    x_, y_, C_vv_ = x[s_x], y[s_y], C_vv[s_x, s_y]
+    s_x = slice(Nx//2 - s_N//2, Nx//2 + s_N//2)
+    s_y = slice(Ny//2 - s_N//2, Ny//2 + s_N//2)
+
+    if v1.dims == ('x', 'y'):
+        x_, y_, C_vv_ = x[s_x], y[s_y], C_vv[s_x, s_y]
+    else:
+        x_, y_, C_vv_ = x[s_x], y[s_y], C_vv[s_y, s_x]
+
     plot.pcolormesh(x_, y_, C_vv_, rasterized=True)
     plot.colorbar()
 
@@ -159,15 +190,18 @@ def covariance_plot(v1, v2, s_N=200, extra_title="", theta_win_N=100,
     else:
         z_var = 'zm'
 
-    t_units = 's' if 'seconds' in v1.time.units else v1.time.units
+    try:
+        t_units = 's' if 'seconds' in v1.time.units else v1.time.units
 
-    plot.title(
-        """Covariance length-scale for\n{C_vv}
-        t={t}{t_units} z={z}{z_units}
-        """.format(C_vv=C_vv.longname,
-                   t=float(v1.time), t_units=t_units,
-                   z=float(v1[z_var]), z_units=v1[z_var].units)
-    )
+        plot.title(
+            """Covariance length-scale for\n{C_vv}
+            t={t}{t_units} z={z}{z_units}
+            """.format(C_vv=C_vv.longname,
+                       t=float(v1.time), t_units=t_units,
+                       z=float(v1[z_var]), z_units=v1[z_var].units)
+        )
+    except AttributeError:
+        pass
 
     return plot.gca()
 
@@ -175,13 +209,17 @@ def covariance_plot(v1, v2, s_N=200, extra_title="", theta_win_N=100,
 def _get_line_sample_func(data, theta):
     x = data.coords['x']
     y = data.coords['y']
-    assert data.dims == ('x', 'y')
 
     d_max = data.values.max()
 
     maps = [x, y]
-    lo = np.array([x[0], y[0]])
-    hi = np.array([x[-1], y[-1]])
+    if data.dims == ('x', 'y'):
+        lo = np.array([x[0], y[0]])
+        hi = np.array([x[-1], y[-1]])
+    else:
+        lo = np.array([y[0], x[0]])
+        hi = np.array([y[-1], x[-1]])
+
     interp_f = intergrid.Intergrid(data.values/d_max,
                                    lo=lo, hi=hi, maps=maps, verbose=0)
 
@@ -191,7 +229,11 @@ def _get_line_sample_func(data, theta):
         """
         x_ = np.cos(float(theta))*mu
         y_ = np.sin(float(theta))*mu
-        return (x_, y_), interp_f(np.array([x_, y_]).T)*d_max
+        if data.dims == ('x', 'y'):
+            p = np.array([x_, y_]).T
+        else:
+            p = np.array([y_, x_]).T
+        return (x_, y_), interp_f(p)*d_max
 
     return sample
 
@@ -209,8 +251,6 @@ def _line_sample(data, theta, max_dist):
 
 
 def _find_width(data, theta, width_peak_fraction=0.5, max_width=5000.):
-    assert data.dims == ('x', 'y')
-
     x = data.coords['x']
     x_ = x[np.abs(x) < max_width/2.]
 
@@ -260,7 +300,9 @@ def _find_width(data, theta, width_peak_fraction=0.5, max_width=5000.):
 
 
 def covariance_direction_plot(v1, v2, s_N=200, theta_win_N=100,
-                              width_peak_fraction=0.5, mask=None):
+                              width_peak_fraction=0.5, mask=None,
+                              max_dist=2000., with_45deg_sample=False,
+                              sample_angle=None):
     """
     Compute 2nd-order cumulant between v1 and v2 and sample and perpendicular
     to pricinple axis. `s_N` sets plot window
@@ -268,31 +310,49 @@ def covariance_direction_plot(v1, v2, s_N=200, theta_win_N=100,
     import matplotlib.pyplot as plot
 
     assert v1.shape == v2.shape
-    Nx, Ny = v1.shape
+    if v1.dims == ('x', 'y'):
+        Nx, Ny = v1.shape
+    elif v1.dims == ('y', 'x'):
+        Ny, Nx = v1.shape
+    else:
+        raise NotImplementedError
 
     assert np.all(v1.coords['x'] == v2.coords['x'])
     assert np.all(v1.coords['y'] == v2.coords['y'])
-    assert v1.dims == ('x', 'y')
 
     # TODO: don't actually need 2D coords here, but would have to fix indexing
     # below
-    x, y = np.meshgrid(v1.coords['x'], v1.coords['y'], indexing='ij')
+    if v1.dims == ('x', 'y'):
+        x, y = np.meshgrid(v1.coords['x'], v1.coords['y'], indexing='ij')
+    else:
+        x, y = np.meshgrid(v1.coords['x'], v1.coords['y'])
 
     C_vv = calc_2nd_cumulant(v1, v2, mask=mask)
-    theta = identify_principle_axis(C_vv, sI_N=theta_win_N)
+    if sample_angle is not None:
+        theta = xr.DataArray(sample_angle*pi/180., attrs=dict(units='radians'),
+                        coords=dict(zt=v1.zt))
+    else:
+        theta = identify_principle_axis(C_vv, sI_N=theta_win_N)
 
-    mu_l, C_vv_l = _line_sample(data=C_vv, theta=theta, max_dist=2000.)
+    mu_l, C_vv_l = _line_sample(data=C_vv, theta=theta, max_dist=max_dist)
 
     line_1, = plot.plot(mu_l, C_vv_l, label=r'$\theta=\theta_{princip}$')
     width = _find_width(C_vv, theta, width_peak_fraction)
     plot.axvline(-0.5*width, linestyle='--', color=line_1.get_color())
     plot.axvline(0.5*width, linestyle='--', color=line_1.get_color())
 
-    mu_l, C_vv_l = _line_sample(data=C_vv, theta=theta+pi/2., max_dist=2000.)
+    mu_l, C_vv_l = _line_sample(data=C_vv, theta=theta+pi/2., max_dist=max_dist)
     line_2, = plot.plot(mu_l, C_vv_l, label=r'$\theta=\theta_{princip} + 90^{\circ}$')
     width = _find_width(C_vv, theta+pi/2., width_peak_fraction)
     plot.axvline(-0.5*width, linestyle='--', color=line_2.get_color())
     plot.axvline(0.5*width, linestyle='--', color=line_2.get_color())
+
+    if with_45deg_sample:
+        mu_l, C_vv_l = _line_sample(data=C_vv, theta=theta+pi/4., max_dist=max_dist)
+        line_2, = plot.plot(mu_l, C_vv_l, label=r'$\theta=\theta_{princip} + 45^{\circ}$')
+        width = _find_width(C_vv, theta+pi/2., width_peak_fraction)
+        plot.axvline(-0.5*width, linestyle='--', color=line_2.get_color())
+        plot.axvline(0.5*width, linestyle='--', color=line_2.get_color())
 
     plot.legend()
     plot.xlabel('distance [m]')
@@ -313,7 +373,8 @@ def covariance_direction_plot(v1, v2, s_N=200, theta_win_N=100,
 
     return [line_1, line_2]
 
-def charactistic_scales(v1, v2=None, s_N=100, width_peak_fraction=0.5, mask=None):
+def charactistic_scales(v1, v2=None, l_theta_win=1000., width_peak_fraction=0.5, mask=None,
+                        sample_angle=None):
     """
     From 2nd-order cumulant of v1 and v2 compute principle axis angle,
     characteristic length-scales along and perpendicular to principle axis (as
@@ -327,13 +388,38 @@ def charactistic_scales(v1, v2=None, s_N=100, width_peak_fraction=0.5, mask=None
         assert np.all(v1.coords['y'] == v2.coords['y'])
 
     Nx, Ny = v1.shape
-    assert v1.dims == ('x', 'y')
+
+    dx = np.max(np.gradient(v1.x))
 
     C_vv = calc_2nd_cumulant(v1, v2, mask=mask)
-    theta = identify_principle_axis(C_vv, sI_N=s_N)
 
-    width_principle_axis = _find_width(C_vv, theta, width_peak_fraction)
-    width_perpendicular = _find_width(C_vv, theta+pi/2., width_peak_fraction)
+    l_win = l_theta_win
+    found_min_max_lengths = False
+    m = 0
+    if sample_angle is not None:
+        theta = xr.DataArray(sample_angle*pi/180., attrs=dict(units='radians'),
+                        coords=dict(zt=v1.zt))
+
+        width_principle_axis = _find_width(C_vv, theta, width_peak_fraction)
+        width_perpendicular = _find_width(C_vv, theta+pi/2., width_peak_fraction)
+    else:
+        while not found_min_max_lengths:
+            s_N = int(l_win/dx)*2
+            theta = identify_principle_axis(C_vv, sI_N=s_N)
+
+            width_principle_axis = _find_width(C_vv, theta, width_peak_fraction)
+            width_perpendicular = _find_width(C_vv, theta+pi/2., width_peak_fraction)
+
+            if width_principle_axis > width_perpendicular:
+                found_min_max_lengths = True
+            else:
+                l_win = width_perpendicular
+                m += 1
+                if m > 6:
+                    found_min_max_lengths = True
+                    warnings.warn("quickfix for theta applied, swapped principle and orthogonal axis")
+                    width_principle_axis, width_perpendicular = width_perpendicular, width_principle_axis
+                    theta -= pi/2.
 
     theta_deg = xr.DataArray(theta.values*180./pi, dims=theta.dims,
                              attrs=dict(units='deg'))
