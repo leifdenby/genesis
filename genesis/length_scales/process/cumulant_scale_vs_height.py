@@ -74,15 +74,13 @@ def _extract_horizontal(da, z):
 
     if not os.path.exists(os.path.dirname(fn_slice)):
         raise Exception("Remember to symlink k-slices into `{}`".format(
-            os.dirname(fn)
+            os.path.dirname(fn)
         ))
 
 
     if not os.path.exists(fn_slice):
         da_slice = da.isel(time=0, drop=True)\
                      .where(da.zt==z, drop=True).squeeze()
-
-        da_slice = da_slice.transpose('x', 'y')
 
         # copy over the shorthand name so that they can be used when naming the
         # cumulant
@@ -91,20 +89,30 @@ def _extract_horizontal(da, z):
         da_slice.to_netcdf(fn_slice)
         da_slice.close()
 
-    return xr.open_dataarray(fn_slice, decode_times=False)
+    da_slice = xr.open_dataarray(fn_slice, decode_times=False)
+    # da_slice = da_slice.transpose('xt', 'yt')
+
+    return da_slice
+
 
 def get_height_variation_of_characteristic_scales(v1_3d, z_max, v2_3d=None,
-                                                  z_min=0.0, mask=None):
+                                                  z_min=0.0, mask=None,
+                                                  sample_angle=None):
     datasets = []
 
     z_ = v1_3d.zt[np.logical_and(v1_3d.zt > z_min, v1_3d.zt <= z_max)]
 
     for z in tqdm(z_):
         v1 = _extract_horizontal(v1_3d, z=z)
+
+        v1 = v1.rename(dict(xt='x', yt='y'))
         if v2_3d is None:
             v2 = v1
+        else:
+            v2 = v2.rename(dict(xt='x', yt='y'))
 
-        scales = cumulant_analysis.charactistic_scales(v1=v1, v2=v2, mask=mask)
+        scales = cumulant_analysis.charactistic_scales(v1=v1, v2=v2, mask=mask,
+                                                       sample_angle=sample_angle)
 
         datasets.append(scales)
 
@@ -118,7 +126,7 @@ def get_height_variation_of_characteristic_scales(v1_3d, z_max, v2_3d=None,
     return d
 
 
-def process(base_name, variable_sets, z_min, z_max, mask=None):
+def process(base_name, variable_sets, z_min, z_max, mask=None, sample_angle=None):
     param_datasets = []
     for var_name_1, var_name_2 in variable_sets:
         v1_3d = get_data(base_name=base_name, var_name=var_name_1)
@@ -130,7 +138,8 @@ def process(base_name, variable_sets, z_min, z_max, mask=None):
 
 
         characteristic_scales = get_height_variation_of_characteristic_scales(
-            v1_3d=v1_3d, v2_3d=v2_3d, z_max=z_max, z_min=z_min, mask=mask
+            v1_3d=v1_3d, v2_3d=v2_3d, z_max=z_max, z_min=z_min, mask=mask,
+            sample_angle=sample_angle,
         )
 
         param_datasets.append(characteristic_scales)
@@ -147,14 +156,14 @@ def get_fn(base_name, var_name):
 
 
 def _check_coords(da):
-    if not 'x' in da.coords or not 'y' in da.coords:
-        warnings.warn("Coordinates for x and y are missing input, assuming "
+    if not 'xt' in da.coords or not 'yt' in da.coords:
+        warnings.warn("Coordinates for xt and yt are missing input, assuming "
                       "dx=25m for now, but these files need regenerating "
                       "after EGU")
         dx = 25.0
 
-        da['x'] = dx*np.arange(len(da.x)) - dx*len(da.x)/2
-        da['y'] = dx*np.arange(len(da.y)) - dx*len(da.y)/2
+        da['xt'] = dx*np.arange(len(da.xt)) - dx*len(da.xt)/2
+        da['yt'] = dx*np.arange(len(da.yt)) - dx*len(da.yt)/2
 
     return da
 
@@ -168,7 +177,6 @@ def get_data(base_name, var_name):
     try:
         phi_da = xr.open_dataarray(fn, decode_times=False,
                                    chunks=dict(zt=1))
-        phi_da = phi_da.rename(dict(xt='x', yt='y'))
         phi_da.name = var_name
         print("Using {}".format(fn))
     except IOError:
@@ -188,7 +196,6 @@ def get_data(base_name, var_name):
     else:
         fn_w = get_fn(model_name, case_name, param_name, 'w')
         w_da = xr.open_dataarray(fn_w, decode_times=False,)
-        w_da = w_da.rename(dict(xt='x', yt='y'))
 
         phi_flux_da = compute_vertical_flux(phi_da=phi_da, w_da=w_da)
         phi_flux_da.name = "{}_flux".format(var_name)
@@ -201,8 +208,6 @@ def get_cross_section(base_name, var_name, z, z_max=700., method=None):
     ar = get_data(base_name=base_name, var_name=var_name)
 
     da = ar.sel(zt=z, drop=True, method=method).squeeze()
-    da = da.transpose('x', 'y')
-
     da['zt'] = ((), z, dict(units='m'))
 
     return da
@@ -241,6 +246,7 @@ if __name__ == "__main__":
     argparser.add_argument('--mask-field', default=None, type=str)
     argparser.add_argument('--invert-mask', default=False, action="store_true")
     argparser.add_argument('--output-in-cwd', default=False, action='store_true')
+    argparser.add_argument('--theta', default=None, type=float)
 
     args = argparser.parse_args()
 
@@ -252,7 +258,7 @@ if __name__ == "__main__":
             mask_field = args.mask_name
         else:
             mask_field = args.mask_field
-        mask_description = args.mask_field
+        mask_description = mask_field
 
         fn_mask = "{}.{}.mask.nc".format(args.base_name, args.mask_name)
         if not os.path.exists(fn_mask):
@@ -264,6 +270,8 @@ if __name__ == "__main__":
                             "".format(mask_field, str(ds_mask)))
         else:
             mask = ds_mask[mask_field]
+
+        mask = mask.rename(dict(xt='x', yt='y'))
 
         if args.invert_mask:
             mask_attrs = mask.attrs
@@ -290,7 +298,8 @@ if __name__ == "__main__":
         variable_sets=variable_sets,
         z_min=args.z_min,
         z_max=args.z_max,
-        mask=mask
+        mask=mask,
+        sample_angle=args.theta
     )
 
     data.attrs['mask'] = mask_description
@@ -298,5 +307,7 @@ if __name__ == "__main__":
     if args.output_in_cwd:
         out_filename = out_filename.replace('/', '__')
 
-    data.to_netcdf(out_filename, mode='w')
-    print("Output written to {}".format(out_filename))
+    import ipdb
+    with ipdb.launch_ipdb_on_exception():
+        data.to_netcdf(out_filename, mode='w')
+        print("Output written to {}".format(out_filename))
