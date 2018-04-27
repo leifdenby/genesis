@@ -34,65 +34,73 @@ def label_objects(mask, splitting_scalar=None, remove_at_edge=True):
     return object_labels
 
 
-def process(mask, splitting_scalar=None, remove_at_edge=True):
-    dx = find_grid_spacing(mask)
+def filter_objects_by_mask(objects, mask):
+    if mask.dims != objects.dims:
+        if mask.dims == ('yt', 'xt'):
+            assert objects.dims[:2] == mask.dims
+            # mask_3d = np.zeros(objects.shape, dtype=bool)
+            _, _, nz = objects.shape
+            # XXX: this is pretty disguisting, there must be a better way...
+            # inspired from https://stackoverflow.com/a/44151668
+            mask_3d = np.moveaxis(np.repeat(mask.values[None, :], nz, axis=0), 0, 2)
+        else:
+            raise Exception(mask.dims)
+    else:
+        mask_3d = mask
 
-    object_labels = label_objects(mask=mask, splitting_scalar=splitting_scalar,
-                                  remove_at_edge=remove_at_edge)
+    cloud_identification.remove_intersecting(objects, ~mask_3d)
 
-    return calc_scales(object_labels=object_labels, dx=dx)
-
-
-def find_grid_spacing(mask):
-    # NB: should also checked for stretched grids..
-    xt, yt, zt = mask.xt, mask.yt, mask.zt
-
-    dx_all = np.diff(xt.values)
-    dy_all = np.diff(yt.values)
-    dx, dy = np.max(dx_all), np.max(dy_all)
-
-    if not 'zt' in mask.coords:
-        warnings.warn("zt hasn't got any coordinates defined, assuming dz=dx")
-        dz_all = np.diff(zt.values)
-        dz = np.max(dx)
-
-    if not dx == dy:
-        raise NotImplementedError("Only isotropic grids are supported")
-
-    return dx
+    return objects
 
 
 if __name__ == "__main__":
     import argparse
     argparser = argparse.ArgumentParser(__doc__)
 
-    argparser.add_argument('base_name', type=str)
+    argparser.add_argument('object_file', type=str)
     argparser.add_argument('--objects', type=str)
-    argparser.add_argument('--mask', type=str)
+    argparser.add_argument('--mask-name', default=None, type=str)
+    argparser.add_argument('--mask-field', default=None, type=str)
 
     args = argparser.parse_args()
 
-    input_name = args.base_name
+    object_file = args.object_file
 
-    out_filename = "{}.objects.{}.nc".format(
-        input_name.replace('/', '__'), args.mask_name
-    )
+    if not 'objects' in object_file:
+        raise Exception()
 
-    fn_mask = "{}.{}.mask.nc".format(input_name, args.mask)
+    base_name, objects_mask = object_file.split('.objects.')
+
+    fn_mask = "{}.{}.mask.nc".format(base_name, args.mask_name)
     if not os.path.exists(fn_mask):
         raise Exception("Couldn't find mask file `{}`".format(fn_mask))
-    mask = xr.open_dataarray(fn_mask, decode_times=False)
 
-    fn_objects = "{}.{}.objects.nc".format(input_name, args.objects)
+    if args.mask_field is None:
+        mask_field = args.mask_name
+    else:
+        mask_field = args.mask_field
+    mask_description = mask_field
+
+    ds_mask = xr.open_dataset(fn_mask, decode_times=False)
+    if not mask_field in ds_mask:
+        raise Exception("Can't find `{}` in mask, loaded mask file:\n{}"
+                        "".format(mask_field, str(ds_mask)))
+    else:
+        mask = ds_mask[mask_field]
+
+    fn_objects = "{}.nc".format(object_file)
     if not os.path.exists(fn_objects):
         raise Exception("Couldn't find objects file `{}`".format(fn_objects))
     objects = xr.open_dataarray(fn_objects, decode_times=False)
 
-    ds = process(mask=mask, splitting_scalar=splitting_scalar,
-                 remove_at_edge=not args.keep_edge_objects)
+    ds = filter_objects_by_mask(objects=objects, mask=mask)
 
-    ds.attrs['input_name'] = input_name
-    ds.attrs['mask_name'] = "{} && {}".format(ds.mask_name, args.mask)
+    ds.attrs['input_name'] = object_file
+    ds.attrs['mask_name'] = "{} && {}".format(ds.mask_name, mask_description)
+
+    out_filename = "{}.objects.{}.{}.nc".format(
+        base_name.replace('/', '__'), objects_mask, mask_description
+    )
 
     ds.to_netcdf(out_filename)
     print("Wrote output to `{}`".format(out_filename))
