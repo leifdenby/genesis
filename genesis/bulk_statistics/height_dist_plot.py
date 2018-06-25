@@ -11,7 +11,7 @@ UCLALES:
 """
 import os
 import matplotlib
-matplotlib.use("Agg")
+# matplotlib.use("Agg")
 
 import xarray as xr
 import matplotlib.pyplot as plot
@@ -32,11 +32,15 @@ default_binsize = dict(
     q_flux=4.0e-5
 )
 
+cp_d = 1005.46 # [J/kg/K]
+L_v = 2.5008e6  # [J/kg]
+rho0 = 1.2  # [kg/m^3]
 
 def height_dist_plot(dataset, var_name, t, scaling=None, z_max=700.,
                      binsize=None, cumulative=False, z_min=0.0,
                      offset=True, skip_interval=1, mask=None, 
-                     reverse_cumulative=True, **kwargs):
+                     reverse_cumulative=True, ax=None, scale_fluxes=False,
+                     **kwargs):
 
     z_var = dataset[var_name].coords[
         'zt' if 'zt' in dataset[var_name].coords else 'zm'
@@ -46,6 +50,9 @@ def height_dist_plot(dataset, var_name, t, scaling=None, z_max=700.,
         binsize = default_binsize.get(var_name, 0.1)
     if scaling is None:
         scaling = default_scalings.get(var_name, 100.)
+
+    if ax is None:
+        ax = plot.gca()
 
 
     def calc_bins(v_, dv_):
@@ -95,12 +102,42 @@ def height_dist_plot(dataset, var_name, t, scaling=None, z_max=700.,
             d = d[mask_slice.values]
 
         if 'g/kg' in units:
-            d *= 1000.
+            # XXX: UCLALES has the wrong units it its output files!!!
+            # it says that g/kg is outputted, but it is actually kg/kg
+            # d *= 1000.
             units = units.replace('g/kg', 'kg/kg')
+
+        is_flux = var_name.endswith('flux')
+        if is_flux:
+            var_label = var_name.replace('_flux', '')
+
+            if scale_fluxes:
+                if var_label == 't':
+                    scaling = cp_d*rho0
+                    var_label = r"$\rho_0 c_{p,d} w'\theta_l'$"
+                elif var_label == 'q':
+                    scaling = L_v*rho0
+                    var_label = r"$\rho_0 L_v w'q_t'$"
+                else:
+                    raise NotImplementedError
+
+                units = "W/m$^2$"
+                xlabel = r"{} [{}]".format(var_label, units)
+            else:
+                if var_label == 't':
+                    var_label = r'\theta_l'
+
+                var_label = "$w'{}'$".format(var_label)
+
+                xlabel = r"%s [%s]" % (var_label, units)
+
+        else:
+            xlabel = '{} [{}]'.format(dataset[var_name].longname, units)
+
 
         bin_range, n_bins = calc_bins(d, binsize)
         bin_counts, bin_edges = np.histogram(
-            d, normed=True, bins=n_bins, range=bin_range
+            d, normed=not cumulative, bins=n_bins, range=bin_range
         )
 
         bin_centers = 0.5*(bin_edges[1:] + bin_edges[:-1])
@@ -118,9 +155,12 @@ def height_dist_plot(dataset, var_name, t, scaling=None, z_max=700.,
         if not cumulative:
             s = scaling/bin_counts.max()
         else:
-            s = 1.0
+            if scaling is not None:
+                s = scaling
+            else:
+                s = 1.0
 
-        l, = plot.plot(
+        l, = ax.plot(
             bin_centers,
             bin_counts*s+offset*np.array(z_),
             label="z={}m".format(z_.values),
@@ -128,35 +168,27 @@ def height_dist_plot(dataset, var_name, t, scaling=None, z_max=700.,
         )
 
         if offset:
-            plot.axhline(z_, linestyle=':', color='grey', alpha=0.3)
+            ax.axhline(z_, linestyle=':', color='grey', alpha=0.3)
 
         lines.append(l)
 
         # print float(z_), d.min(), d.max(), dataset_[var_name].shape
 
     if d.min() < 0.0 < d.max():
-        plot.axvline(0.0, linestyle=':', color='grey')
+        ax.axvline(0.0, linestyle=':', color='grey')
 
-    is_flux = var_name.endswith('flux')
-    if is_flux:
-        var_label = var_name.replace('_flux', '')
-        if var_label == 't':
-            var_label = '\\theta_l'
-
-        plot.xlabel(r"$w'%s'$ [%s]" % (var_label, units))
-    else:
-        plot.xlabel('{} [{}]'.format(dataset[var_name].longname, units))
-    # plot.ylabel('{} [{}]'.format(z_var.longname, z_var.units))
+    ax.set_xlabel(xlabel)
+    # ax.set_ylabel('{} [{}]'.format(z_var.longname, z_var.units))
 
     if cumulative:
-        text = r"cumulative $\overline{{w'{}'}}$ [{}]".format(
+        text = r"cumulative {} [{}]".format(
             var_label, units
         )
-        plot.ylabel(textwrap.fill(text, 30))
+        ax.set_ylabel(textwrap.fill(text, 40))
     else:
-        plot.ylabel('{} [{}]'.format("height", z_var.units))
+        ax.set_ylabel('{} [{}]'.format("height", z_var.units))
 
-    plot.title("t={}s".format(t))
+    ax.set_title("t={}s".format(t))
 
     return lines
 
