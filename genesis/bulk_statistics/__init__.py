@@ -33,7 +33,6 @@ def scale_field(da_in):
 
     return da
 
-
 def get_distribution_in_cross_sections(fn, dv_bin, z_slice=None, autoscale=True):
     label_components = ["{}".format(dv_bin)]
     if z_slice is not None:
@@ -121,12 +120,15 @@ def calc_distribution_in_cross_sections(da_s, ds_bin, z_slice=None):
     da_binned.attrs['bin_width'] = ds_bin
     da_binned[bin_centers_label].attrs['units'] = da_s.units
     da_binned[bin_centers_label].attrs['longname'] = da_s.longname
+    if 'tex_label' in da_s.attrs:
+        da_binned[bin_centers_label].attrs['tex_label'] = da_s.tex_label
+    da_binned = da_binned.expand_dims('time')
+    da_binned['time'] = (da_in.time.dims, da_in.time, da_in.time.attrs)
 
     return da_binned
 
-
 def make_cumulative_from_bin_counts(da_bin_counts, reverse=True):
-    bin_centers_label = da_bin_counts.dims[1]
+    bin_centers_label = da_bin_counts.dims[-1]
     bin_center_values = da_bin_counts[bin_centers_label]
 
     n_cells = da_bin_counts.sum(dim=bin_centers_label)
@@ -136,12 +138,14 @@ def make_cumulative_from_bin_counts(da_bin_counts, reverse=True):
     tot_per_bin.name = bin_centers_label.replace('bin_centers', 'per_bin')
 
     if reverse:
-        s = slice(None), slice(None, None, -1)
+        s = Ellipsis, slice(None, None, -1)
     else:
-        s = slice(None), slice(None)
+        s = slice(None)
 
     scaled_cumsum = tot_per_bin[s].cumsum(dim=bin_centers_label)[s]/n_cells
     scaled_cumsum.attrs['units'] = tot_per_bin.units
+    if 'tex_label' in bin_center_values.attrs:
+        scaled_cumsum.attrs['tex_label'] = "cumulative {}".format(bin_center_values.tex_label)
     scaled_cumsum.name = 'cumulative {}'.format(bin_centers_label.replace('_bin_centers', ''))
 
     return scaled_cumsum
