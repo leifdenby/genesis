@@ -23,12 +23,11 @@ def calc_scales(object_labels, dx):
     object_ids = np.arange(n_objects)
 
     nn = ~np.isnan(mf[0,:])
-    print(mf.shape, V0.shape)
     mf = mf[:,nn]
     V0 = V0[nn]
     object_ids = object_ids[nn]
 
-    print("Found {} objects".format(V0.shape[0]))
+    # print("Found {} objects".format(V0.shape[0]))
 
     planarity = cloud_identification.planarity(mf=mf)
     filamentarity = cloud_identification.filamentarity(mf=mf)
@@ -56,6 +55,11 @@ def calc_scales(object_labels, dx):
                                        coords=dict(object_id=object_ids,),
                                        dims=('object_id',),
                                        attrs=dict(units="m^3"))
+
+    ds['num_cells'] = xr.DataArray(data=V0,
+                                       coords=dict(object_id=object_ids,),
+                                       dims=('object_id',),
+                                       attrs=dict(units="1"))
 
 
     return ds
@@ -159,8 +163,6 @@ if __name__ == "__main__":
 
     ds.attrs['input_name'] = input_name
     ds.attrs['mask_name'] = args.mask_name
-
-    # out_filename += "lol"
 
     ds.to_netcdf(out_filename)
     print("Wrote output to `{}`".format(out_filename))
