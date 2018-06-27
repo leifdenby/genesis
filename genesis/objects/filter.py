@@ -58,7 +58,6 @@ if __name__ == "__main__":
     argparser = argparse.ArgumentParser(__doc__)
 
     argparser.add_argument('object_file', type=str)
-    argparser.add_argument('--objects', type=str)
     argparser.add_argument('--mask-name', default=None, type=str)
     argparser.add_argument('--mask-field', default=None, type=str)
 
