@@ -168,6 +168,9 @@ def plot_filamentarity_reference(ax, plot_spheroid=True, plot_cylinder=True):
 
         plot_cylinder_diagram(ax, 0.4, 0.7, l=0.3, r=0.08, color=l_cyl.get_color(), h_label=r"$\lambda r$")
 
+    plot.xlabel("Planarity")
+    plot.ylabel("Filamentarity")
+
 if __name__ == "__main__":
     plot.figure(figsize=(6,6))
 
