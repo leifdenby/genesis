@@ -126,7 +126,8 @@ def get_height_variation_of_characteristic_scales(v1_3d, z_max, v2_3d=None,
     return d
 
 
-def process(base_name, variable_sets, z_min, z_max, mask=None, sample_angle=None):
+def process(base_name, variable_sets, z_min, z_max, mask=None,
+            sample_angle=None, debug=False):
     param_datasets = []
     for var_name_1, var_name_2 in variable_sets:
         v1_3d = get_data(base_name=base_name, var_name=var_name_1)
@@ -136,17 +137,26 @@ def process(base_name, variable_sets, z_min, z_max, mask=None, sample_angle=None
         else:
             v2_3d = None
 
+        if debug:
+            import ipdb
+            with ipdb.launch_ipdb_on_exception():
+                characteristic_scales = get_height_variation_of_characteristic_scales(
+                    v1_3d=v1_3d, v2_3d=v2_3d, z_max=z_max, z_min=z_min, mask=mask,
+                    sample_angle=sample_angle,
+                )
+        else:
 
-        characteristic_scales = get_height_variation_of_characteristic_scales(
-            v1_3d=v1_3d, v2_3d=v2_3d, z_max=z_max, z_min=z_min, mask=mask,
-            sample_angle=sample_angle,
-        )
+            characteristic_scales = get_height_variation_of_characteristic_scales(
+                v1_3d=v1_3d, v2_3d=v2_3d, z_max=z_max, z_min=z_min, mask=mask,
+                sample_angle=sample_angle,
+            )
 
         param_datasets.append(characteristic_scales)
 
     ds = xr.concat(param_datasets, dim='cumulant')
 
     ds.attrs['dataset_name'] = base_name
+    ds['time'] = v1_3d.time
 
     return ds
 
@@ -213,9 +223,7 @@ def get_cross_section(base_name, var_name, z, z_max=700., method=None):
     return da
 
 
-def run_default():
-    # XXX: needs fixing
-    base_name = 'rico'
+def run_default(debug=False):
 
     VARIABLE_SETS = (
         ('w', 'w'),
@@ -226,7 +234,6 @@ def run_default():
         ('t_flux', 't_flux'),
         ('l_flux', 'l_flux'),
     )
-
     return process(PARAM_NAMES, VARIABLE_SETS, z_min=0., z_max=700.)
 
 if __name__ == "__main__":
@@ -245,13 +252,16 @@ if __name__ == "__main__":
     argparser.add_argument('--mask-name', default=None, type=str)
     argparser.add_argument('--mask-field', default=None, type=str)
     argparser.add_argument('--invert-mask', default=False, action="store_true")
-    argparser.add_argument('--output-in-cwd', default=False, action='store_true')
+    argparser.add_argument('--output-in-cwd', default=True, action='store_true')
     argparser.add_argument('--theta', default=None, type=float)
+    argparser.add_argument('--debug', default=False, action='store_true')
 
     args = argparser.parse_args()
 
 
-    out_filename = "{}.cumulant_length_scales.nc".format(args.base_name)
+    out_filename = "{}.cumulant_length_scales.{}.nc".format(
+        args.base_name, "_".join(sorted(args.vars))
+    )
 
     if not args.mask_name is None:
         if args.mask_field is None:
@@ -299,7 +309,8 @@ if __name__ == "__main__":
         z_min=args.z_min,
         z_max=args.z_max,
         mask=mask,
-        sample_angle=args.theta
+        sample_angle=args.theta,
+        debug=args.debug,
     )
 
     data.attrs['mask'] = mask_description

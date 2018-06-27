@@ -6,11 +6,12 @@ matplotlib.use("Agg")
 
 import warnings
 import os
-import re
 
 import xarray as xr
 from matplotlib.gridspec import GridSpec
 import matplotlib.pyplot as plot
+
+from genesis.length_scales.cumulant_analysis import fix_cumulant_name
 
 
 FULL_SUITE_PLOT_PARTS = dict(
@@ -22,24 +23,6 @@ FULL_SUITE_PLOT_PARTS = dict(
     t_flux=(2,3),
     l_flux=(2,4),
 )
-
-
-def fix_cumulant_name(name):
-    name_mapping = {
-        'q': 'q_t',
-        't': r"\theta_l",
-        'l': 'q_l',
-        'q_flux': r"\overline{w'q_t'}",
-        't_flux': r"\overline{w'\theta_l}",
-        'l_flux': r"\overline{w'q_l'}",
-    }
-
-    v1, v2, extra = re.match('C\((\w+),(\w+)\)(.*)', name).groups()
-
-    v1_latex = name_mapping.get(v1, v1)
-    v2_latex = name_mapping.get(v2, v2)
-
-    return r"$C({},{})$".format(v1_latex, v2_latex) + '\n' + extra
 
 
 def plot_full_suite(data, marker=''):
