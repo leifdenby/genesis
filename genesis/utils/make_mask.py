@@ -73,7 +73,7 @@ if __name__ == "__main__":
     if hasattr(fn, "description"):
         mask.attrs['longname'] = fn.description
 
-    out_filename = "{}.{}.mask.nc".format(args.base_name, args.fn)
+    out_filename = "{}.mask.{}.nc".format(args.base_name, args.fn)
 
     if len(filter(lambda d: d != "time", mask.dims)) == 3:
         out_filename = out_filename.replace('.mask.', '.mask_3d.')
