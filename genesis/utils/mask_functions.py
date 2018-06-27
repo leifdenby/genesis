@@ -8,6 +8,11 @@ import scipy.ndimage
 from scipy.constants import pi
 
 
+L_SMOOTHING_DEFUALT = 1000.
+L_EDGE_DEFAULT = 2000.
+SHEAR_DIRECTION_Z_MAX_DEFAULT = 600.
+
+
 def w_pos(w_zt):
     return w_zt > 0.0
 w_pos.description = "positive cell-centered vertical velocity"
@@ -26,16 +31,25 @@ def moist_updrafts(q_flux):
     return q_flux > 0.3e-3
 moist_updrafts.description = 'regions of vertical moisture flux greater than 0.3 m/s kg/kg'
 
+def outside_coldpool(tv0100, l_smoothing=L_SMOOTHING_DEFUALT, l_edge=L_EDGE_DEFAULT):
+    """
+    Computes mask for area outside smoothed coldpool
+    """
+    ds_edge = coldpool_edge(
+        tv0100=tv0100, l_smoothing=l_smoothing, l_edge=l_edge
+    )
+
+    m_outer = ds_edge.m_outer
+
+    return ~m_outer
+outside_coldpool.description = "outside coldpool using -0.1K theta_v limit"
+
+
 
 def boundary_layer_moist_updrafts(q_flux, z_max=650.):
     z = q_flux.zt
     return np.logical_and(q_flux > 0.3e-3, z < z_max)
 boundary_layer_moist_updrafts.description = 'regions in boundary layer of vertical moisture flux greater than 0.3 m/s kg/kg'
-
-
-L_SMOOTHING_DEFUALT = 1000.
-L_EDGE_DEFAULT = 2000.
-SHEAR_DIRECTION_Z_MAX_DEFAULT = 600.
 
 
 def coldpool_edge(tv0100, l_smoothing=L_SMOOTHING_DEFUALT,
@@ -196,7 +210,7 @@ def coldpool_edge_shear_direction_split(
     shear_dir = np.array([dudz_mean, dvdz_mean])
     shear_dir /= np.linalg.norm(shear_dir)
 
-    # note first argument to arctan is y-component
+    # note that y-direction should be first argument to arctan
     # https://docs.scipy.org/doc/numpy-1.12.0/reference/generated/numpy.arctan2.html
     ds['mean_shear_direction'] = np.arctan2(shear_dir[1], shear_dir[0])*180./pi
     ds.mean_shear_direction.attrs['units'] = 'deg'
