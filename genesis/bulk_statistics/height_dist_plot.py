@@ -36,25 +36,11 @@ cp_d = 1005.46 # [J/kg/K]
 L_v = 2.5008e6  # [J/kg]
 rho0 = 1.2  # [kg/m^3]
 
-def height_dist_plot(dataset, var_name, t, scaling=None, z_max=700.,
-                     binsize=None, cumulative=False, z_min=0.0,
-                     offset=True, skip_interval=1, mask=None, 
-                     reverse_cumulative=True, ax=None, scale_fluxes=False,
-                     **kwargs):
-
-    z_var = dataset[var_name].coords[
-        'zt' if 'zt' in dataset[var_name].coords else 'zm'
-    ]
-
-    if binsize is None:
-        binsize = default_binsize.get(var_name, 0.1)
-    if scaling is None:
-        scaling = default_scalings.get(var_name, 100.)
-
-    if ax is None:
-        ax = plot.gca()
-
-
+def calc_distribution_in_cross_sections(s_da, ds_bin):
+    """
+    `s_da`: scalar being binned in horizontal cross-sections
+    `ds_bin`: bin-size
+    """
     def calc_bins(v_, dv_):
         try:
             v_min = dv_*np.floor(v_.min()/dv_)
@@ -69,12 +55,30 @@ def height_dist_plot(dataset, var_name, t, scaling=None, z_max=700.,
         else:
             return (v_min, v_max), n
 
+    z_var = s_da.coords[
+        'zt' if 'zt' in s_da.coords else 'zm'
+    ]
+
     def get_zdata(zvar_name, z_, dataset=dataset):
-        return dataset.sel(**{zvar_name: z_, "drop": True, "time":t})
+        return dataset.sel(**{zvar_name: z_, "drop": True})
 
     lines = []
 
-    z__ = z_var.sel(zt=slice(z_min, z_max))[::skip_interval]
+    # get data will be working on
+    z = z_var.sel(zt=slice(z_min, z_max, skip_interval))
+    nz = z.shape[0]
+    da_in = s_da.sel(**{ zvar.name: z, "drop": True })
+
+    # setup array for output
+    v_range, n_bins = calc_bins(da_in, dv=ds_bin)
+    bins = np.linspace(v_range[0], v_range[1], num=n_bins)
+
+    def calc_distribution_in_cross_section(da_cross):
+        da_counts = da_cross.groupby_bins(bins=bins)
+        pass
+
+    return da_in.groupby('z').apply(calc_distribution_in_cross_section)
+
 
     for k, z_ in enumerate(tqdm(z__)):
         if z_ < z_min:
@@ -159,6 +163,21 @@ def height_dist_plot(dataset, var_name, t, scaling=None, z_max=700.,
                 s = scaling
             else:
                 s = 1.0
+
+def height_dist_plot(dataset, var_name, t, scaling=None, z_max=700.,
+                     binsize=None, cumulative=False, z_min=0.0,
+                     offset=True, skip_interval=1, mask=None, 
+                     reverse_cumulative=True, ax=None, scale_fluxes=False,
+                     **kwargs):
+
+    if binsize is None:
+        binsize = default_binsize.get(var_name, 0.1)
+    if scaling is None:
+        scaling = default_scalings.get(var_name, 100.)
+
+    if ax is None:
+        ax = plot.gca()
+
 
         l, = ax.plot(
             bin_centers,

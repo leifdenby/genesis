@@ -33,7 +33,37 @@ def scale_field(da_in):
 
     return da
 
-def get_distribution_in_cross_sections(fn, dv_bin, z_slice=None, autoscale=True):
+def load_mask(field_fn, mask_name, mask_field=None, invert=False):
+    input_name = field_fn.replace('.nc', '')
+
+    if mask_field is None:
+        mask_field = mask_name
+
+    fn_mask = "{}.{}.mask.nc".format(input_name, mask_name)
+
+    if not os.path.exists(fn_mask):
+        raise Exception("Can't find mask file `{}`".format(fn_mask))
+
+    ds_mask = xr.open_dataset(fn_mask, decode_times=False)
+
+    if not mask_field in ds_mask:
+        raise Exception("Can't find `{}` in mask, loaded mask file:\n{}"
+                        "".format(mask_field, str(ds_mask)))
+    else:
+        mask = ds_mask[mask_field]
+
+    if invert:
+        mask_attrs = mask.attrs
+        mask = ~mask
+        mask.attrs.update(mask_attrs)
+        mask.name = "{}__inverted".format(mask.name)
+
+    return mask
+
+
+def get_distribution_in_cross_sections(fn, dv_bin, z_slice=None,
+                                       autoscale=True, mask=None):
+
     label_components = ["{}".format(dv_bin)]
     if z_slice is not None:
         label_components.append("z_{}_{}_{}".format(z_slice.start, z_slice.stop, z_slice.step))
@@ -46,12 +76,20 @@ def get_distribution_in_cross_sections(fn, dv_bin, z_slice=None, autoscale=True)
         return xr.open_dataarray(fn_out, decode_times=False)
     else:
         da_in = xr.open_dataarray(fn, decode_times=False, chunks=dict(zt=1))
+
+        if mask is not None:
+            da_in = da_in.where(mask, 0.0)
+
         if autoscale:
             da_in = scale_field(da_in)
 
         da_out = calc_distribution_in_cross_sections(da_in, ds_bin=dv_bin, z_slice=z_slice)
+        if mask is not None:
+            da_out.attrs['mask'] = mask.name
+
         da_out.to_netcdf(fn_out)
         return da_out
+
 
 def calc_distribution_in_cross_sections(da_s, ds_bin, z_slice=None):
     """
