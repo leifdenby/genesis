@@ -23,12 +23,9 @@ def calc_scales(object_labels, dx):
     object_ids = np.arange(n_objects)
 
     nn = ~np.isnan(mf[0,:])
-    print(mf.shape, V0.shape)
     mf = mf[:,nn]
     V0 = V0[nn]
     object_ids = object_ids[nn]
-
-    print("Found {} objects".format(V0.shape[0]))
 
     planarity = cloud_identification.planarity(mf=mf)
     filamentarity = cloud_identification.filamentarity(mf=mf)
