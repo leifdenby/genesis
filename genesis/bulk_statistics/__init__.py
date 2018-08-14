@@ -187,3 +187,47 @@ def make_cumulative_from_bin_counts(da_bin_counts, reverse=True):
     scaled_cumsum.name = 'cumulative {}'.format(bin_centers_label.replace('_bin_centers', ''))
 
     return scaled_cumsum
+
+def get_dataset(input_name, variables, output_fn_for=None, p=''):
+    if input_name.endswith('.nc'):
+        dataset = xr.open_dataset(input_name, decode_times=False)
+
+        for var_name in enumerate(variables):
+            if var_name.endswith('_flux') and not var_name in dataset:
+                _add_flux_var(dataset, var_name.replace('_flux', ''))
+
+        out_filename = input_name.replace('.nc', '.{}.pdf'.format(output_fn_for))
+    else:
+        out_filename = input_name + '.{}.pdf'.format(output_fn_for)
+
+        # have to handle `w` seperately because it is staggered
+        filenames = [
+            p+"{}.{}.nc".format(input_name, var_name) for var_name in variables
+            if not var_name == 'w'
+        ]
+        missing = [
+            fn for fn in filenames if not os.path.exists(fn)
+        ]
+
+        if len(filenames) > 0:
+            if len(missing) > 0:
+                raise Exception("Missing files: {}".format(", ".join(missing)))
+
+            dataset = xr.open_mfdataset(filenames, decode_times=False,
+                                        concat_dim=None, chunks=dict(zt=20))
+        else:
+            dataset = None
+
+        if 'w' in variables:
+            d2 = xr.open_dataset("{}.w.nc".format(input_name),
+                                 decode_times=False, chunks=dict(zm=20))
+
+            if not dataset is None:
+                dataset = xr.merge([dataset, d2])
+            else:
+                dataset = d2
+
+    if output_fn_for is not None:
+        return dataset, out_filename
+    else:
+        return dataset

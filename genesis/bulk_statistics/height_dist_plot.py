@@ -19,6 +19,8 @@ import numpy as np
 import textwrap
 from tqdm import tqdm
 
+from . import get_dataset
+
 
 default_scalings = dict(
     q=400.,
@@ -245,50 +247,6 @@ def _add_flux_var(dataset, var_name):
     return dataset
 
 
-def get_dataset(input_name, variables, generate_output_filename=False):
-    if input_name.endswith('.nc'):
-        dataset = xr.open_dataset(input_name, decode_times=False)
-
-        for var_name in enumerate(variables):
-            if var_name.endswith('_flux') and not var_name in dataset:
-                _add_flux_var(dataset, var_name.replace('_flux', ''))
-
-        out_filename = input_name.replace('.nc', '.bl_hist_plots.pdf')
-    else:
-        out_filename = input_name + '.bl_hist_plots.pdf'
-
-        # have to handle `w` seperately because it is staggered
-        filenames = [
-            "{}.{}.nc".format(input_name, var_name) for var_name in variables
-            if not var_name == 'w'
-        ]
-        missing = [
-            fn for fn in filenames if not os.path.exists(fn)
-        ]
-
-        if len(filenames) > 0:
-            if len(missing) > 0:
-                raise Exception("Missing files: {}".format(", ".join(missing)))
-
-            dataset = xr.open_mfdataset(filenames, decode_times=False,
-                                        concat_dim=None, chunks=dict(zt=20))
-        else:
-            dataset = None
-
-        if 'w' in variables:
-            d2 = xr.open_dataset("{}.w.nc".format(input_name),
-                                 decode_times=False, chunks=dict(zm=20))
-
-            if not dataset is None:
-                dataset = xr.merge([dataset, d2])
-            else:
-                dataset = d2
-
-    if generate_output_filename:
-        return dataset, out_filename
-    else:
-        return dataset
-
 
 if __name__ == "__main__":
     import argparse
@@ -318,6 +276,7 @@ if __name__ == "__main__":
     dataset, out_filename = get_dataset(
         input_name=input_name, generate_output_filename=True,
         variables=args.vars,
+        output_fn_for='height_dist_plot'
     )
 
     if args.cumulative is True:
