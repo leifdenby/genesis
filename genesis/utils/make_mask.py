@@ -73,7 +73,7 @@ if __name__ == "__main__":
         mask.name = args.fn
 
     if hasattr(fn, "description"):
-        mask.attrs['longname'] = fn.description
+        mask.attrs['longname'] = fn.description.format(**kwargs)
 
     out_filename = "{}.mask.{}.nc".format(args.base_name, args.fn)
 
