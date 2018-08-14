@@ -99,6 +99,7 @@ if __name__ == "__main__":
     out_filename = "{}.mask.{}.nc".format(args.base_name, args.fn)
     if len(extra_args_str) > 0:
         out_filename = out_filename.replace('.nc', '.{}.nc'.format(extra_args_str))
+        mask.name = '{}.{}'.format(mask.name, extra_args_str)
 
     if len(filter(lambda d: d != "time", mask.dims)) == 3:
         out_filename = out_filename.replace('.mask.', '.mask_3d.')
