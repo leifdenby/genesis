@@ -238,3 +238,31 @@ def coldpool_edge_shear_direction_split(
 
     return ds
 coldpool_edge_shear_direction_split.description = "Coolpool edge split into up- and downshear direction"
+
+
+def rad_tracer_thermals(base_name, cvrxp, num_std_div=1.0):
+    """
+    Use surface-released radioactive tracer to define updraft mask. Tracer is
+    defined as in Couvreux et al 2010
+    """
+    # Couvreux et al 2010 uses the number of standard deviations (through the
+    # horizontal) a given point is from the mean to determine whether a point
+    # is inside the mask or not, so we generate that file here if it doesn't
+    # already exist
+    p_filename = "{}.{}.{}.nc".format(
+        base_name, 'cvrxp_stddiv_p', num_std_div
+    )
+
+
+    if not os.path.exists(p_filename):
+        print("Generating std div perturbation file...")
+        a_mean = cvrxp.mean(dim=('xt', 'yt')).squeeze()
+        a_p = cvrxp - a_mean
+        a_p.name = '{}_stddiv_p'.format(cvrxp.name )
+        a_p.to_netcdf(p_filename)
+        print("done")
+    else:
+        a_p = xr.open_dataset(p_filename, chunks=dict(zt=10))
+
+    return a_p > num_std_div
+rad_tracer_thermals.description = 'radioactive tracer-based envelope'

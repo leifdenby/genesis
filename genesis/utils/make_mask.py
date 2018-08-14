@@ -54,6 +54,8 @@ if __name__ == "__main__":
                                 "`{}`".format(filename))
             kwargs[v] = xr.open_dataset(filename, decode_times=False,
                                         chunks=dict(time=1))
+        elif v == "base_name":
+            kwargs["base_name"] = args.base_name
         else:
             filename = "{}.{}.nc".format(args.base_name, v)
             if not os.path.exists(filename):
