@@ -262,7 +262,7 @@ def rad_tracer_thermals(base_name, cvrxp, num_std_div=1.0):
         a_p.to_netcdf(p_filename)
         print("done")
     else:
-        a_p = xr.open_dataset(p_filename, chunks=dict(zt=10))
+        a_p = xr.open_dataarray(p_filename, chunks=dict(zt=10))
 
     return a_p > num_std_div
 rad_tracer_thermals.description = r"radioactive tracer-based envelope ($\phi' > {num_std_div} \sigma(\phi)$)"
