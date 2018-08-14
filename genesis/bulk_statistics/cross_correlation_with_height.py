@@ -55,8 +55,10 @@ def get_cloudbase_data(cloud_data, t0, t_age_max=200., z_base_max=700.):
     r_t__belowcloud = cloud_data.get_from_3d(var_name='q', z=z_slice, t=t0)
 
     ds = xr.Dataset()
-    ds['r_t'] = r_t__belowcloud[~m]
-    ds['theta_l'] = theta_l__belowcloud[~m]
+    # XXX: using non-xarray indexing here, this could be made faster (and
+    # probably more robust too)
+    ds['r_t'] = r_t__belowcloud.values[~m]
+    ds['theta_l'] = theta_l__belowcloud.values[~m]
 
     return ds
 
@@ -166,9 +168,14 @@ if __name__ == "__main__":
 
     ds_cb = get_cloudbase_data(cloud_data=cloud_data, t0=t0)
 
-    main(ds_3d=ds_3d, ds_cb=ds_cb, z_levels=args.z)
+    import ipdb
+    with ipdb.launch_ipdb_on_exception():
+        main(ds_3d=ds_3d, ds_cb=ds_cb, z_levels=args.z)
 
     name = input_name.replace('/','__')
     title = "{} {}".format(name, plt.gca().get_title())
     plt.gca().set_title(title)
-    plt.savefig('{}.png'.format(name))
+
+    out_fn = '{}.cross_correlation.{}.{}.png'.format(name, var_name1, var_name2)
+    plt.savefig(out_fn)
+    print("Saved plot to {}".format(out_fn))
