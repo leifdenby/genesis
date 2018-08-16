@@ -247,22 +247,24 @@ def rad_tracer_thermals(base_name, cvrxp, num_std_div=1.0):
     """
     # Couvreux et al 2010 uses the number of standard deviations (through the
     # horizontal) a given point is from the mean to determine whether a point
-    # is inside the mask or not, so we generate that file here if it doesn't
-    # already exist
-    p_filename = "{}.{}.{}.nc".format(
-        base_name, 'cvrxp_stddiv_p', num_std_div
-    )
+    # is inside the mask or not
+    # To speed up calculation we create a file which stores the number of
+    # standard deviations the perturbation from the horizontal mean at each
+    # point is
+    stddivs_field_name = '{}_p_stddivs'.format(cvrxp.name)
+    fn_stddiv = "{}.{}.nc".format(base_name, stddivs_field_name)
 
-
-    if not os.path.exists(p_filename):
-        print("Generating std div perturbation file...")
+    if not os.path.exists(fn_stddiv):
         a_mean = cvrxp.mean(dim=('xt', 'yt')).squeeze()
         a_p = cvrxp - a_mean
-        a_p.name = '{}_stddiv_p'.format(cvrxp.name )
-        a_p.to_netcdf(p_filename)
-        print("done")
-    else:
-        a_p = xr.open_dataarray(p_filename, chunks=dict(zt=10))
+        a_stddiv = cvrxp.std(dim=('xt', 'yt')).squeeze()
 
-    return a_p > num_std_div
+        da_stddivs = a_p/a_stddiv
+        da_stddivs.name = stddivs_field_name
+        da_stddivs.to_netcdf(fn_stddiv)
+    else:
+        da_stddivs = xr.open_dataarray(fn_stddiv)
+
+    mask = da_stddivs > num_std_div
+    return mask
 rad_tracer_thermals.description = r"radioactive tracer-based envelope ($\phi' > {num_std_div} \sigma(\phi)$)"
