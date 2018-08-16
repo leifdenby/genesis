@@ -75,9 +75,11 @@ def main(ds_3d, ds_cb, z_levels):
 
         c = next(colors)
         try:
+            xd=ds_.q.values.flatten()*1.0e3
+            yd=ds_.t.values.flatten()
+
             _, _, cnt = joint_hist_contoured(
-                xd=ds_.q.values.flatten()*1.0e3,
-                yd=ds_.t.values.flatten(),
+                xd=xd, yd=yd,
                 normed_levels=normed_levels
             )
             for n, l in enumerate(cnt.collections):
@@ -145,6 +147,7 @@ if __name__ == "__main__":
     argparser.add_argument('var1', type=str)
     argparser.add_argument('var2', type=str)
     argparser.add_argument('--z', type=float, nargs="+", default=Z_LEVELS_DEFAULT)
+    argparser.add_argument('--mask', type=str, default=None)
     args = argparser.parse_args()
 
     input_name = args.input_name
@@ -157,6 +160,14 @@ if __name__ == "__main__":
     ds_3d = get_dataset(dataset_name_with_time, variables=[var_name1, var_name2],
                         p='{}/3d_blocks/full_domain/'.format(case_name))
 
+    if args.mask is not None:
+        mask_3d = get_dataset(dataset_name_with_time,
+            variables=['mask_3d.{}'.format(args.mask)],
+            p='{}/masks/'.format(case_name)
+        )[args.mask]
+    else:
+        mask_3d = None
+
     t0 = ds_3d.time.values
 
     import cloud_tracking_analysis.cloud_data
@@ -168,14 +179,18 @@ if __name__ == "__main__":
 
     ds_cb = get_cloudbase_data(cloud_data=cloud_data, t0=t0)
 
-    import ipdb
-    with ipdb.launch_ipdb_on_exception():
-        main(ds_3d=ds_3d, ds_cb=ds_cb, z_levels=args.z)
+    if mask_3d is not None:
+        ds_3d = ds_3d.where(mask_3d)
+    main(ds_3d=ds_3d, ds_cb=ds_cb, z_levels=args.z)
 
     name = input_name.replace('/','__')
-    title = "{} {}".format(name, plt.gca().get_title())
-    plt.gca().set_title(title)
 
+    title = "{} {}".format(name, plt.gca().get_title())
     out_fn = '{}.cross_correlation.{}.{}.png'.format(name, var_name1, var_name2)
+    if args.mask is not None:
+        title += "\nmasked by {}".format(mask_3d.longname)
+        out_fn = out_fn.replace('.png', '.{}.png'.format(args.mask))
+
+    plt.gca().set_title(title)
     plt.savefig(out_fn)
     print("Saved plot to {}".format(out_fn))
