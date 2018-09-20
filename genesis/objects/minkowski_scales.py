@@ -21,7 +21,7 @@ if __name__ == "__main__":
 
     args = argparser.parse_args()
 
-    object_file = args.objects_file
+    object_file = args.objects_file.replace('.nc', '')
 
     if not 'objects' in object_file:
         raise Exception()
