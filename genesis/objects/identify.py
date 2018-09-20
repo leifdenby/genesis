@@ -81,7 +81,7 @@ if __name__ == "__main__":
 
     out_filename = "{}.objects.{}.nc".format(
         input_name.replace('/', '__'), args.mask_name
-    )
+    ).replace('__masks', '')
 
     fn_mask = "{}.mask_3d.{}.nc".format(input_name, args.mask_name)
     fn_mask_2d = "{}.mask.{}.nc".format(input_name, args.mask_name)
