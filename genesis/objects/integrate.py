@@ -37,8 +37,12 @@ def integrate(objects, da, operator):
         if object_ids[0] == 0:
             object_ids = object_ids[1:]
 
-    assert objects.dims == da.dims
-    assert objects.shape == da.shape
+    if len(da.dims) == 1 and len(objects.dims) == 3:
+        # special case for allowing integration of coordinates
+        da = xr.broadcast(objects, da)[1]
+    else:
+        assert objects.dims == da.dims
+        assert objects.shape == da.shape
 
     dx = _estimate_dx(da=da)
 
@@ -62,7 +66,7 @@ def integrate(objects, da, operator):
     da = xr.DataArray(vals, coords=dict(object_id=object_ids),
                       dims=('object_id',),
                       attrs=dict(longname=longname, units=units),
-                      name='{}__integral'.format(da.name))
+                      name='{}__{}'.format(da.name, operator))
 
     return da
 
@@ -97,6 +101,13 @@ if __name__ == "__main__":
     scalar_field = args.scalar_field
     if scalar_field in objects.coords:
         da_scalar = objects.coords[args.scalar_field]
+    if scalar_field == 'volume':
+        dx = _estimate_dx(objects)
+        da_scalar = xr.DataArray(
+            np.ones_like(objects, dtype=np.float)*dx**3.0,
+            coords=objects.coords, attrs=dict(units='m^3')
+        )
+        da_scalar.name = 'volume'
     else:
         fn_scalar = "{}.{}.nc".format(base_name, args.scalar_field)
         if not os.path.exists(fn_scalar):
