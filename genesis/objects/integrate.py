@@ -76,7 +76,7 @@ if __name__ == "__main__":
     argparser.add_argument('--operator', default='volume_integral', type=str)
 
     args = argparser.parse_args()
-    object_file = args.object_file
+    object_file = args.object_file.replace('.nc', '')
 
     op = args.operator
 
