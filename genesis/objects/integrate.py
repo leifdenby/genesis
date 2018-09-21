@@ -101,7 +101,7 @@ if __name__ == "__main__":
     scalar_field = args.scalar_field
     if scalar_field in objects.coords:
         da_scalar = objects.coords[args.scalar_field]
-    if scalar_field == 'volume':
+    elif scalar_field == 'volume':
         dx = _estimate_dx(objects)
         da_scalar = xr.DataArray(
             np.ones_like(objects, dtype=np.float)*dx**3.0,
