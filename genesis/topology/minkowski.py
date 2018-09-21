@@ -20,7 +20,9 @@ def calc_scales(object_labels, dx):
     V0 = cloud_identification.N3(object_labels)
 
     n_objects = mf.shape[1]
-    object_ids = np.arange(n_objects)
+    # the cloud_identification code doesn't return properties for the zeroth
+    # object, since that is empty space
+    object_ids = np.arange(1, n_objects+1)
 
     nn = ~np.isnan(mf[0,:])
     mf = mf[:,nn]
