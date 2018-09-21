@@ -108,10 +108,10 @@ if __name__ == "__main__":
         splitting_scalar = None
 
     if args.z_max is not np.inf:
-        mask = mask.sel(zt=slice(0.0, args.z_max), drop=True).squeeze()
+        mask = mask.sel(zt=slice(0.0, args.z_max)).squeeze()
         if splitting_scalar is not None:
             splitting_scalar = splitting_scalar.sel(
-                zt=slice(0.0, args.z_max), drop=True
+                zt=slice(0.0, args.z_max)
             ).squeeze()
 
     ds = process(mask=mask, splitting_scalar=splitting_scalar,
