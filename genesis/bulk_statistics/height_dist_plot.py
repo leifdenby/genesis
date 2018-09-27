@@ -22,7 +22,6 @@ from . import make_cumulative_from_bin_counts
 
 if __name__ == "__main__":
     import argparse
-    import ipdb
     argparser = argparse.ArgumentParser(__doc__)
 
     argparser.add_argument('input')
@@ -56,13 +55,12 @@ if __name__ == "__main__":
     else:
         mask = None
 
-    with ipdb.launch_ipdb_on_exception():
-        var_bin_counts = get_distribution_in_cross_sections(
-            fn=field_fn,
-            dv_bin=5,
-            z_slice=slice(0, args.z_max, args.skip_interval),
-            mask=mask,
-        )
+    var_bin_counts = get_distribution_in_cross_sections(
+        fn=field_fn,
+        dv_bin=5,
+        z_slice=slice(0, args.z_max, args.skip_interval),
+        mask=mask,
+    )
 
     if len(var_bin_counts.time) == 1:
         var_bin_counts = var_bin_counts.squeeze()
@@ -77,8 +75,7 @@ if __name__ == "__main__":
     if args.cumulative:
         output_fn = output_fn.replace('height_dist_', 'heigth_cumulative_dist_')
 
-        with ipdb.launch_ipdb_on_exception():
-            var_cumulative = make_cumulative_from_bin_counts(var_bin_counts)
+        var_cumulative = make_cumulative_from_bin_counts(var_bin_counts)
         plot_var = var_cumulative
     else:
         plot_var = var_bin_counts
