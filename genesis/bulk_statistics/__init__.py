@@ -65,6 +65,22 @@ def load_mask(input_name, mask_name, mask_field=None, invert=False):
 
     return mask
 
+def load_field(fn, autoscale=True, mask=None):
+    da_in = xr.open_dataarray(fn, decode_times=False, chunks=dict(zt=1))
+
+    if autoscale:
+        da_in = scale_field(da_in)
+
+    if mask is not None:
+        # ensure that we've only got mask on levels where scalar being
+        # analysed is defined
+        mask = mask.sel(zt=da_in.zt)
+        # have to keep a reference to the field name because xarray drops it
+        field_name = da_in.name
+        da_in = da_in.where(mask, 0.0)
+        da_in.name = field_name
+
+    return da_in
 
 def get_distribution_in_cross_sections(fn, dv_bin, z_slice=None,
                                        autoscale=True, mask=None):
@@ -82,19 +98,7 @@ def get_distribution_in_cross_sections(fn, dv_bin, z_slice=None,
     if os.path.exists(fn_out):
         return xr.open_dataarray(fn_out, decode_times=False)
     else:
-        da_in = xr.open_dataarray(fn, decode_times=False, chunks=dict(zt=1))
-
-        if mask is not None:
-            # ensure that we've only got mask on levels where scalar being
-            # analysed is defined
-            mask = mask.sel(zt=da_in.zt)
-            # have to keep a reference to the field name because xarray drops it
-            field_name = da_in.name
-            da_in = da_in.where(mask, 0.0)
-            da_in.name = field_name
-
-        if autoscale:
-            da_in = scale_field(da_in)
+        da_in = load_field(fn, autoscale=autoscale, mask=mask)
 
         da_out = calc_distribution_in_cross_sections(da_in, ds_bin=dv_bin, z_slice=z_slice)
         if mask is not None:
