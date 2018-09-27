@@ -33,16 +33,21 @@ def scale_field(da_in):
 
     return da
 
-def load_mask(field_fn, mask_name, mask_field=None, invert=False):
-    input_name = field_fn.replace('.nc', '')
+def load_mask(input_name, mask_name, mask_field=None, invert=False):
 
     if mask_field is None:
         mask_field = mask_name
 
-    fn_mask = "{}.{}.mask.nc".format(input_name, mask_name)
-
-    if not os.path.exists(fn_mask):
-        raise Exception("Can't find mask file `{}`".format(fn_mask))
+    fn_mask = "{}.mask_3d.{}.nc".format(input_name, mask_name)
+    fn_mask_2d = "{}.mask.{}.nc".format(input_name, mask_name)
+    if os.path.exists(fn_mask):
+        pass
+    elif os.path.exists(fn_mask_2d):
+        fn_mask = fn_mask_2d
+        print("Using 2D xy mask")
+    else:
+        raise Exception("Couldn't find mask file `{}` or `{}`"
+                        "".format(fn_mask, fn_mask_2d))
 
     ds_mask = xr.open_dataset(fn_mask, decode_times=False)
 
@@ -69,6 +74,8 @@ def get_distribution_in_cross_sections(fn, dv_bin, z_slice=None,
         label_components.append("z_{}_{}_{}".format(z_slice.start, z_slice.stop, z_slice.step))
     if autoscale:
         label_components.append('autoscaled')
+    if mask is not None:
+        label_components.append("masked_by_{}".format(mask.name))
 
     fn_out = fn.replace('.nc', '.cross_section_dist__{}.nc'.format("__".join(label_components)))
 
@@ -78,7 +85,13 @@ def get_distribution_in_cross_sections(fn, dv_bin, z_slice=None,
         da_in = xr.open_dataarray(fn, decode_times=False, chunks=dict(zt=1))
 
         if mask is not None:
+            # ensure that we've only got mask on levels where scalar being
+            # analysed is defined
+            mask = mask.sel(zt=da_in.zt)
+            # have to keep a reference to the field name because xarray drops it
+            field_name = da_in.name
             da_in = da_in.where(mask, 0.0)
+            da_in.name = field_name
 
         if autoscale:
             da_in = scale_field(da_in)
@@ -89,7 +102,6 @@ def get_distribution_in_cross_sections(fn, dv_bin, z_slice=None,
 
         da_out.to_netcdf(fn_out)
         return da_out
-
 
 def calc_distribution_in_cross_sections(da_s, ds_bin, z_slice=None):
     """
