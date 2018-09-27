@@ -14,6 +14,10 @@ import matplotlib
 if __name__ == "__main__":
     matplotlib.use("Agg")
 
+    # register a progressbar so we can see progress of dask'ed operations with xarray
+    from dask.diagnostics import ProgressBar
+    ProgressBar().register()
+
 import matplotlib.pyplot as plt
 
 from . import get_distribution_in_cross_sections, load_mask
@@ -37,6 +41,7 @@ if __name__ == "__main__":
     argparser.add_argument('--cumulative', default=False, action='store_true')
     argparser.add_argument('--skip-interval', default=1, type=int)
     argparser.add_argument('--output-format', default='png', type=str, choices=['png', 'pdf'])
+    argparser.add_argument('--y-max', default=None, type=float)
 
     args = argparser.parse_args()
 
@@ -88,6 +93,9 @@ if __name__ == "__main__":
         plot_var[v].attrs['long_name'] = plot_var[v].tex_label
 
     plot_var.plot.line(hue='zt')
+
+    if args.y_max is not None:
+        plt.gca().set_ylim(None, args.y_max)
 
     mask_description = ''
     if not mask is None:
