@@ -8,6 +8,7 @@ if __name__ == "__main__":
 
 import copy
 import os
+import warnings
 
 import xarray as xr
 import numpy as np
@@ -57,6 +58,10 @@ def get_cloudbase_data(cloud_data, t0, t_age_max=200., z_base_max=700.):
     ds = xr.Dataset()
     # XXX: using non-xarray indexing here, this could be made faster (and
     # probably more robust too)
+    if isinstance(r_t__belowcloud, xr.DataArray):
+        r_t__belowcloud = r_t__belowcloud.squeeze()
+        theta_l__belowcloud = theta_l__belowcloud.squeeze()
+
     ds['r_t'] = r_t__belowcloud.values[~m]
     ds['theta_l'] = theta_l__belowcloud.values[~m]
 
@@ -70,13 +75,31 @@ def main(ds_3d, ds_cb, z_levels):
 
     lines = []
 
+    v1, v2 = ds_3d.data_vars.keys()
+
+    if v1 == 'q' and ds_3d[v1].units == 'g/kg':
+        warnings.warn("Scaling variable `q` by 1000 since UCLALES "
+                      "incorrectly states the units as g/kg even "
+                      "though they are in fact in kg/kg")
+        xscale = 1000.
+    else:
+        xscale = 1.0
+
+    if v2 == 'q' and ds_3d[v2].units == 'g/kg':
+        warnings.warn("Scaling variable `q` by 1000 since UCLALES "
+                      "incorrectly states the units as g/kg even "
+                      "though they are in fact in kg/kg")
+        yscale = 1000.
+    else:
+        yscale = 1.
+
     for z in tqdm.tqdm(z_levels):
         ds_ = ds_3d.sel(zt=z, method='nearest').squeeze()
 
         c = next(colors)
         try:
-            xd=ds_.q.values.flatten()*1.0e3
-            yd=ds_.t.values.flatten()
+            xd=ds_[v1].values.flatten()*xscale
+            yd=ds_[v2].values.flatten()*yscale
 
             _, _, cnt = joint_hist_contoured(
                 xd=xd, yd=yd,
@@ -92,21 +115,29 @@ def main(ds_3d, ds_cb, z_levels):
             print("error", ds_.zt.values)
             raise
 
+    cb_mapping = dict(
+        q='r_t', t='theta_l'
+    )
 
     if not ds_cb is None:
-        _, _, cnt = joint_hist_contoured(
-            xd=ds_cb.r_t.values*1.0e3,
-            yd=ds_cb.theta_l.values,
-            normed_levels=normed_levels
-        )
+        if set(cb_mapping.keys()) == set([v1, v2]):
+            _, _, cnt = joint_hist_contoured(
+                xd=ds_cb[cb_mapping[v1]].values*xscale,
+                yd=ds_cb[cb_mapping[v2]].values*yscale,
+                normed_levels=normed_levels
+            )
 
-        for n, l in enumerate(cnt.collections):
-            l.set_color('red')
+            for n, l in enumerate(cnt.collections):
+                l.set_color('red')
 
-            if n == 0:
-                l.set_label('into cloudbase')
-                lines.append(l)
-                l.set_linestyle('--')
+                if n == 0:
+                    l.set_label('into cloudbase')
+                    lines.append(l)
+                    l.set_linestyle('--')
+        else:
+            import ipdb
+            ipdb.set_trace()
+            warnings.warn("Skipping cloud base plot, missing one or more variables")
 
     ax = plt.gca()
     ax.legend()
@@ -125,16 +156,23 @@ def main(ds_3d, ds_cb, z_levels):
     plt.subplots_adjust(right=0.75)
     sns.despine()
 
-    plt.ylabel(r'$\theta$ [K]')
-    plt.xlabel(r'$q_t$ [g/kg]')
+    plt.xlabel(r'{} [{}]'.format(ds_3d[v1].longname, ds_3d[v1].units))
+    plt.ylabel(r'{} [{}]'.format(ds_3d[v2].longname, ds_3d[v2].units))
 
     if type(ds_.time.values) == float:
         plt.title("t={}hrs".format(ds_.time.values/60/60))
     else:
         plt.title("t={}".format(ds_.time.values))
 
-    plt.xlim(14.3, 16.8)
-    plt.ylim(297.6, 298.2)
+    fix_axis(ax.set_xlim, v1)
+    fix_axis(ax.set_ylim, v2)
+
+
+def fix_axis(lim_fn, v):
+    if v == 'q':
+        lim_fn(14.3, 16.8)
+    elif v == 't':
+        lim_fn(297.6, 298.2)
 
 if __name__ == "__main__":
     import argparse
