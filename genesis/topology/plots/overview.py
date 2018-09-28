@@ -8,26 +8,11 @@ if __name__ == "__main__":
     matplotlib.use("Agg")
 
 
-import xarray as xr
-import glob
 import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
 
-
-def get_data(base_name):
-    fns = glob.glob("{}.minkowski_scales.*.nc".format(base_name))
-    fns += glob.glob("{}.*.integral.*nc".format(base_name)) 
-
-    ds = xr.open_mfdataset(fns)
-
-    # 4/3*pi*r**3 => r = (3/4*1/pi*v)**(1./3.)
-    ds['r_equiv'] = (3./(4.*3.14)*ds.volume__sum)**(1./3.)
-    ds.r_equiv.attrs['units'] = 'm'
-    ds.r_equiv.attrs['longname'] = 'equivalent radius'
-
-    return ds
-
+from genesis.objects import get_data
 
 
 def ecd(d, **kwargs):
