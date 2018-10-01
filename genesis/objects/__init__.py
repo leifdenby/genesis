@@ -2,9 +2,9 @@ import glob
 
 import xarray as xr
 
-def get_data(base_name):
-    fns = glob.glob("{}.minkowski_scales.*.nc".format(base_name))
-    fns += glob.glob("{}.*.integral.*nc".format(base_name)) 
+def get_data(base_name, mask_identifier='*'):
+    fns = glob.glob("{}.minkowski_scales.{}.nc".format(base_name, mask_identifier))
+    fns += glob.glob("{}.objects.{}.integral.*.nc".format(base_name, mask_identifier)) 
 
     ds = xr.open_mfdataset(fns)
 
