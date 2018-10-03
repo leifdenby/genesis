@@ -3,8 +3,16 @@ import glob
 import xarray as xr
 
 def get_data(base_name, mask_identifier='*'):
-    fns = glob.glob("{}.minkowski_scales.{}.nc".format(base_name, mask_identifier))
-    fns += glob.glob("{}.objects.{}.integral.*.nc".format(base_name, mask_identifier)) 
+    glob_patterns = [
+        "{}.minkowski_scales.{}.nc".format(base_name, mask_identifier),
+        "{}.objects.{}.integral.*.nc".format(base_name, mask_identifier)
+    ]
+
+    fns = reduce(lambda a, s: glob.glob(s) + a, glob_patterns, [])
+
+    if len(fns) == 0:
+        raise Exception("No files found with glob patterns: {}".format(
+                        ", ".join(glob_patterns)))
 
     ds = xr.open_mfdataset(fns)
 
