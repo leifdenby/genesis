@@ -9,6 +9,8 @@ import xarray as xr
 import numpy as np
 import tqdm
 
+import genesis.objects
+
 import cloud_identification
 
 import cloud_tracking_analysis
@@ -57,6 +59,7 @@ def filter_objects_by_mask(objects, mask):
     cloud_identification.remove_intersecting(objects, ~mask_3d)
 
     return objects
+
 
 def filter_objects_by_tracking(objects, base_name, dt_pad):
     t0 = objects.time.values
@@ -110,20 +113,52 @@ def filter_objects_by_tracking(objects, base_name, dt_pad):
     return objects_filtered
 
 
+def filter_objects_by_property(objects, object_file, property, op, value):
+    base_name, objects_mask = object_file.split('.objects.')
+
+    object_properties = genesis.objects.get_data(base_name, mask_identifier=objects_mask)
+    N_objects = len(object_properties.object_id)
+
+    op_fn = getattr(np, op.replace('_than', ''))
+
+    da_property = object_properties[property]
+
+    ids_filtered = object_properties.where(op_fn(da_property, value), drop=True).object_id
+
+    objects_filtered = np.zeros_like(objects)
+
+    print("Picking out objects for which {} is {} {} ({}/{}~{}%)...".format(
+        property, op.replace('_', ' '), value, len(ids_filtered), N_objects, 
+        int(float(len(ids_filtered))/float(N_objects)*100.),
+        ))
+
+    for object_id in tqdm.tqdm(ids_filtered):
+        objects_filtered += objects.where(objects == object_id, other=0)
+
+    return objects_filtered
+
+
 if __name__ == "__main__":
     import argparse
-    argparser = argparse.ArgumentParser(__doc__)
+    argparser = argparse.ArgumentParser(description=__doc__)
 
     argparser.add_argument('object_file', type=str)
 
     subparsers = argparser.add_subparsers(dest="subparser_name")
 
-    arg_group_mask = subparsers.add_parser('mask')
-    arg_group_mask.add_argument('mask-name', type=str)
-    arg_group_mask.add_argument('--mask-field', default=None, type=str)
+    args_mask = subparsers.add_parser('mask')
+    args_mask.add_argument('mask-name', type=str)
+    args_mask.add_argument('--mask-field', default=None, type=str)
 
-    arg_group_tracking = subparsers.add_parser('tracking')
-    arg_group_tracking.add_argument('--dt-pad', default=20*60, type=float)
+    args_tracking = subparsers.add_parser('tracking')
+    args_tracking.add_argument('--dt-pad', default=20*60, type=float)
+
+    args_property = subparsers.add_parser('property')
+    args_property.add_argument('property', type=str)
+    op_group = args_property.add_mutually_exclusive_group(required=True)
+    op_group.add_argument('--less-than', type=float, metavar='value')
+    op_group.add_argument('--equals', type=float, metavar='value')
+    op_group.add_argument('--greater-than', type=float, metavar='value')
 
     args = argparser.parse_args()
 
@@ -173,6 +208,32 @@ if __name__ == "__main__":
 
         out_filename = "{}.objects.{}.{}.nc".format(
             base_name.replace('/', '__'), objects_mask, "tracked"
+        )
+    elif args.subparser_name == "property":
+        if args.less_than is not None:
+            op = 'less_than'
+            value = args.less_than
+        elif args.greater_than is not None:
+            op = 'greater_than'
+            value = args.greater_than
+        elif args.equals is not None:
+            op = 'equals'
+            value = args.equals
+        else:
+            raise NotImplementedError
+
+        ds = filter_objects_by_property(objects=objects, object_file=object_file,
+                                        property=args.property, op=op,
+                                        value=value)
+
+        ds.attrs['input_name'] = object_file
+        ds.attrs['mask_name'] = "{}__filtered_by_{}_{}_{}".format(
+            objects.mask_name, args.property, op, value
+        )
+
+        out_filename = "{}.objects.{}.{}.{}_{}_{}.nc".format(
+            base_name.replace('/', '__'), objects_mask, "filtered",
+            args.property, op, value
         )
     else:
         raise NotImplementedError
