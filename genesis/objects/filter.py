@@ -7,6 +7,7 @@ import warnings
 
 import xarray as xr
 import numpy as np
+import tqdm
 
 import cloud_identification
 
@@ -91,7 +92,22 @@ def filter_objects_by_tracking(objects, base_name, dt_pad):
     # create mask which only includes regions which were tracked
     m = np.logical_and(~np.isnan(objects_tracked_2d), objects_projected_2d != 0)
 
-    return filter_objects_by_mask(objects, m)
+    # mask out projected ids
+    projected_labels_tracked = objects_projected_2d.where(m, other=np.nan)
+    projected_labels_tracked.name = 'projected_labels_tracked'
+
+    # find out which object ids exist in this projected region
+    filter_nans = lambda v: v[~np.isnan(v)]
+
+    id3d_tracked_from_projected = filter_nans(np.unique(projected_labels_tracked))
+
+    objects_filtered = np.zeros_like(objects)
+
+    print("Picking out objects which were tracked...")
+    for object_id in tqdm.tqdm(id3d_tracked_from_projected):
+        objects_filtered += objects.where(objects == object_id, other=0)
+
+    return objects_filtered
 
 
 if __name__ == "__main__":
