@@ -27,7 +27,7 @@ def joint_hist_contoured(xd, yd, bins=None, normed_levels=None, ax=None,
     if bins is None:
         import operator
         n = reduce(operator.mul, xd.shape, 1)
-        bins = (float(n))**(1./4.)
+        bins = int((float(n))**(1./4.))
 
     bin_counts, x_bins, y_bins = np.histogram2d(
         xd, yd, bins=bins, range=(x_range, y_range)
@@ -41,7 +41,10 @@ def joint_hist_contoured(xd, yd, bins=None, normed_levels=None, ax=None,
         import matplotlib.pyplot as plt
         ax = plt.gca()
 
-    if normed_levels is not None:
+    if 'plot_hist2d' in kwargs:
+        ax.pcolormesh(x_bins, y_bins, bin_counts)
+        cnt = None
+    elif normed_levels is not None:
         levels = [
             _find_bin_on_percentile(bin_counts=bin_counts, q=q)
             for q in normed_levels
