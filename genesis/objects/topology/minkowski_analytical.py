@@ -1,31 +1,25 @@
 
 # coding: utf-8
 
-# In[287]:
-
 import numpy as np
 from scipy.constants import pi
-import matplotlib.pyplot as plot
-import seaborn as sns
-from matplotlib.patches import Ellipse, Arc
+import xarray as xr
 
-sns.set(style='ticks')
-
-@np.vectorize
-def f(x):
-    # http://www.suitcaseofdreams.net/inverse_functions.htm#P1
-    d = np.sqrt(1 + 0J - x**2.)
-
-    if d.imag > 0.0:
-        assert np.all(d.real == 0.0)
-        return np.log(x + np.sqrt(x**2. - 1.))/d.imag
-    else:
-        return np.arccos(x)/d.real
-
-def f2(x):
+def _f2(x):
     return np.arccos(x)/np.sqrt(1 - x**2.)
 
-def spheroid_minkowski(r, lm):
+def _spheroid_minkowski(r, lm):
+    @np.vectorize
+    def f(x):
+        # http://www.suitcaseofdreams.net/inverse_functions.htm#P1
+        d = np.sqrt(1 + 0J - x**2.)
+
+        if d.imag > 0.0:
+            assert np.all(d.real == 0.0)
+            return np.log(x + np.sqrt(x**2. - 1.))/d.imag
+        else:
+            return np.arccos(x)/d.real
+
     V0 = 4.*pi/3.*r**3.*lm
     V1 = pi/3.*r**2.*(1+f(1./lm))
     V2 = 2./3.*r*(lm+f(lm))
@@ -34,7 +28,18 @@ def spheroid_minkowski(r, lm):
     return V0, V1, V2, V3
 
 @np.vectorize
-def spheroid_minkowski2(r, lm):
+def _spheroid_minkowski2(r, lm):
+    @np.vectorize
+    def f(x):
+        # http://www.suitcaseofdreams.net/inverse_functions.htm#P1
+        d = np.sqrt(1 + 0J - x**2.)
+
+        if d.imag > 0.0:
+            assert np.all(d.real == 0.0)
+            return np.log(x + np.sqrt(x**2. - 1.))/d.imag
+        else:
+            return np.arccos(x)/d.real
+
     V0 = 4.*pi/3.*r**3.*lm
     
     if lm > 1.0:
@@ -49,7 +54,7 @@ def spheroid_minkowski2(r, lm):
     
     return V0, V1, V2, V3
 
-def cylinder_minkowski(r, lm):
+def _cylinder_minkowski(r, lm):
     V0 = pi*r**3.*lm
     V1 = pi/3.*r**2.*(1+lm)
     V2 = 1./3.*r*(pi+lm)
@@ -74,111 +79,31 @@ def filamentarity_planarity(fn_mink, r, lm):
     
     return F, P
 
-
-def plot_cylinder_diagram(ax, x_c, y_c, l, r, color, r_label="r", h_label="h"):
-    e_l = 0.1*l
-    # sides
-    ax.add_line(plot.Line2D((x_c-r, x_c-r), (y_c-l/2., y_c+l/2.), color=color))
-    ax.add_line(plot.Line2D((x_c+r, x_c+r), (y_c-l/2., y_c+l/2.), color=color))
-    # centerline
-    ax.add_line(plot.Line2D((x_c, x_c), (y_c-l/2., y_c+l/2.), color=color, ls='--'))
-    # radius indicator
-    ax.add_line(plot.Line2D((x_c-r, x_c), (y_c, y_c), color=color, ls='--'))
-    
-    # ends
-    c = ax.get_lines()[-1].get_color()
-    ax.add_patch(Ellipse((x_c, y_c-l/2.), r*2, e_l, facecolor="None", edgecolor=c, linewidth=2, 
-                         linestyle=":", alpha=0.4))
-    ax.add_patch(Arc((x_c, y_c-l/2.), r*2, e_l, facecolor="None", edgecolor=c, linewidth=2,
-                        theta1=180, theta2=360))
-
-    ax.add_patch(Ellipse((x_c, y_c+l/2.), r*2, e_l, facecolor="None", edgecolor=c, linewidth=2))
-
-    
-    # labels
-    ax.annotate(r_label, (x_c - r/2., y_c), color=c,  xytext=(0, 6), textcoords='offset points')
-    ax.annotate(h_label, (x_c, y_c + l/4), color=c,  xytext=(6, 0), textcoords='offset points')
-
-def plot_spheroid_diagram(ax, x_c, y_c, l, r, color, r_label="r", h_label="h", render_back=True):
-    w = 2*r
-    w_yz = w/3.
-    # yz-plane arc
-    if render_back:
-        ax.add_patch(Arc((x_c, y_c), w_yz, l*2, facecolor="None", edgecolor=color, 
-                         linewidth=2, linestyle=':', alpha=0.4))
-    ax.add_patch(Arc((x_c, y_c), w_yz, l*2, facecolor="None", edgecolor=color, 
-                     linewidth=2, linestyle='-', theta1=90., theta2=270.))
-    
-    # xy-plane arc
-    if render_back:
-        ax.add_patch(Arc((x_c, y_c), w, l, facecolor="None", edgecolor=color, 
-                       linewidth=2, linestyle=':', theta1=0, theta2=180, alpha=0.4))
-    a_xy = Arc((x_c, y_c), w, l, facecolor="None", edgecolor=color, 
-               linewidth=2, linestyle='-', theta1=180, theta2=360)
-    ax.add_patch(a_xy)
-
-    # xz-plane edge
-    ax.add_patch(Ellipse((x_c, y_c), w, l*2, facecolor="None", edgecolor=color, linewidth=2))
-
-    ax.add_line(plot.Line2D((x_c, x_c+r), (y_c, y_c), ls='--', color=color))
-    ax.add_line(plot.Line2D((x_c, x_c), (y_c, y_c+l), ls='--', color=color))
-    ax.add_line(plot.Line2D((x_c, x_c - w_yz*0.5), (y_c, y_c-l*0.5), ls='--', color=color))
-    
-    # labels
-    ax.annotate(r_label, (x_c + r/2., y_c), color=color,  xytext=(0, 6), textcoords='offset points')
-    ax.annotate(r_label, (x_c - w_yz*0.25, y_c-0.25*l), color=color,  xytext=(0, 10), textcoords='offset points')
-    ax.annotate(h_label, (x_c, y_c + l/2), color=color,  xytext=(4, 0), textcoords='offset points')
-
-
-def plot_filamentarity_reference(ax, plot_spheroid=True, plot_cylinder=True):
+def calc_analytical_scales(shape):
     r_ = 100.
-    m_ = 7
-    m = np.array([-6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7])
+    m_min, m_max = -6, 6
+    m = np.linspace(-6., 6., (m_max - m_min)*10+1)
+    i = np.arange(len(m))
     lm = 2.**m
     r = np.array([r_,]*len(lm))
 
-    if plot_spheroid:
-        F, P = filamentarity_planarity(spheroid_minkowski2, r=r, lm=lm + 1.0e-10)
-        l_sphere, = ax.plot(P, F, marker='o', linestyle='-', label='spheroid')
+    if shape == "cylinder":
+        fn_mink=_cylinder_minkowski
+    elif shape == "spheroid":
+        fn_mink=_spheroid_minkowski2
+    else:
+        raise NotImplementedError
 
-        for n, (x_, y_, m__) in enumerate(zip(P, F, m)):
-            
-            if m__ >= 0:
-                s = "{:d}".format(2**m__)
-            else:
-                s = "1/{:d}".format(2**(-m__))
-            if n == len(m)-1:
-                s = r"$\lambda=$"+s
-            ax.annotate(s, (x_, y_), color=l_sphere.get_color(), xytext=(3, 3), textcoords='offset points')
+    LWT = length_scales(fn_mink=_cylinder_minkowski, r=r, lm=lm)
+    FP = filamentarity_planarity(fn_mink=fn_mink, r=r, lm=lm)
 
-        plot_spheroid_diagram(ax, 0.5, 0.5, l=0.11, r=0.18, color=l_sphere.get_color(), h_label=r"$\lambda r$")
+    ds = xr.Dataset(coords=dict(i=i))
+    for n, label in enumerate("length width thinckness".split(" ")):
+        ds[label] = (('i',), LWT[n])
+        ds[label].attrs['units'] = "1"
 
-    if plot_cylinder:
-        F, P = filamentarity_planarity(cylinder_minkowski, r=r, lm=lm)
-        l_cyl, = ax.plot(P, F, marker='o', linestyle='--', label='cylinder')
+    ds['filamentarity'] = (('i',), FP[0])
+    ds['planarity'] = (('i',), FP[1])
+    ds['lm'] = (('i',), lm)
 
-        for n, (x_, y_, m__) in enumerate(zip(P, F, m)):
-            if m__ >= 0:
-                s = "{:d}".format(2**m__)
-            else:
-                s = "1/{:d}".format(2**(-m__))
-            if n == len(m)-1:
-                s = r"$\lambda=$"+s
-            ax.annotate(s, (x_, y_), color=l_cyl.get_color(), xytext=(3, 3), textcoords='offset points')
-
-        plot_cylinder_diagram(ax, 0.4, 0.7, l=0.3, r=0.08, color=l_cyl.get_color(), h_label=r"$\lambda r$")
-
-    plot.xlabel("Planarity")
-    plot.ylabel("Filamentarity")
-
-if __name__ == "__main__":
-    plot.figure(figsize=(6,6))
-
-    plot_filamentarity_reference(plot.gca())
-
-    plot.xlabel("Planarity")
-    plot.ylabel("Filamentarity")
-    plot.legend()
-    sns.despine()
-
-    plot.savefig("planarity-filamentarity-spheroid-and-cylinder.pdf")
+    return ds
