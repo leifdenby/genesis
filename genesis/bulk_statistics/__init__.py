@@ -91,6 +91,9 @@ def load_field(fn, autoscale=True, mask=None):
 
     return da_in
 
+def is_older(fn1, fn2):
+    return os.path.getmtime(fn1) > os.path.getmtime(fn2)
+
 def get_distribution_in_cross_sections(fn, dv_bin, z_slice=None,
                                        autoscale=True, mask=None):
 
@@ -104,7 +107,7 @@ def get_distribution_in_cross_sections(fn, dv_bin, z_slice=None,
 
     fn_out = fn.replace('.nc', '.cross_section_dist__{}.nc'.format("__".join(label_components)))
 
-    if os.path.exists(fn_out):
+    if os.path.exists(fn_out) and is_older(fn_out, fn):
         return xr.open_dataarray(fn_out, decode_times=False)
     else:
         da_in = load_field(fn, autoscale=autoscale, mask=mask)
