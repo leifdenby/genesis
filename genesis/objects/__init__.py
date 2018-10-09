@@ -1,4 +1,5 @@
 import glob
+import os
 
 import xarray as xr
 
@@ -23,3 +24,23 @@ def get_data(base_name, mask_identifier='*'):
 
     return ds
 
+def make_mask_from_objects_file(filename):
+    object_file = filename.replace('.nc', '')
+
+    print(object_file)
+
+    if not 'objects' in object_file:
+        raise Exception()
+
+    base_name, mask_name = object_file.split('.objects.')
+
+    fn_objects = "{}.nc".format(object_file)
+    if not os.path.exists(fn_objects):
+        raise Exception("Couldn't find objects file `{}`".format(fn_objects))
+    objects = xr.open_dataarray(fn_objects, decode_times=False)
+
+    mask = objects != 0
+    mask.name = "{}_objects".format(objects.mask_name)
+    mask.attrs['longname'] = "mask from {} objects".format(objects.mask_name)
+
+    return mask
