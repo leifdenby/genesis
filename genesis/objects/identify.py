@@ -72,7 +72,7 @@ if __name__ == "__main__":
     argparser.add_argument('mask_name', type=str)
     argparser.add_argument('splitting_scalar')
     argparser.add_argument('--z_max', type=float, default=np.inf)
-    argparser.add_argument('--keep-edge-objects', default=False,
+    argparser.add_argument('--remove-edge-objects', default=False,
                            action="store_true")
 
     args = argparser.parse_args()
@@ -115,7 +115,7 @@ if __name__ == "__main__":
             ).squeeze()
 
     ds = process(mask=mask, splitting_scalar=splitting_scalar,
-                 remove_at_edge=not args.keep_edge_objects)
+                 remove_at_edge=args.remove_edge_objects)
 
     ds.attrs['input_name'] = input_name
     ds.attrs['mask_name'] = args.mask_name
