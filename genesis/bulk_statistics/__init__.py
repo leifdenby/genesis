@@ -72,13 +72,22 @@ def load_field(fn, autoscale=True, mask=None):
         da_in = scale_field(da_in)
 
     if mask is not None:
-        # ensure that we've only got mask on levels where scalar being
-        # analysed is defined
-        mask = mask.sel(zt=da_in.zt)
         # have to keep a reference to the field name because xarray drops it
         field_name = da_in.name
-        da_in = da_in.where(mask, 0.0)
-        da_in.name = field_name
+        if len(da_in.zt) > len(mask.zt):
+            # mask has smaller vertical extent than data, crop data
+            warnings.warn("Mask has smaller vertical extent than data, "
+                          "masking data")
+            if not 'time' in mask.dims:
+                mask = mask.expand_dims('time')
+            da_in = da_in.sel(zt=mask.zt).where(mask, 0.0)
+            da_in.name = field_name
+        else:
+            # ensure that we've only got mask on levels where scalar being
+            # analysed is defined
+            mask = mask.sel(zt=da_in.zt)
+            da_in = da_in.where(mask, 0.0)
+            da_in.name = field_name
 
     return da_in
 
