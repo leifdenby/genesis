@@ -23,6 +23,8 @@ import matplotlib.pyplot as plt
 from . import get_distribution_in_cross_sections, load_mask
 from . import make_cumulative_from_bin_counts
 
+import genesis.objects
+
 
 if __name__ == "__main__":
     import argparse
@@ -33,7 +35,11 @@ if __name__ == "__main__":
     default_vars = "q t w q_flux t_flux".split(" ")
     argparser.add_argument('--time', nargs="+", type=float, required=False)
     argparser.add_argument('--z_max', type=float, default=650.)
-    argparser.add_argument('--mask-name', default=None, type=str)
+
+    mask_type_args = argparser.add_mutually_exclusive_group()
+    mask_type_args.add_argument('--mask-name', default=None, type=str)
+    mask_type_args.add_argument('--objects', default=None, type=str)
+
     argparser.add_argument('--mask-field', default=None, type=str)
     argparser.add_argument('--invert-mask', default=False, action="store_true")
     argparser.add_argument('--output-in-cwd', default=False, action='store_true')
@@ -54,7 +60,15 @@ if __name__ == "__main__":
         mask = load_mask(input_name=args.input, mask_name=args.mask_name,
                          mask_field=args.mask_field, invert=args.invert_mask)
         output_fn = output_fn.replace(
-            '.{}'.format(args.output_format), 
+            '.{}'.format(args.output_format),
+            '.masked.{}.{}'.format(mask.name, args.output_format)
+        )
+    elif args.objects is not None:
+        s = args.input.replace('/3d_blocks', '').replace('/', '__')
+        objects_fn = "{}.objects.{}".format(s, args.objects)
+        mask = genesis.objects.make_mask_from_objects_file(filename=objects_fn)
+        output_fn = output_fn.replace(
+            '.{}'.format(args.output_format),
             '.masked.{}.{}'.format(mask.name, args.output_format)
         )
     else:
@@ -101,11 +115,10 @@ if __name__ == "__main__":
     if not mask is None:
         if 'longname' in mask.attrs:
             mask_description = mask.attrs['longname']
-        else:
-            mask_description = mask_description
 
         if args.invert_mask:
             mask_description = "not " + mask_description
+
 
     plt.title("{}distribution in {}{}".format(
         ["", "Cumulative "][args.cumulative],
