@@ -2,13 +2,16 @@
 Contains routines to analyse coherent structures in 2D using 2nd-order cumulant
 analysis
 """
+import warnings
+import re
+
 import numpy as np
 from scipy.constants import pi
 import scipy.optimize
+import scipy.integrate
 from intergrid import intergrid
 import xarray as xr
 from tqdm import tqdm
-import warnings
 
 try:
     import pyfftw.interfaces
@@ -27,6 +30,30 @@ _var_name_mapping = {
     "w0400": r"w^{400m}",
 }
 
+RE_CUMULANT_NAME = re.compile('C\((\w+),(\w+)\)(.*)')
+
+def fix_cumulant_name(name):
+    name_mapping = {
+        'q': 'q_t',
+        't': r"\theta_l",
+        'l': 'q_l',
+        'q_flux': r"w'q_t'",
+        't_flux': r"w'\theta_l'",
+        'l_flux': r"w'q_l'",
+    }
+
+    v1, v2, extra = RE_CUMULANT_NAME.match(name).groups()
+
+    extra = extra.strip()
+
+    v1_latex = name_mapping.get(v1, v1)
+    v2_latex = name_mapping.get(v2, v2)
+
+    if len(extra) > 0:
+        return r"$C({},{})$".format(v1_latex, v2_latex) + '\n' + extra
+    else:
+        return r"$C({},{})$".format(v1_latex, v2_latex)
+
 def calc_2nd_cumulant(v1, v2=None, mask=None):
     """
     Calculate 2nd-order cumulant of v1 and v2 in Fourier space. If mask is
@@ -40,19 +67,28 @@ def calc_2nd_cumulant(v1, v2=None, mask=None):
     else:
         Ny, Nx = v1.shape
 
+    old_attrs = v1.attrs
+    v1 = v1 - v1.mean()
+    v1.attrs = old_attrs
+    if v2 is not None:
+        v2_old_attrs = v2.attrs
+        v2 = v2 - v2.mean()
+        v2.attrs = v2_old_attrs
+
     if mask is not None:
         assert v1.shape == mask.shape
         assert v1.dims == mask.dims
 
         # set outside the masked region to the mean so that values in this
         # region don't correlate with the rest of the domain
-        v1 = v1.where(mask.values, other=v1.mean().values)
+        v1 = v1.where(mask.values, other=0.0)
 
         if v2 is not None:
-            v2 = v2.where(mask.values, other=v2.mean().values)
+            v2 = v2.where(mask.values, other=0.0)
 
     V1 = fft.fft2(v1)
     if v2 is None:
+        v2 = v1
         V2 = V1
     else:
         V2 = fft.fft2(v2)
@@ -121,7 +157,17 @@ def identify_principle_axis(C, sI_N=100):
 
     la, v = np.linalg.eig(I)
 
-    theta = np.arctan2(v[0][0], v[0][1])
+    v0 = v[0]
+    v1 = v[1]
+
+    if v0.dtype == np.complex128:
+        if v0.imag.max() > 0:
+            raise Exception("Encountered imaginary eigenvector, not sure"
+                            " how to deal with this")
+        else:
+            v0 = v0.real
+
+    theta = np.arctan2(v0[0], v0[1])
 
     # easier to work with positive angles
     if theta < 0.0:
@@ -168,6 +214,8 @@ def covariance_plot(v1, v2, s_N=200, extra_title="", theta_win_N=100,
         x_, y_, C_vv_ = x[s_x], y[s_y], C_vv[s_x, s_y]
     else:
         x_, y_, C_vv_ = x[s_x], y[s_y], C_vv[s_y, s_x]
+
+    print(C_vv_.min(), C_vv_.max())
 
     plot.pcolormesh(x_, y_, C_vv_, rasterized=True)
     plot.colorbar()
@@ -257,7 +305,9 @@ def _find_width(data, theta, width_peak_fraction=0.5, max_width=5000.):
     sample_fn = _get_line_sample_func(data, theta)
 
     d_max = data.values.max()
-    d_at_inf = sample_fn(x.max())[1]
+    # d_at_inf = sample_fn(x.max())[1]
+    # use corner of domain as reference
+    d_at_inf = data[0,0].values
 
     def sample_fn_normed(mu):
         """
@@ -294,7 +344,28 @@ def _find_width(data, theta, width_peak_fraction=0.5, max_width=5000.):
 
         return x_hwhm
 
+    def mass_weighted_edge(dir):
+        raise Exception("This method doesn't quite work as intended "
+                        "may need to discard points which have negative "
+                        "correlation")
+        fn_inertia = lambda mu: sample_fn_normed(mu)[1]*np.abs(mu)
+        fn_mass = lambda mu: sample_fn_normed(mu)[1]
+
+        if dir == 1:
+            kw = dict(a=0, b=max_width/2.)
+        else:
+            kw = dict(a=-max_width/2., b=0)
+
+        inertia, _ = scipy.integrate.quad(fn_inertia, **kw)
+        mass, _ = scipy.integrate.quad(fn_mass, **kw)
+
+        dist = inertia/mass
+
+        return dist
+
+
     width = find_edge(1.0) - find_edge(-1.0)
+    # width = mass_weighted_edge(1.0) - mass_weighted_edge(-1.0)
 
     return xr.DataArray(width, coords=dict(zt=data.zt), attrs=dict(units='m'))
 

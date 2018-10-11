@@ -162,7 +162,10 @@ def main(dataset_name):
 if __name__ == "__main__":
     import argparse
 
-    # argparser = argparse.ArgumentParser(__doc__)
+    argparser = argparse.ArgumentParser(__doc__)
+    argparser.add_argument('--filetype', default='pdf')
+    args = argparser.parse_args()
+
     import glob
     files = glob.glob('other/*.ts.nc')
     if len(files) == 0:
@@ -174,4 +177,4 @@ if __name__ == "__main__":
     main(dataset_name)
 
     plot.tight_layout()
-    plot.savefig("{}.evolution.pdf".format(dataset_name))
+    plot.savefig("{}.evolution.{}".format(dataset_name, args.filetype))

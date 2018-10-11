@@ -10,7 +10,7 @@ import numpy as np
 
 import cloud_identification
 
-import genesis.topology.minkowski
+import topology.minkowski
 
 
 if __name__ == "__main__":
@@ -21,7 +21,7 @@ if __name__ == "__main__":
 
     args = argparser.parse_args()
 
-    object_file = args.objects_file
+    object_file = args.objects_file.replace('.nc', '')
 
     if not 'objects' in object_file:
         raise Exception()
@@ -37,9 +37,9 @@ if __name__ == "__main__":
         raise Exception("Couldn't find objects file `{}`".format(fn_objects))
     objects = xr.open_dataarray(fn_objects, decode_times=False)
 
-    dx = genesis.topology.minkowski.find_grid_spacing(objects)
+    dx = topology.minkowski.find_grid_spacing(objects)
 
-    ds = genesis.topology.minkowski.calc_scales(object_labels=objects, dx=dx)
+    ds = topology.minkowski.calc_scales(object_labels=objects, dx=dx)
 
     ds.attrs['input_name'] = args.objects_file
     ds.attrs['mask'] = objects_mask

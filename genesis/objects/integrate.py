@@ -1,8 +1,20 @@
 import os
+import warnings
 
 import xarray as xr
 import numpy as np
-from scipy import ndimage
+try:
+    # raise ImportError # forget about using dask for now
+    import dask_ndmeasure as ndimage
+    # register a progressbar so we can see progress of dask'ed operations with xarray
+    from dask.diagnostics import ProgressBar
+    ProgressBar().register()
+except ImportError:
+    from scipy import ndimage
+    warnings.warn("Using standard serial scipy implementation instead of "
+                  "dask'ed dask-ndmeasure. Install `dask-ndmeasure` for much "
+                  "faster computation")
+
 
 
 def _estimate_dx(da):
@@ -15,26 +27,46 @@ def _estimate_dx(da):
     return dx
 
 
-def integrate(objects, da):
-    if 'object_ids' in da:
+def integrate(objects, da, operator):
+    if 'object_ids' in da.coords:
         object_ids = da.object_ids
     else:
-        object_ids = np.unique(objects)
+        # print("Finding unique values")
+        object_ids = np.unique(objects.chunk(None).values)
         # ensure object 0 (outside objects) is excluded
         if object_ids[0] == 0:
             object_ids = object_ids[1:]
 
-    assert objects.dims == da.dims
-    assert objects.shape == da.shape
+    if len(da.dims) == 1 and len(objects.dims) == 3:
+        # special case for allowing integration of coordinates
+        da = xr.broadcast(objects, da)[1]
+    else:
+        assert objects.dims == da.dims
+        assert objects.shape == da.shape
 
     dx = _estimate_dx(da=da)
-    vals = ndimage.sum(da, labels=objects, index=object_ids)*dx**3.
 
-    longname = "per-object integral of {}".format(da.name)
-    units = "{} m^3".format(da.units)
+    if operator == "volume_integral":
+        fn = ndimage.sum
+        s = dx**3.0
+        operator_units = 'm^3'
+    else:
+        fn = getattr(ndimage, operator)
+        s = 1.0
+        operator_units = ''
+
+    vals = fn(da, labels=objects.values, index=object_ids)
+    if hasattr(vals, 'compute'):
+        vals = vals.compute()
+
+    vals *= s
+
+    longname = "per-object {} of {}".format(operator.replace('_', ' '), da.name)
+    units = ("{} {}".format(da.units, operator_units)).strip()
     da = xr.DataArray(vals, coords=dict(object_id=object_ids),
                       dims=('object_id',),
-                      attrs=dict(longname=longname, units=units))
+                      attrs=dict(longname=longname, units=units),
+                      name='{}__{}'.format(da.name, operator))
 
     return da
 
@@ -45,37 +77,59 @@ if __name__ == "__main__":
     argparser = argparse.ArgumentParser(__doc__)
     argparser.add_argument('object_file')
     argparser.add_argument('scalar_field')
+    argparser.add_argument('--operator', default='volume_integral', type=str)
 
     args = argparser.parse_args()
-    object_file = args.object_file
+    object_file = args.object_file.replace('.nc', '')
+
+    op = args.operator
+
+    chunks = 200  # forget about using dask for now, np.unique is too slow
 
     if not 'objects' in object_file:
         raise Exception()
 
     base_name, objects_mask = object_file.split('.objects.')
 
-    fn_scalar = "{}.{}.nc".format(base_name, args.scalar_field)
-    if not os.path.exists(fn_scalar):
-        raise Exception("Couldn't find scalar file `{}`".format(fn_scalar))
-
-    scalar_field = args.scalar_field
-
-    da_scalar = xr.open_dataarray(fn_scalar, decode_times=False).squeeze()
-
     fn_objects = "{}.nc".format(object_file)
     if not os.path.exists(fn_objects):
         raise Exception("Couldn't find objects file `{}`".format(fn_objects))
-    objects = xr.open_dataarray(fn_objects, decode_times=False).squeeze()
+    objects = xr.open_dataarray(
+        fn_objects, decode_times=False, chunks=chunks
+    ).squeeze()
 
-    out_filename = "{}.objects.{}.{}.nc".format(
-        base_name.replace('/', '__'), 'integral', scalar_field
-    )
+    scalar_field = args.scalar_field
+    if scalar_field in objects.coords:
+        da_scalar = objects.coords[args.scalar_field]
+    elif scalar_field == 'volume':
+        dx = _estimate_dx(objects)
+        da_scalar = xr.DataArray(
+            np.ones_like(objects, dtype=np.float)*dx**3.0,
+            coords=objects.coords, attrs=dict(units='m^3')
+        )
+        da_scalar.name = 'volume'
+    else:
+        fn_scalar = "{}.{}.nc".format(base_name, args.scalar_field)
+        if not os.path.exists(fn_scalar):
+            raise Exception("Couldn't find scalar file `{}`".format(fn_scalar))
+
+        da_scalar = xr.open_dataarray(
+            fn_scalar, decode_times=False, chunks=chunks
+        ).squeeze()
 
     if objects.zt.max() < da_scalar.zt.max():
+        warnings.warn("Objects span smaller range than scalar field to "
+                      "reducing domain of scalar field")
         zt_ = da_scalar.zt.values
         da_scalar = da_scalar.sel(zt=slice(None, zt_[25]))
 
-    da = integrate(objects=objects, da=da_scalar)
+    da = integrate(objects=objects, da=da_scalar, operator=args.operator)
 
-    da.to_netcdf(out_filename)
+    out_filename = "{}.objects.{}.integral.{}.{}.nc".format(
+        base_name.replace('/', '__'), objects_mask, scalar_field, op,
+    )
+
+    import ipdb
+    with ipdb.launch_ipdb_on_exception():
+        da.to_netcdf(out_filename)
     print("Wrote output to `{}`".format(out_filename))

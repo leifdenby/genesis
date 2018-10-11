@@ -8,6 +8,11 @@ import scipy.ndimage
 from scipy.constants import pi
 
 
+L_SMOOTHING_DEFUALT = 1000.
+L_EDGE_DEFAULT = 2000.
+SHEAR_DIRECTION_Z_MAX_DEFAULT = 600.
+
+
 def w_pos(w_zt):
     return w_zt > 0.0
 w_pos.description = "positive cell-centered vertical velocity"
@@ -26,16 +31,25 @@ def moist_updrafts(q_flux):
     return q_flux > 0.3e-3
 moist_updrafts.description = 'regions of vertical moisture flux greater than 0.3 m/s kg/kg'
 
+def outside_coldpool(tv0100, l_smoothing=L_SMOOTHING_DEFUALT, l_edge=L_EDGE_DEFAULT):
+    """
+    Computes mask for area outside smoothed coldpool
+    """
+    ds_edge = coldpool_edge(
+        tv0100=tv0100, l_smoothing=l_smoothing, l_edge=l_edge
+    )
+
+    m_outer = ds_edge.m_outer
+
+    return ~m_outer
+outside_coldpool.description = "outside coldpool using -0.1K theta_v limit"
+
+
 
 def boundary_layer_moist_updrafts(q_flux, z_max=650.):
     z = q_flux.zt
     return np.logical_and(q_flux > 0.3e-3, z < z_max)
 boundary_layer_moist_updrafts.description = 'regions in boundary layer of vertical moisture flux greater than 0.3 m/s kg/kg'
-
-
-L_SMOOTHING_DEFUALT = 1000.
-L_EDGE_DEFAULT = 2000.
-SHEAR_DIRECTION_Z_MAX_DEFAULT = 600.
 
 
 def coldpool_edge(tv0100, l_smoothing=L_SMOOTHING_DEFUALT,
@@ -196,7 +210,7 @@ def coldpool_edge_shear_direction_split(
     shear_dir = np.array([dudz_mean, dvdz_mean])
     shear_dir /= np.linalg.norm(shear_dir)
 
-    # note first argument to arctan is y-component
+    # note that y-direction should be first argument to arctan
     # https://docs.scipy.org/doc/numpy-1.12.0/reference/generated/numpy.arctan2.html
     ds['mean_shear_direction'] = np.arctan2(shear_dir[1], shear_dir[0])*180./pi
     ds.mean_shear_direction.attrs['units'] = 'deg'
@@ -224,3 +238,33 @@ def coldpool_edge_shear_direction_split(
 
     return ds
 coldpool_edge_shear_direction_split.description = "Coolpool edge split into up- and downshear direction"
+
+
+def rad_tracer_thermals(base_name, cvrxp, num_std_div=1.0):
+    """
+    Use surface-released radioactive tracer to define updraft mask. Tracer is
+    defined as in Couvreux et al 2010
+    """
+    # Couvreux et al 2010 uses the number of standard deviations (through the
+    # horizontal) a given point is from the mean to determine whether a point
+    # is inside the mask or not
+    # To speed up calculation we create a file which stores the number of
+    # standard deviations the perturbation from the horizontal mean at each
+    # point is
+    stddivs_field_name = '{}_p_stddivs'.format(cvrxp.name)
+    fn_stddiv = "{}.{}.nc".format(base_name, stddivs_field_name)
+
+    if not os.path.exists(fn_stddiv):
+        a_mean = cvrxp.mean(dim=('xt', 'yt')).squeeze()
+        a_p = cvrxp - a_mean
+        a_stddiv = cvrxp.std(dim=('xt', 'yt')).squeeze()
+
+        da_stddivs = a_p/a_stddiv
+        da_stddivs.name = stddivs_field_name
+        da_stddivs.to_netcdf(fn_stddiv)
+    else:
+        da_stddivs = xr.open_dataarray(fn_stddiv)
+
+    mask = da_stddivs > num_std_div
+    return mask
+rad_tracer_thermals.description = r"radioactive tracer-based envelope ($\phi' > {num_std_div} \sigma(\phi)$)"

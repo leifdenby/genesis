@@ -20,7 +20,9 @@ def calc_scales(object_labels, dx):
     V0 = cloud_identification.N3(object_labels)
 
     n_objects = mf.shape[1]
-    object_ids = np.arange(n_objects)
+    # the cloud_identification code doesn't return properties for the zeroth
+    # object, since that is empty space
+    object_ids = np.arange(1, n_objects+1)
 
     nn = ~np.isnan(mf[0,:])
     mf = mf[:,nn]
@@ -53,6 +55,11 @@ def calc_scales(object_labels, dx):
                                        coords=dict(object_id=object_ids,),
                                        dims=('object_id',),
                                        attrs=dict(units="m^3"))
+
+    ds['num_cells'] = xr.DataArray(data=V0,
+                                       coords=dict(object_id=object_ids,),
+                                       dims=('object_id',),
+                                       attrs=dict(units="1"))
 
 
     return ds
@@ -156,8 +163,6 @@ if __name__ == "__main__":
 
     ds.attrs['input_name'] = input_name
     ds.attrs['mask_name'] = args.mask_name
-
-    # out_filename += "lol"
 
     ds.to_netcdf(out_filename)
     print("Wrote output to `{}`".format(out_filename))
