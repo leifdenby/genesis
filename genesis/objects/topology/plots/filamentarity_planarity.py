@@ -18,6 +18,9 @@ def plot_reference(ax, shape, lm_range=None, linestyle='-', marker='o',
 
     line, = ax.plot(P, F, linestyle=linestyle, label='spheroid', **kwargs)
 
+    if not 'color' in kwargs:
+        kwargs['color'] = line.get_color()
+
     for i in ds.i.values:
         ds_ = ds.sel(i=i)
         x_, y_ = ds_.planarity, ds_.filamentarity
@@ -26,7 +29,7 @@ def plot_reference(ax, shape, lm_range=None, linestyle='-', marker='o',
         lm_max = int(ds.lm.values.max())
 
         if int(lm) == lm or int(1.0/lm) == 1.0/lm:
-            ax.plot(x_, y_, marker=marker, **kwargs)
+            ax.plot(x_, y_, marker=marker, label='', **kwargs)
             if lm >= 1:
                 s = "{:.0f}".format(lm)
                 dx, dy = -4, 0
