@@ -52,13 +52,13 @@ def plot_reference(ax, shape, lm_range=None, linestyle='-', marker='o',
     if xlabel:
         if xlabel != 'planarity':
             raise Exception
-        else:
-            ax.set_xlabel('planarity')
+    else:
+        ax.set_xlabel('planarity')
 
     ylabel = ax.get_ylabel()
     if ylabel:
         if ylabel != 'filamentarity':
             raise Exception
-        else:
-            ax.set_ylabel('filamentarity')
+    else:
+        ax.set_ylabel('filamentarity')
 

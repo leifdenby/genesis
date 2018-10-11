@@ -296,9 +296,9 @@ def example2():
     print("Wrote {}".format(fn))
 
 def example3():
-    fig, ax = plt.subplots(figsize=(8,8))
+    fig, ax = plt.subplots(figsize=(5,5))
     ax.set_aspect(1)
-    plot_fp_ref(ax=ax, shape='spheroid')
+    plot_fp_ref(ax=ax, shape='spheroid', lm_range=slice(1./4., 8))
 
     ds_study = xr.Dataset(coords=dict(
         h=[1000.,],
@@ -326,7 +326,7 @@ def example3():
         fn_img = "{}_{}_{}_{}_{}.png".format(h, l, dx, l_shear, shape)
         img = plt.imread(fn_img)
 
-        lx, ly = 0.02, 0.02
+        lx, ly = 0.04, 0.04
         extent = [
             ds_.planarity - lx/2.,
             ds_.planarity + lx/2.,
@@ -339,8 +339,9 @@ def example3():
                                     # label=r"$l_s$={}".format(format_length(l_shear)),
                                     # ax=ax)
 
-    plt.xlim(-0.01, 0.2)
-    plt.ylim(-0.01, 0.4)
+    plt.xlim(-0.01, 0.25)
+    plt.ylim(-0.01, 0.5)
+    ax.set_aspect(0.5)
     fig.legend()
 
     fn = 'fp-plot-numerical-2.png'
