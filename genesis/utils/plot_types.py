@@ -15,6 +15,9 @@ def _find_bin_on_percentile(q, bin_counts):
 
     return v
 
+class JointHistPlotError(Exception):
+    pass
+
 
 def joint_hist_contoured(xd, yd, bins=None, normed_levels=None, ax=None,
                          **kwargs):
@@ -23,6 +26,9 @@ def joint_hist_contoured(xd, yd, bins=None, normed_levels=None, ax=None,
     """
     x_range = (np.nanmin(xd), np.nanmax(xd))
     y_range = (np.nanmin(yd), np.nanmax(yd))
+
+    if np.any([np.isnan(x_range), np.isnan(y_range)]):
+        raise JointHistPlotError
 
     if bins is None:
         import operator

@@ -21,7 +21,7 @@ from cloud_tracking_analysis.cloud_mask_methods import cloudbase as get_cloudbas
 from cloud_tracking_analysis.cloud_mask_methods import CloudbaseEstimationMethod
 
 from . import get_dataset
-from ..utils.plot_types import joint_hist_contoured
+from ..utils.plot_types import joint_hist_contoured, JointHistPlotError
 
 
 Z_LEVELS_DEFAULT = np.arange(12.5, 650., 100.)
@@ -111,7 +111,9 @@ def main(ds_3d, ds_cb, z_levels):
                     l.set_label("z={}m".format(ds_.zt.values))
                     lines.append(l)
             pass
-        except:
+        except JointHistPlotError:
+            print("error", ds_.zt.values, "skipping")
+        except Exception as e:
             print("error", ds_.zt.values)
             raise
 
