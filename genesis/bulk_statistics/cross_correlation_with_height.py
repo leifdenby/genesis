@@ -188,6 +188,7 @@ if __name__ == "__main__":
     argparser.add_argument('var2', type=str)
     argparser.add_argument('--z', type=float, nargs="+", default=Z_LEVELS_DEFAULT)
     argparser.add_argument('--mask', type=str, default=None)
+    argparser.add_argument('--output-format', default='png', type=str, choices=['png', 'pdf'])
     args = argparser.parse_args()
 
     input_name = args.input_name
@@ -230,6 +231,8 @@ if __name__ == "__main__":
     if args.mask is not None:
         title += "\nmasked by {}".format(mask_3d.longname)
         out_fn = out_fn.replace('.png', '.{}.png'.format(args.mask))
+
+    out_fn = out_fn.replace('.png', '.{}'.format(args.output_format))
 
     plt.gca().set_title(title)
     plt.savefig(out_fn)
