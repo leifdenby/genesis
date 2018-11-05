@@ -29,8 +29,6 @@ def calc_scales(object_labels, dx):
     V0 = V0[nn]
     object_ids = object_ids[nn]
 
-    # print("Found {} objects".format(V0.shape[0]))
-
     planarity = cloud_identification.planarity(mf=mf)
     filamentarity = cloud_identification.filamentarity(mf=mf)
 
