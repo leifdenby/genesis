@@ -54,6 +54,8 @@ def get_cloudbase_data(cloud_data, t0, t_age_max=200., z_base_max=700.):
     theta_l__belowcloud = cloud_data.get_from_3d(var_name='t', z=z_slice, t=t0)
     # r_l__belowcloud = cloud_data.get_from_3d(var_name='l', z=z_slice, t=tn*60.)
     r_t__belowcloud = cloud_data.get_from_3d(var_name='q', z=z_slice, t=t0)
+    dx = cloud_set.cloud_data.dx
+    w__belowcloud = cloud_data.get_from_3d(var_name='w', z=z_slice+dx/2., t=t0)
 
     ds = xr.Dataset()
     # XXX: using non-xarray indexing here, this could be made faster (and
@@ -64,6 +66,7 @@ def get_cloudbase_data(cloud_data, t0, t_age_max=200., z_base_max=700.):
 
     ds['r_t'] = r_t__belowcloud.values[~m]
     ds['theta_l'] = theta_l__belowcloud.values[~m]
+    ds['w'] = w__belowcloud.values[~m]
 
     return ds
 
@@ -118,11 +121,13 @@ def main(ds_3d, ds_cb, z_levels):
             raise
 
     cb_mapping = dict(
-        q='r_t', t='theta_l'
+        q='r_t', t='theta_l', w='w'
     )
 
     if not ds_cb is None:
-        if set(cb_mapping.keys()) == set([v1, v2]):
+        if not v1 in cb_mapping or not v2 in cb_mapping:
+            warnings.warn("Skipping cloud base plot, missing one or more variables")
+        elif cb_mapping[v1] in ds_cb.variables and cb_mapping[v2] in ds_cb.variables:
             _, _, cnt = joint_hist_contoured(
                 xd=ds_cb[cb_mapping[v1]].values*xscale,
                 yd=ds_cb[cb_mapping[v2]].values*yscale,
@@ -137,8 +142,6 @@ def main(ds_3d, ds_cb, z_levels):
                     lines.append(l)
                     l.set_linestyle('--')
         else:
-            import ipdb
-            ipdb.set_trace()
             warnings.warn("Skipping cloud base plot, missing one or more variables")
 
     ax = plt.gca()
