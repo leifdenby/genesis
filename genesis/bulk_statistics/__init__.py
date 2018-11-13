@@ -66,7 +66,7 @@ def load_mask(input_name, mask_name, mask_field=None, invert=False):
     return mask
 
 def load_field(fn, autoscale=True, mask=None):
-    da_in = xr.open_dataarray(fn, decode_times=False, chunks=dict(zt=1))
+    da_in = xr.open_dataarray(fn, decode_times=False, chunks=dict(zt=20))
 
     if autoscale:
         da_in = scale_field(da_in)
