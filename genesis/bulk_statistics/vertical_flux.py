@@ -20,7 +20,7 @@ if __name__ == "__main__":
 
 import matplotlib.pyplot as plt
 
-from . import load_mask, load_field
+from . import load_mask, load_field, scale_field
 from . import get_dataset
 
 import genesis.objects
@@ -45,12 +45,14 @@ def main(args=None, ax=None):
     argparser.add_argument('--with-legend', default=False, action='store_true')
     argparser.add_argument('--skip-interval', default=1, type=int)
     argparser.add_argument('--output-format', default='png', type=str, choices=['png', 'pdf'])
+    argparser.add_argument('--mask-mean', default=False, action="store_true")
+    argparser.add_argument('--scale-by-area', default=False, action="store_true")
 
     args = argparser.parse_args(args=args)
 
-    field_fn = '{}.{}_flux.nc'.format(args.input, args.var_name)
-    output_fn = "flux_plot__{}.{}".format(
-        field_fn.replace('/', '__'), args.output_format
+    output_fn = "{}.{}.vertical_flux.{}".format(
+        args.input.replace('/', '__'), args.var_name,
+        args.output_format
     )
 
     if args.mask_name is not None:
@@ -64,6 +66,13 @@ def main(args=None, ax=None):
         s = args.input.replace('/3d_blocks', '').replace('/', '__')
         objects_fn = "{}.objects.{}".format(s, args.objects)
         mask = genesis.objects.make_mask_from_objects_file(filename=objects_fn)
+
+        if args.invert_mask:
+            mask_attrs = mask.attrs
+            mask = ~mask
+            mask.attrs.update(mask_attrs)
+            mask.name = "{}__inverted".format(mask.name)
+
         output_fn = output_fn.replace(
             '.{}'.format(args.output_format),
             '.masked.{}.{}'.format(mask.name, args.output_format)
@@ -71,12 +80,11 @@ def main(args=None, ax=None):
     else:
         mask = None
 
-    try:
-        da_3d = load_field(fn=field_fn, mask=mask)
-    except:
-        input_name = args.input
-        case_name = input_name.split('/')[0]
-        dataset_name_with_time = input_name.split('/')[-1]
+    input_name = args.input
+    case_name = input_name.split('/')[0]
+    dataset_name_with_time = input_name.split('/')[-1]
+
+    if not args.mask_mean:
         ds_3d = get_dataset(dataset_name_with_time,
                             variables=['{}_flux'.format(args.var_name)],
                             p='{}/3d_blocks/full_domain/'.format(case_name))
@@ -84,12 +92,42 @@ def main(args=None, ax=None):
         if mask is not None:
             da_3d = da_3d.where(mask)
 
-    if args.z_max is not None:
-        da_3d = da_3d.sel(zt=slice(None, args.z_max))
+        if args.z_max is not None:
+            da_3d = da_3d.sel(zt=slice(None, args.z_max))
 
-    da_mean = da_3d.mean(dim=('xt', 'yt'))
-    da_mean.attrs['longname'] = 'horizontal mean {}'.format(da_3d.longname)
-    da_mean.attrs['units'] = da_3d.units
+        da_3d.name = '{}_flux'.format(args.var_name)
+        da_3d = scale_field(da_3d)
+
+        da_mean = da_3d.mean(dim=('xt', 'yt'))
+        da_mean.attrs['longname'] = 'horizontal mean {}'.format(da_3d.longname)
+        da_mean.attrs['units'] = da_3d.units
+
+    else:
+        if mask is None:
+            raise Exception("Must provide mask to compute mask mean")
+        v = 'd_{}'.format(args.var_name)
+        ds_3d = get_dataset(dataset_name_with_time,
+                            variables=[v, 'w_zt'],
+                            p='{}/3d_blocks/full_domain/'.format(case_name))
+
+        w_mean = ds_3d[v].where(mask).mean(dim=('xt', 'yt'))
+        v_mean = ds_3d['w'].where(mask).mean(dim=('xt', 'yt'))
+        da_mean = w_mean*v_mean
+
+        da_mean.attrs['longname'] = '{} flux'.format(v)
+        da_mean.attrs['units'] = "m/s {}".format(ds_3d[v].units)
+        da_mean.name = '{}_flux'.format(args.var_name)
+        da_mean = scale_field(da_mean)
+        print(42)
+        output_fn = output_fn.replace('_flux', '_mask_mean_flux')
+
+    if args.scale_by_area and mask is not None:
+        N_cells_mask = mask.sum(dim=('xt', 'yt')).sel(zt=da_mean.zt)
+        nx, ny = len(mask.xt), len(mask.yt)
+        N_cells_total = nx*ny
+        da_mean *= N_cells_mask.astype(float)/float(N_cells_total)
+        output_fn = output_fn.replace('.vertical_flux.', '.area_weighted_vertical_flux.')
+
     da_mean.plot(y='zt', ax=ax)
 
     mask_description = ''
@@ -101,8 +139,9 @@ def main(args=None, ax=None):
             mask_description = "not " + mask_description
 
 
-    plt.title("Vertical {} flux in {}{}".format(
+    plt.title("Vertical {} flux {} in {}{}".format(
         args.var_name,
+        ["", "scaled by area"][not args.scale_by_area is None],
         args.input,
         ["", "\nwith '{}' mask".format(mask_description)][not mask is None]
     ))
