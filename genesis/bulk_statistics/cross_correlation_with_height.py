@@ -15,6 +15,7 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 import tqdm
+import numpy as np
 
 from cloud_tracking_analysis import CloudData, CloudType, cloud_operations
 from cloud_tracking_analysis.cloud_mask_methods import cloudbase as get_cloudbase_mask
@@ -54,6 +55,8 @@ def get_cloudbase_data(cloud_data, t0, t_age_max=200., z_base_max=700.):
     theta_l__belowcloud = cloud_data.get_from_3d(var_name='t', z=z_slice, t=t0)
     # r_l__belowcloud = cloud_data.get_from_3d(var_name='l', z=z_slice, t=tn*60.)
     r_t__belowcloud = cloud_data.get_from_3d(var_name='q', z=z_slice, t=t0)
+    d__r_t__belowcloud = cloud_data.get_from_3d(var_name='d_q', z=z_slice, t=t0)
+
     dx = cloud_set.cloud_data.dx
     w__belowcloud = cloud_data.get_from_3d(var_name='w', z=z_slice+dx/2., t=t0)
 
@@ -65,6 +68,7 @@ def get_cloudbase_data(cloud_data, t0, t_age_max=200., z_base_max=700.):
         theta_l__belowcloud = theta_l__belowcloud.squeeze()
 
     ds['r_t'] = r_t__belowcloud.values[~m]
+    ds['d__r_t'] = d__r_t__belowcloud.values[~m]
     ds['theta_l'] = theta_l__belowcloud.values[~m]
     ds['w'] = w__belowcloud.values[~m]
 
@@ -80,7 +84,7 @@ def main(ds_3d, ds_cb, z_levels):
 
     v1, v2 = ds_3d.data_vars.keys()
 
-    if v1 == 'q' and ds_3d[v1].units == 'g/kg':
+    if v1 in ['q', 'd_q'] and ds_3d[v1].units == 'g/kg':
         warnings.warn("Scaling variable `q` by 1000 since UCLALES "
                       "incorrectly states the units as g/kg even "
                       "though they are in fact in kg/kg")
@@ -88,13 +92,14 @@ def main(ds_3d, ds_cb, z_levels):
     else:
         xscale = 1.0
 
-    if v2 == 'q' and ds_3d[v2].units == 'g/kg':
+    if v2 in ['q', 'd_q'] and ds_3d[v2].units == 'g/kg':
         warnings.warn("Scaling variable `q` by 1000 since UCLALES "
                       "incorrectly states the units as g/kg even "
                       "though they are in fact in kg/kg")
         yscale = 1000.
     else:
         yscale = 1.
+
 
     for z in tqdm.tqdm(z_levels):
         ds_ = ds_3d.sel(zt=z, method='nearest').squeeze()
@@ -121,7 +126,7 @@ def main(ds_3d, ds_cb, z_levels):
             raise
 
     cb_mapping = dict(
-        q='r_t', t='theta_l', w='w'
+        q='r_t', t='theta_l', w='w', d_q='d__r_t'
     )
 
     if not ds_cb is None:
@@ -172,6 +177,14 @@ def main(ds_3d, ds_cb, z_levels):
     fix_axis(ax.set_xlim, v1)
     fix_axis(ax.set_ylim, v2)
 
+    if axis_lims_spans_zero(ax.get_xlim()):
+        plt.axvline(0.0, linestyle='--', alpha=0.2, color='black')
+    if axis_lims_spans_zero(ax.get_ylim()):
+        plt.axhline(0.0, linestyle='--', alpha=0.2, color='black')
+
+
+def axis_lims_spans_zero(lims):
+    return np.sign(lims[0]) != np.sign(lims[1])
 
 def fix_axis(lim_fn, v):
     if v == 'q':
