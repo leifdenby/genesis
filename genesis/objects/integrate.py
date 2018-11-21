@@ -3,19 +3,21 @@ import warnings
 
 import xarray as xr
 import numpy as np
-try:
-    # raise ImportError # forget about using dask for now
-    import dask_ndmeasure as ndimage
-    # register a progressbar so we can see progress of dask'ed operations with xarray
-    from dask.diagnostics import ProgressBar
-    ProgressBar().register()
-except ImportError:
-    from scipy import ndimage
-    warnings.warn("Using standard serial scipy implementation instead of "
-                  "dask'ed dask-ndmeasure. Install `dask-ndmeasure` for much "
-                  "faster computation")
+# forget about using dask for now, dask_ndmeasure takes a huge amount of memory
+# try:
+    # # raise ImportError
+    # # import dask_ndmeasure as ndimage
+    # # register a progressbar so we can see progress of dask'ed operations with xarray
+    # from dask.diagnostics import ProgressBar
+    # ProgressBar().register()
+# except ImportError:
+    # from scipy import ndimage
+    # warnings.warn("Using standard serial scipy implementation instead of "
+                  # "dask'ed dask-ndmeasure. Install `dask-ndmeasure` for much "
+                  # "faster computation")
 
 
+from scipy import ndimage
 
 def _estimate_dx(da):
     dx = np.max(np.diff(da.xt))
