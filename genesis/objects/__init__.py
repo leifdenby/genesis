@@ -3,13 +3,16 @@ import os
 
 import xarray as xr
 
-def get_data(base_name, mask_identifier='*'):
+def get_data(base_name, mask_identifier='*', debug=False):
     glob_patterns = [
         "{}.minkowski_scales.{}.nc".format(base_name, mask_identifier),
         "{}.objects.{}.integral.*.nc".format(base_name, mask_identifier)
     ]
 
     fns = reduce(lambda a, s: glob.glob(s) + a, glob_patterns, [])
+
+    if debug:
+        print("Loading:\n\t" + "\n\t".join(fns))
 
     if len(fns) == 0:
         raise Exception("No files found with glob patterns: {}".format(
