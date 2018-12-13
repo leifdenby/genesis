@@ -239,7 +239,8 @@ def run_default(debug=False):
 if __name__ == "__main__":
     import argparse
 
-    argparser = argparse.ArgumentParser(__doc__,
+    argparser = argparse.ArgumentParser(
+        description=__doc__,
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
@@ -247,11 +248,11 @@ if __name__ == "__main__":
 
     argparser.add_argument('base_name', help='e.g. `rico_gcss`', type=str)
     argparser.add_argument('--vars', default=DEFAULT_VARS, nargs="+")
-    argparser.add_argument('--z_max', default=700., type=float)
-    argparser.add_argument('--z_min', default=0., type=float)
-    argparser.add_argument('--mask-name', default=None, type=str)
-    argparser.add_argument('--mask-field', default=None, type=str)
-    argparser.add_argument('--invert-mask', default=False, action="store_true")
+    argparser.add_argument('--z_max', default=700., type=float, help='maximum height')
+    argparser.add_argument('--z_min', default=0., type=float, help='minimum height')
+    argparser.add_argument('--mask-name', default=None, type=str, help='name of mask file to use')
+    argparser.add_argument('--mask-field', default=None, type=str, help='name of mask field in mask file')
+    argparser.add_argument('--invert-mask', default=False, action="store_true", help='invert mask')
     argparser.add_argument('--output-in-cwd', default=True, action='store_true')
     argparser.add_argument('--theta', default=None, type=float)
     argparser.add_argument('--debug', default=False, action='store_true')
