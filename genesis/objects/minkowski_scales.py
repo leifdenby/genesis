@@ -18,6 +18,7 @@ if __name__ == "__main__":
     argparser = argparse.ArgumentParser(__doc__)
 
     argparser.add_argument('objects_file', type=str)
+    argparser.add_argument('--make-plot', action="store_true")
 
     args = argparser.parse_args()
 
@@ -28,7 +29,7 @@ if __name__ == "__main__":
 
     base_name, objects_mask = object_file.split('.objects.')
 
-    out_filename = "{}.minkowski_scales.{}.nc".format(
+    out_filename = "{}.objects.{}.minkowski_scales.nc".format(
         base_name, objects_mask
     )
 
@@ -46,3 +47,14 @@ if __name__ == "__main__":
 
     ds.to_netcdf(out_filename)
     print("Wrote output to `{}`".format(out_filename))
+
+    if args.make_plot:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        import topology.plots.overview
+
+        topology.plots.overview.filamentarity_planarity.fp_plot(ds=ds)
+        fn_plot = out_filename.replace('.nc', '.pdf')
+        plt.savefig(fn_plot)
+        print("Saved plot to {}".format(fn_plot))
