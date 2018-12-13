@@ -24,7 +24,8 @@ def _estimate_dx(da):
     dy = np.max(np.diff(da.yt))
     dz = np.max(np.diff(da.zt))
 
-    assert dx == dy == dz
+    if not dx == dy == dz:
+        raise Exception("{} != {} != {}".format(dx, dy, dz))
 
     return dx
 
