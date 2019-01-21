@@ -239,6 +239,15 @@ def coldpool_edge_shear_direction_split(
     return ds
 coldpool_edge_shear_direction_split.description = "Coolpool edge split into up- and downshear direction"
 
+def _calc_scalar_perturbation_in_std_div(da):
+    da_horz_mean = da.mean(dim=('xt', 'yt')).squeeze()
+    da_p_horz = da - da_horz_mean
+    da_stddiv = da.std(dim=('xt', 'yt')).squeeze()
+
+    da_stddivs = da_p_horz/da_stddiv
+    da_stddivs.name = '{}_p_stddivs'.format(da.name)
+    return da_stddivs
+
 
 def rad_tracer_thermals(base_name, cvrxp, num_std_div=1.0):
     """
@@ -255,12 +264,7 @@ def rad_tracer_thermals(base_name, cvrxp, num_std_div=1.0):
     fn_stddiv = "{}.{}.nc".format(base_name, stddivs_field_name)
 
     if not os.path.exists(fn_stddiv):
-        a_mean = cvrxp.mean(dim=('xt', 'yt')).squeeze()
-        a_p = cvrxp - a_mean
-        a_stddiv = cvrxp.std(dim=('xt', 'yt')).squeeze()
-
-        da_stddivs = a_p/a_stddiv
-        da_stddivs.name = stddivs_field_name
+        da_stddivs = _calc_scalar_perturbation_in_std_div(da=cvrxp)
         da_stddivs.to_netcdf(fn_stddiv)
     else:
         da_stddivs = xr.open_dataarray(fn_stddiv)
