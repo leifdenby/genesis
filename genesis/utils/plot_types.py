@@ -1,4 +1,5 @@
 import numpy as np
+import xarray as xr
 
 
 def _find_bin_on_percentile(q, bin_counts):
@@ -19,11 +20,7 @@ class JointHistPlotError(Exception):
     pass
 
 
-def joint_hist_contoured(xd, yd, bins=None, normed_levels=None, ax=None,
-                         **kwargs):
-    """
-    Create joint histogram with contour levels at `normed_levels` percentiles
-    """
+def _raw_calc_joint_hist(xd, yd, bins=None):
     x_range = (np.nanmin(xd), np.nanmax(xd))
     y_range = (np.nanmin(yd), np.nanmax(yd))
 
@@ -38,14 +35,47 @@ def joint_hist_contoured(xd, yd, bins=None, normed_levels=None, ax=None,
     bin_counts, x_bins, y_bins = np.histogram2d(
         xd, yd, bins=bins, range=(x_range, y_range)
     )
+
     x_c = 0.5*(x_bins[1:] + x_bins[:-1])
     y_c = 0.5*(y_bins[1:] + y_bins[:-1])
 
-    x_, y_ = np.meshgrid(x_c, y_c, indexing='ij')
+    return (x_c, y_c), bin_counts
 
+
+def calc_joint_hist(xd, yd, bins=None):
+    if isinstance(xd, xr.DataArray):
+        (x_c, y_c), bin_counts = _raw_calc_joint_hist(
+            xd=xd.values.flatten(),
+            yd=yd.values.flatten(),
+            bins=bins
+        )
+
+        da__x_c = xr.DataArray(name=xd.name, dims=(xd.name,), data=x_c,
+                               attrs=xd.attrs)
+        da__y_c = xr.DataArray(name=yd.name, dims=(yd.name,), data=y_c,
+                               attrs=yd.attrs)
+
+        da = xr.DataArray(
+            data=bin_counts, name='bin_counts', dims=(xd.name, yd.name),
+            coords={ xd.name: da__x_c, yd.name: da__y_c }
+        )
+
+        return da
+    else:
+        return _raw_calc_joint_hist(xd=xd, yd=yd, bins=bins)
+
+
+def joint_hist_contoured(xd, yd, bins=None, normed_levels=None, ax=None,
+                         **kwargs):
+    """
+    Create joint histogram with contour levels at `normed_levels` percentiles
+    """
     if ax is None:
         import matplotlib.pyplot as plt
         ax = plt.gca()
+
+    (x_c, y_c), bin_counts = _raw_calc_joint_hist(xd=xd, yd=yd, bins=bins)
+    x_, y_ = np.meshgrid(x_c, y_c, indexing='ij')
 
     if 'plot_hist2d' in kwargs:
         ax.pcolormesh(x_bins, y_bins, bin_counts)
@@ -58,4 +88,5 @@ def joint_hist_contoured(xd, yd, bins=None, normed_levels=None, ax=None,
         cnt = ax.contour(x_, y_, bin_counts, levels=levels, **kwargs)
     else:
         cnt = ax.contour(x_, y_, bin_counts, **kwargs)
+
     return (x_, y_), bin_counts, cnt
