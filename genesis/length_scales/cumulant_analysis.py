@@ -157,8 +157,15 @@ def identify_principle_axis(C, sI_N=100):
 
     la, v = np.linalg.eig(I)
 
+    # sort eigenvectors by eigenvalue, the largest eigenvalue will be the
+    # principle axis
+    # sort_idx = np.argsort(np.abs(la))[::-1]
+    sort_idx = np.argsort(la)
+    la = la[sort_idx]
+    v = v[sort_idx]
+
+    # the pricinple axis
     v0 = v[0]
-    v1 = v[1]
 
     if v0.dtype == np.complex128:
         if v0.imag.max() > 0:
@@ -298,7 +305,53 @@ def _line_sample(data, theta, max_dist):
     return mu_l, sample(mu_l)[1]
 
 
-def _find_width(data, theta, width_peak_fraction=0.5, max_width=5000.):
+def _find_width_through_mass_weighting(data, theta, max_width=5000.):
+    sample_fn = _get_line_sample_func(data, theta)
+
+    d_max = data.values.max()
+    # use corner of domain as reference
+    d_at_inf = data[0,0].values
+
+    def sample_fn_normed(mu):
+        """
+        Normalize with value at infinity so that we find the width of the
+        distribution above this value at "infinity"
+        """
+        pts_xy, d_val = sample_fn(mu)
+
+        return pts_xy, (d_val - d_at_inf)/(d_max - d_at_inf)
+
+    def mass_weighted_edge(dir):
+        # we only integrate positive "mass" contributions, including negative
+        # contributions didn't work...
+        def fn(mu):
+            val = sample_fn_normed(mu)[1]
+            return np.maximum(0, val)
+
+        fn_inertia = lambda mu: fn(mu)*np.abs(mu)
+        fn_mass = lambda mu: fn(mu)
+
+        if dir == 1:
+            kw = dict(a=0, b=max_width/2.)
+        else:
+            kw = dict(a=-max_width/2., b=0)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            inertia, _ = scipy.integrate.quad(fn_inertia, **kw)
+            mass, _ = scipy.integrate.quad(fn_mass, **kw)
+
+        dist = inertia/mass
+
+        return dir*dist
+
+    width = mass_weighted_edge(1.0) - mass_weighted_edge(-1.0)
+
+    return xr.DataArray(width, coords=dict(zt=data.zt), attrs=dict(units='m'))
+
+
+def _find_width_through_cutoff(data, theta, width_peak_fraction=0.5,
+                               max_width=5000.):
     x = data.coords['x']
     x_ = x[np.abs(x) < max_width/2.]
 
@@ -344,28 +397,7 @@ def _find_width(data, theta, width_peak_fraction=0.5, max_width=5000.):
 
         return x_hwhm
 
-    def mass_weighted_edge(dir):
-        raise Exception("This method doesn't quite work as intended "
-                        "may need to discard points which have negative "
-                        "correlation")
-        fn_inertia = lambda mu: sample_fn_normed(mu)[1]*np.abs(mu)
-        fn_mass = lambda mu: sample_fn_normed(mu)[1]
-
-        if dir == 1:
-            kw = dict(a=0, b=max_width/2.)
-        else:
-            kw = dict(a=-max_width/2., b=0)
-
-        inertia, _ = scipy.integrate.quad(fn_inertia, **kw)
-        mass, _ = scipy.integrate.quad(fn_mass, **kw)
-
-        dist = inertia/mass
-
-        return dist
-
-
     width = find_edge(1.0) - find_edge(-1.0)
-    # width = mass_weighted_edge(1.0) - mass_weighted_edge(-1.0)
 
     return xr.DataArray(width, coords=dict(zt=data.zt), attrs=dict(units='m'))
 
@@ -408,13 +440,13 @@ def covariance_direction_plot(v1, v2, s_N=200, theta_win_N=100,
     mu_l, C_vv_l = _line_sample(data=C_vv, theta=theta, max_dist=max_dist)
 
     line_1, = plot.plot(mu_l, C_vv_l, label=r'$\theta=\theta_{princip}$')
-    width = _find_width(C_vv, theta, width_peak_fraction)
+    width = _find_width_through_mass_weighting(C_vv, theta)
     plot.axvline(-0.5*width, linestyle='--', color=line_1.get_color())
     plot.axvline(0.5*width, linestyle='--', color=line_1.get_color())
 
     mu_l, C_vv_l = _line_sample(data=C_vv, theta=theta+pi/2., max_dist=max_dist)
     line_2, = plot.plot(mu_l, C_vv_l, label=r'$\theta=\theta_{princip} + 90^{\circ}$')
-    width = _find_width(C_vv, theta+pi/2., width_peak_fraction)
+    width = _find_width_through_mass_weighting(C_vv, theta+pi/2.)
     plot.axvline(-0.5*width, linestyle='--', color=line_2.get_color())
     plot.axvline(0.5*width, linestyle='--', color=line_2.get_color())
 
@@ -444,7 +476,7 @@ def covariance_direction_plot(v1, v2, s_N=200, theta_win_N=100,
 
     return [line_1, line_2]
 
-def charactistic_scales(v1, v2=None, l_theta_win=1000., width_peak_fraction=0.5, mask=None,
+def charactistic_scales(v1, v2=None, l_theta_win=2000., mask=None,
                         sample_angle=None):
     """
     From 2nd-order cumulant of v1 and v2 compute principle axis angle,
@@ -471,26 +503,36 @@ def charactistic_scales(v1, v2=None, l_theta_win=1000., width_peak_fraction=0.5,
         theta = xr.DataArray(sample_angle*pi/180., attrs=dict(units='radians'),
                         coords=dict(zt=v1.zt))
 
-        width_principle_axis = _find_width(C_vv, theta, width_peak_fraction)
-        width_perpendicular = _find_width(C_vv, theta+pi/2., width_peak_fraction)
+        width_principle_axis = _find_width_through_mass_weighting(C_vv, theta)
+        width_perpendicular = _find_width_through_mass_weighting(C_vv, theta+pi/2.)
     else:
-        while not found_min_max_lengths:
+        while True:
             s_N = int(l_win/dx)*2
             theta = identify_principle_axis(C_vv, sI_N=s_N)
 
-            width_principle_axis = _find_width(C_vv, theta, width_peak_fraction)
-            width_perpendicular = _find_width(C_vv, theta+pi/2., width_peak_fraction)
+            width_principle_axis = _find_width_through_mass_weighting(C_vv, theta)
+            width_perpendicular = _find_width_through_mass_weighting(C_vv, theta+pi/2.)
 
-            if width_principle_axis > width_perpendicular:
-                found_min_max_lengths = True
-            else:
-                l_win = width_perpendicular
+            d_width = np.abs(width_perpendicular - width_principle_axis)
+            mean_width = 0.5*(width_perpendicular + width_principle_axis)
+
+            if np.isnan(width_perpendicular) or np.isnan(width_principle_axis):
+                break
+
+            if d_width/mean_width > 0.30 and width_perpendicular > width_principle_axis:
+                l_win = 1.2*l_win
+
                 m += 1
-                if m > 6:
-                    found_min_max_lengths = True
-                    warnings.warn("quickfix for theta applied, swapped principle and orthogonal axis")
-                    width_principle_axis, width_perpendicular = width_perpendicular, width_principle_axis
-                    theta -= pi/2.
+                if m > 10:
+                    warnings.warn("Couldn't find principle axis")
+                    width_principle_axis = np.nan
+                    width_perpendicular = np.nan
+                    theta = np.nan
+                    break
+            else:
+                break
+
+            # else:
 
     theta_deg = xr.DataArray(theta.values*180./pi, dims=theta.dims,
                              attrs=dict(units='deg'))
