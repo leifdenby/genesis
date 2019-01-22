@@ -55,10 +55,16 @@ def get_cloudbase_data(cloud_data, t0, t_age_max=200., z_base_max=700.):
     theta_l__belowcloud = cloud_data.get_from_3d(var_name='t', z=z_slice, t=t0)
     # r_l__belowcloud = cloud_data.get_from_3d(var_name='l', z=z_slice, t=tn*60.)
     r_t__belowcloud = cloud_data.get_from_3d(var_name='q', z=z_slice, t=t0)
-    d__r_t__belowcloud = cloud_data.get_from_3d(var_name='d_q', z=z_slice, t=t0)
+    try:
+        d__r_t__belowcloud = cloud_data.get_from_3d(var_name='d_q', z=z_slice, t=t0)
+    except:
+        pass
 
     dx = cloud_set.cloud_data.dx
-    w__belowcloud = cloud_data.get_from_3d(var_name='w', z=z_slice+dx/2., t=t0)
+    try:
+        w__belowcloud = cloud_data.get_from_3d(var_name='w', z=z_slice+dx/2., t=t0)
+    except:
+        pass
 
     ds = xr.Dataset()
     # XXX: using non-xarray indexing here, this could be made faster (and
@@ -68,17 +74,15 @@ def get_cloudbase_data(cloud_data, t0, t_age_max=200., z_base_max=700.):
         theta_l__belowcloud = theta_l__belowcloud.squeeze()
 
     ds['r_t'] = r_t__belowcloud.values[~m]
-    ds['d__r_t'] = d__r_t__belowcloud.values[~m]
+    # ds['d__r_t'] = d__r_t__belowcloud.values[~m]
     ds['theta_l'] = theta_l__belowcloud.values[~m]
-    ds['w'] = w__belowcloud.values[~m]
+    # ds['w'] = w__belowcloud.values[~m]
 
     return ds
 
-def main(ds_3d, ds_cb, z_levels):
+def main(ds_3d, z_levels, ds_cb=None, normed_levels = [5, 95], ax=None):
     colors = iter(sns.color_palette("cubehelix", len(z_levels)))
     sns.set_color_codes()
-
-    normed_levels = [5, 95, ]  # percentiles to plot in contours
 
     lines = []
 
@@ -111,7 +115,8 @@ def main(ds_3d, ds_cb, z_levels):
 
             _, _, cnt = joint_hist_contoured(
                 xd=xd, yd=yd,
-                normed_levels=normed_levels
+                normed_levels=normed_levels,
+                ax=ax
             )
             for n, l in enumerate(cnt.collections):
                 l.set_color(c)
@@ -133,24 +138,25 @@ def main(ds_3d, ds_cb, z_levels):
         if not v1 in cb_mapping or not v2 in cb_mapping:
             warnings.warn("Skipping cloud base plot, missing one or more variables")
         elif cb_mapping[v1] in ds_cb.variables and cb_mapping[v2] in ds_cb.variables:
-            _, _, cnt = joint_hist_contoured(
-                xd=ds_cb[cb_mapping[v1]].values*xscale,
-                yd=ds_cb[cb_mapping[v2]].values*yscale,
-                normed_levels=normed_levels
-            )
+            try:
+                _, _, cnt = joint_hist_contoured(
+                    xd=ds_cb[cb_mapping[v1]].values*xscale,
+                    yd=ds_cb[cb_mapping[v2]].values*yscale,
+                    normed_levels=normed_levels,
+                    ax=ax
+                )
 
-            for n, l in enumerate(cnt.collections):
-                l.set_color('red')
+                for n, l in enumerate(cnt.collections):
+                    l.set_color('red')
 
-                if n == 0:
-                    l.set_label('into cloudbase')
-                    lines.append(l)
-                    l.set_linestyle('--')
+                    if n == 0:
+                        l.set_label('into cloudbase')
+                        lines.append(l)
+                        l.set_linestyle('--')
+            except:
+                pass
         else:
             warnings.warn("Skipping cloud base plot, missing one or more variables")
-
-    ax = plt.gca()
-    ax.legend()
 
     #plt.figlegend(handles=lines, labels=[l.get_label() for l in lines], loc='right')
 
@@ -163,34 +169,44 @@ def main(ds_3d, ds_cb, z_levels):
 
     #plt.legend()
 
-    plt.subplots_adjust(right=0.75)
+    if ax is None:
+        plt.subplots_adjust(right=0.75)
+        ax = plt.gca()
+        ax.legend()
+
     sns.despine()
 
-    plt.xlabel(r'{} [{}]'.format(ds_3d[v1].longname, ds_3d[v1].units))
-    plt.ylabel(r'{} [{}]'.format(ds_3d[v2].longname, ds_3d[v2].units))
+    ax.set_xlabel(r'{} [{}]'.format(ds_3d[v1].longname, ds_3d[v1].units))
+    ax.set_ylabel(r'{} [{}]'.format(ds_3d[v2].longname, ds_3d[v2].units))
 
     if type(ds_.time.values) == float:
-        plt.title("t={}hrs".format(ds_.time.values/60/60))
+        ax.set_title("t={}hrs".format(ds_.time.values/60/60))
     else:
-        plt.title("t={}".format(ds_.time.values))
+        ax.set_title("t={}".format(ds_.time.values))
 
+    # XXX: TODO
     fix_axis(ax.set_xlim, v1)
     fix_axis(ax.set_ylim, v2)
 
     if axis_lims_spans_zero(ax.get_xlim()):
-        plt.axvline(0.0, linestyle='--', alpha=0.2, color='black')
+        ax.axvline(0.0, linestyle='--', alpha=0.2, color='black')
     if axis_lims_spans_zero(ax.get_ylim()):
-        plt.axhline(0.0, linestyle='--', alpha=0.2, color='black')
+        ax.axhline(0.0, linestyle='--', alpha=0.2, color='black')
 
 
 def axis_lims_spans_zero(lims):
     return np.sign(lims[0]) != np.sign(lims[1])
 
 def fix_axis(lim_fn, v):
-    if v == 'q':
-        lim_fn(14.3, 16.8)
-    elif v == 't':
-        lim_fn(297.6, 298.2)
+    pass
+    # if v == 'q':
+        # lim_fn(14.3, 16.8)
+    # elif v == 't':
+        # lim_fn(297.6, 298.2)
+    # if v == 'q':
+        # lim_fn(12.5, 16.5)
+    # elif v == 't':
+        # lim_fn(297.7, 301.4)
 
 if __name__ == "__main__":
     import argparse
