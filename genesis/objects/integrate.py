@@ -16,8 +16,10 @@ import numpy as np
                   # "dask'ed dask-ndmeasure. Install `dask-ndmeasure` for much "
                   # "faster computation")
 
-
 from scipy import ndimage
+from tqdm import tqdm
+
+from . import integral_properties
 
 def _estimate_dx(da):
     dx = np.max(np.diff(da.xt))
@@ -74,6 +76,30 @@ def integrate(objects, da, operator):
     return da
 
 
+def _integrate_per_object(da_objects, fn_int):
+    if 'object_ids' in da_objects.coords:
+        object_ids = da_objects.object_ids
+    else:
+        # print("Finding unique values")
+        object_ids = np.unique(objects.chunk(None).values)
+        # ensure object 0 (outside objects) is excluded
+        if object_ids[0] == 0:
+            object_ids = object_ids[1:]
+
+    if 'xt' in da_objects.coords:
+        da_objects = da_objects.rename(dict(xt='x', yt='y', zt='z'))
+
+    ds_per_object = []
+    for object_id in tqdm(object_ids):
+        da_object = da_objects.where(da_objects == object_id, drop=True)
+
+        ds_object = fn_int(da_object)
+        ds_object['object_id'] = object_id
+        ds_per_object.append(ds_object)
+
+    return xr.concat(ds_per_object, dim='object_id')
+
+
 if __name__ == "__main__":
     import argparse
 
@@ -101,9 +127,14 @@ if __name__ == "__main__":
         fn_objects, decode_times=False, chunks=chunks
     ).squeeze()
 
+    ds_out = None
+
     scalar_field = args.scalar_field
     if scalar_field in objects.coords:
         da_scalar = objects.coords[args.scalar_field]
+    elif scalar_field == 'com_angles':
+        fn_int = integral_properties.calc_com_incline_and_orientation_angle
+        ds_out = _integrate_per_object(da_objects=objects, fn_int=fn_int)
     elif scalar_field == 'volume':
         dx = _estimate_dx(objects)
         da_scalar = xr.DataArray(
@@ -120,13 +151,14 @@ if __name__ == "__main__":
             fn_scalar, decode_times=False, chunks=chunks
         ).squeeze()
 
-    if objects.zt.max() < da_scalar.zt.max():
-        warnings.warn("Objects span smaller range than scalar field to "
-                      "reducing domain of scalar field")
-        zt_ = da_scalar.zt.values
-        da_scalar = da_scalar.sel(zt=slice(None, zt_[25]))
+    if ds_out is None:
+        if objects.zt.max() < da_scalar.zt.max():
+            warnings.warn("Objects span smaller range than scalar field to "
+                          "reducing domain of scalar field")
+            zt_ = da_scalar.zt.values
+            da_scalar = da_scalar.sel(zt=slice(None, zt_[25]))
 
-    da = integrate(objects=objects, da=da_scalar, operator=args.operator)
+        ds_out = integrate(objects=objects, da=da_scalar, operator=args.operator)
 
     out_filename = "{}.objects.{}.integral.{}.{}.nc".format(
         base_name.replace('/', '__'), objects_mask, scalar_field, op,
@@ -134,5 +166,5 @@ if __name__ == "__main__":
 
     import ipdb
     with ipdb.launch_ipdb_on_exception():
-        da.to_netcdf(out_filename)
+        ds_out.to_netcdf(out_filename)
     print("Wrote output to `{}`".format(out_filename))
