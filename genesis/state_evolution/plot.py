@@ -25,50 +25,54 @@ VARS = [
 
 N_rows = len(VARS) + 1
 
-def main(dataset_name):
+def main(dataset_name, dt_overview_hours=5):
     fn = os.path.join('other', '{}.ts.nc'.format(dataset_name))
-    ts = xr.open_dataset(fn, decode_times=False)
+    ds_ts = xr.open_dataset(fn, decode_times=False)
 
+    assert ds_ts.time.units.startswith('seconds since 2000-01-01 0000')
+    ds_ts.time.values = ds_ts.time.values/60./60.
+    ds_ts.time.attrs['units'] = 'hrs'
 
     fig = plot.figure(figsize=(10, 9))
 
     font = matplotlib.font_manager.FontProperties()
     font.set_weight("bold")
 
-    t = ts.time
+    t = ds_ts.time
     t_hours = t/60./60.
 
-    t_hours_unique = np.unique(t_hours.astype(int))
-    if t_hours_unique[0] == 0.:
-        # nothing interesting happens right from the beginning
-        t_hours_unique = t_hours_unique[1:]
-    dt_step = int(t_hours_unique.max()/5)
-    nt = len(t_hours_unique[::dt_step])
+    axes_ts = []
 
     for n, varset in enumerate(VARS):
-        plot.subplot2grid((N_rows,nt), (n,0), colspan=nt)
+        ax = plot.subplot2grid((N_rows,1), (n,0))
+        axes_ts.append(ax)
         for var in varset:
             ax = plot.gca()
-            plot.xlabel('time [hours]')
+            ax.set_xlabel('time [hours]')
 
-            data = ts[var]
-            plot.plot(t_hours, data[:], label=data.longname)
-            plot.ylabel('%s [%s]' % (data.longname, data.units))
+            da = ds_ts[var]
+            da.plot(ax=ax, label=da.longname)
 
             if var in ('lwp_bar', 'rwp_bar'):
-                plot.ylim(0, None)
+                ax.set_ylim(0, None)
             else:
-                plot.ylim(0, 1.2*data[:].max())
+                ax.set_ylim(0, 1.2*da[:].max())
 
-            plot.grid(True)
+            ax.grid(True)
             # ticks = 240.*np.arange(0, 12)
-            # plot.xticks(ticks)
+            # ax.xticks(ticks)
 
         if len(varset) > 1:
-            plot.legend()
+            ax.legend()
         else:
-            plot.title(data.longname)
+            ax.set_title(da.longname)
 
+    axes_ts[0].get_shared_x_axes().join(*axes_ts)
+    [ax.autoscale() for ax in axes_ts]
+
+    # use the tick marks to determine where we'll make the overview and profile
+    # plots
+    t_hrs_used = filter(lambda v: v > 0.0, ax.get_xticks()[1:-1])
 
     fn_3d = os.path.join('raw_data', '{}.00000000.nc'.format(dataset_name))
     if os.path.exists(fn_3d):
@@ -101,39 +105,50 @@ def main(dataset_name):
                         " Recreate the file making sure that cdo is explicitly"
                         " told to use a *relative* time axis. The current"
                         " units are `{}`.".format(fn, da.time.units))
+    
+        
+    print("Using times `{}` for overview plots".format(
+        ", ".join([str(v) for v in t_hrs_used])
+    ))
 
-    for n, t_ in enumerate(tqdm(t_hours_unique[::dt_step])):
-        plot.subplot2grid((N_rows, nt), (N_rows-1, n))
+    # rescale distances to km
+    def scale_dist(da, c):
+        assert da[c].units == 'm'
+        da[c].values = da[c].values/1000.
+        da[c].attrs['units'] = 'km'
+        da[c].attrs['standard_name'] = 'horz. dist.'
+    scale_dist(da, 'xt')
+    scale_dist(da, 'yt')
 
-        d = da.sel(
+    axes_overview = []
+
+    for n, t_ in enumerate(tqdm(t_hrs_used)):
+        ax = plot.subplot2grid((N_rows, len(t_hrs_used)), (N_rows-1, n))
+
+        da_ = da.sel(
             time=t_*60.*60., drop=True, tolerance=5.*60., method='nearest'
-        )
+        ).squeeze()
 
         x, y = da.xt, da.yt
 
-        has_units = hasattr(x, 'units') and hasattr(y, 'units')
-
-        s = 1.0
-        if has_units and x.units == 'm' and y.units == 'm':
-            s = 1.0e-3
-            units = 'km'
-            assert x.units == y.units
-        else:
-            units = None
-
-        plot.pcolormesh(
-            x, y, d > 0.001,
+        (da_ > 0.001).plot.pcolormesh(
             cmap=plot.get_cmap('Greys_r'),
-            rasterized=True
+            rasterized=True,
+            ax=ax,
+            add_colorbar=False,
         )
-
-        if has_units:
-            plot.xlabel('horizontal dist. [{}]'.format(units))
-            if n == 0:
-                plot.ylabel('horizontal dist. [{}]'.format(units))
 
         plot.title('t={}hrs'.format(t_))
         plot.gca().set_aspect(1)
+
+        axes_overview.append(ax)
+
+    plot.tight_layout()
+
+    axes_overview[0].get_shared_y_axes().join(*axes_overview)
+    [ax.autoscale() for ax in axes_overview]
+    [ax.set_ylabel('') for ax in axes_overview[1:]]
+    [ax.set_yticklabels([]) for ax in axes_overview[1:]]
 
 
 # x = np.linspace(0, 20, 100)
@@ -164,6 +179,7 @@ if __name__ == "__main__":
 
     argparser = argparse.ArgumentParser(__doc__)
     argparser.add_argument('--filetype', default='pdf')
+    argparser.add_argument('--dt_overview_hours', type=int)
     args = argparser.parse_args()
 
     import glob
@@ -174,7 +190,7 @@ if __name__ == "__main__":
 
     print("Plotting evolution for `{}`".format(dataset_name))
 
-    main(dataset_name)
+    main(dataset_name, dt_overview_hours=args.dt_overview_hours)
 
     plot.tight_layout()
     plot.savefig("{}.evolution.{}".format(dataset_name, args.filetype))
