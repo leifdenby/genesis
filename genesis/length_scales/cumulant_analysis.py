@@ -185,13 +185,16 @@ def identify_principle_axis(C, sI_N=100):
 
 
 def covariance_plot(v1, v2, s_N=200, extra_title="", theta_win_N=100,
-                    mask=None, sample_angle=None):
+                    mask=None, sample_angle=None, ax=None, add_colorbar=True,
+                    log_scale=True):
     """
     Make a 2D covariance plot of v1 and v2 (both are expected to be
     xarray.DataArray) and identify principle axis. Covariance analysis is
     plotted over a window of s_N x s_N
     """
-    import matplotlib.pyplot as plot
+    import matplotlib.pyplot as plt
+    if ax is None:
+        ax = plt.gca()
 
     assert v1.shape == v2.shape
     if v1.dims == ('x', 'y'):
@@ -222,21 +225,30 @@ def covariance_plot(v1, v2, s_N=200, extra_title="", theta_win_N=100,
     else:
         x_, y_, C_vv_ = x[s_x], y[s_y], C_vv[s_y, s_x]
 
-    print(C_vv_.min(), C_vv_.max())
+    if log_scale:
+        C_vv_ = np.sign(C_vv_)*np.log(np.abs(C_vv_))
 
-    plot.pcolormesh(x_, y_, C_vv_, rasterized=True)
-    plot.colorbar()
+    im = C_vv_.plot.pcolormesh(rasterized=True, robust=True,
+                               add_colorbar=add_colorbar, ax=ax)
+    # im = ax.pcolormesh(x_, y_, C_vv_, rasterized=True)
+    # if add_colorbar:
+        # plt.gcf().colorbar(im)
 
-    ax = plot.gca()
+    if add_colorbar and C_vv_.min() < 1.0e-3:
+        # use scientific notation on the colorbar
+        cb = im.colorbar
+        cb.formatter.set_powerlimits((0, 0))
+        cb.update_ticks()
+
     ax.set_aspect(1)
-    plot.xlabel('x-distance [m]')
-    plot.ylabel('y-distance [m]')
+    ax.set_xlabel('x-distance [m]')
+    ax.set_ylabel('y-distance [m]')
 
     mu_l = x[s_x]
     fn_line = _get_line_sample_func(C_vv, theta)
 
-    plot.plot(*fn_line(mu=mu_l)[0], linestyle='--', color='red')
-    plot.text(0.1, 0.1, r"$\theta_{{princip}}={:.2f}^{{\circ}}$"
+    ax.plot(*fn_line(mu=mu_l)[0], linestyle='--', color='red')
+    ax.text(0.1, 0.1, r"$\theta_{{princip}}={:.2f}^{{\circ}}$"
               "".format(theta.values*180./pi), transform=ax.transAxes,
               color='red')
 
@@ -248,7 +260,7 @@ def covariance_plot(v1, v2, s_N=200, extra_title="", theta_win_N=100,
     try:
         t_units = 's' if 'seconds' in v1.time.units else v1.time.units
 
-        plot.title(
+        ax.set_title(
             """Covariance length-scale for\n{C_vv}
             t={t}{t_units} z={z}{z_units}
             """.format(C_vv=C_vv.longname,
@@ -258,7 +270,7 @@ def covariance_plot(v1, v2, s_N=200, extra_title="", theta_win_N=100,
     except AttributeError:
         pass
 
-    return plot.gca()
+    return ax, cb
 
 
 def _get_line_sample_func(data, theta):
@@ -405,12 +417,14 @@ def _find_width_through_cutoff(data, theta, width_peak_fraction=0.5,
 def covariance_direction_plot(v1, v2, s_N=200, theta_win_N=100,
                               width_peak_fraction=0.5, mask=None,
                               max_dist=2000., with_45deg_sample=False,
-                              sample_angle=None):
+                              sample_angle=None, ax=None):
     """
     Compute 2nd-order cumulant between v1 and v2 and sample and perpendicular
     to pricinple axis. `s_N` sets plot window
     """
-    import matplotlib.pyplot as plot
+    import matplotlib.pyplot as plt
+    if ax is None:
+        ax = plt.gca()
 
     assert v1.shape == v2.shape
     if v1.dims == ('x', 'y'):
@@ -439,29 +453,28 @@ def covariance_direction_plot(v1, v2, s_N=200, theta_win_N=100,
 
     mu_l, C_vv_l = _line_sample(data=C_vv, theta=theta, max_dist=max_dist)
 
-    line_1, = plot.plot(mu_l, C_vv_l, label=r'$\theta=\theta_{princip}$')
+    line_1, = ax.plot(mu_l, C_vv_l, label=r'$\theta=\theta_{princip}$')
     width = _find_width_through_mass_weighting(C_vv, theta)
-    plot.axvline(-0.5*width, linestyle='--', color=line_1.get_color())
-    plot.axvline(0.5*width, linestyle='--', color=line_1.get_color())
+    ax.axvline(-0.5*width, linestyle='--', color=line_1.get_color())
+    ax.axvline(0.5*width, linestyle='--', color=line_1.get_color())
 
     mu_l, C_vv_l = _line_sample(data=C_vv, theta=theta+pi/2., max_dist=max_dist)
-    line_2, = plot.plot(mu_l, C_vv_l, label=r'$\theta=\theta_{princip} + 90^{\circ}$')
+    line_2, = ax.plot(mu_l, C_vv_l, label=r'$\theta=\theta_{princip} + 90^{\circ}$')
     width = _find_width_through_mass_weighting(C_vv, theta+pi/2.)
-    plot.axvline(-0.5*width, linestyle='--', color=line_2.get_color())
-    plot.axvline(0.5*width, linestyle='--', color=line_2.get_color())
+    ax.axvline(-0.5*width, linestyle='--', color=line_2.get_color())
+    ax.axvline(0.5*width, linestyle='--', color=line_2.get_color())
 
     if with_45deg_sample:
         mu_l, C_vv_l = _line_sample(data=C_vv, theta=theta+pi/4., max_dist=max_dist)
-        line_2, = plot.plot(mu_l, C_vv_l, label=r'$\theta=\theta_{princip} + 45^{\circ}$')
+        line_2, = ax.plot(mu_l, C_vv_l, label=r'$\theta=\theta_{princip} + 45^{\circ}$')
         width = _find_width(C_vv, theta+pi/2., width_peak_fraction)
-        plot.axvline(-0.5*width, linestyle='--', color=line_2.get_color())
-        plot.axvline(0.5*width, linestyle='--', color=line_2.get_color())
+        ax.axvline(-0.5*width, linestyle='--', color=line_2.get_color())
+        ax.axvline(0.5*width, linestyle='--', color=line_2.get_color())
 
-    plot.legend()
-    plot.xlabel('distance [m]')
-    plot.ylabel('covariance [{}]'.format(C_vv.units))
-    ax = plot.gca()
-    plot.text(0.05, 0.9, r"$\theta_{{princip}}={:.2f}^{{\circ}}$"
+    ax.legend(loc='upper right')
+    ax.set_xlabel('distance [m]')
+    ax.set_ylabel('covariance [{}]'.format(C_vv.units))
+    ax.text(0.05, 0.8, r"$\theta_{{princip}}={:.2f}^{{\circ}}$"
               "".format(theta.values*180./pi), transform=ax.transAxes)
 
     if 'zt' in v1:
@@ -469,7 +482,7 @@ def covariance_direction_plot(v1, v2, s_N=200, theta_win_N=100,
     else:
         z_var = 'zm'
 
-    plot.title("{} sampled along and\n perpendicular to principle axis "
+    ax.set_title("{} sampled along and\n perpendicular to principle axis "
                "at z={z}{z_units}\n".format(
                    C_vv.longname, z=float(v1[z_var]), z_units=v1[z_var].units
                ))
