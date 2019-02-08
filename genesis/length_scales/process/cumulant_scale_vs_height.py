@@ -109,6 +109,7 @@ def get_height_variation_of_characteristic_scales(v1_3d, z_max, v2_3d=None,
         if v2_3d is None:
             v2 = v1
         else:
+            v2 = _extract_horizontal(v2_3d, z=z)
             v2 = v2.rename(dict(xt='x', yt='y'))
 
         scales = cumulant_analysis.charactistic_scales(v1=v1, v2=v2, mask=mask,
@@ -132,10 +133,13 @@ def process(base_name, variable_sets, z_min, z_max, mask=None,
     for var_name_1, var_name_2 in variable_sets:
         v1_3d = get_data(base_name=base_name, var_name=var_name_1)
 
-        if var_name_2 != var_name_2:
+        if var_name_1 != var_name_2:
             v2_3d = get_data(base_name=base_name, var_name=var_name_2)
         else:
             v2_3d = None
+
+        print("Extract cumulant length-scales for C({},{})".format(var_name_1,
+                                                                   var_name_2))
 
         if debug:
             import ipdb
@@ -244,7 +248,7 @@ if __name__ == "__main__":
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
-    DEFAULT_VARS = "w q t l q_flux t_flux l_flux".split(" ")
+    DEFAULT_VARS = "w_zt,w_zt d_q,d_q d_t,d_t w_zt,d_q w_zt,d_t".split(" ")
 
     argparser.add_argument('base_name', help='e.g. `rico_gcss`', type=str)
     argparser.add_argument('--vars', default=DEFAULT_VARS, nargs="+")
@@ -260,9 +264,7 @@ if __name__ == "__main__":
     args = argparser.parse_args()
 
 
-    out_filename = "{}.cumulant_length_scales.{}.nc".format(
-        args.base_name, "_".join(sorted(args.vars))
-    )
+    out_filename = "{}.cumulant_length_scales.nc".format(args.base_name)
 
     if not args.mask_name is None:
         if args.mask_field is None:
@@ -301,18 +303,26 @@ if __name__ == "__main__":
         mask = None
         mask_description = 'full domain'
 
+    variable_sets = []
+    for v_pair in args.vars:
+        v_split = v_pair.split(",")
+        if not len(v_split) == 2:
+            raise NotImplementedError("Not sure how to interpret `{}`"
+                    "".format(v_pair))
+        else:
+            variable_sets.append(v_split)
 
-    variable_sets = zip(args.vars, args.vars)
-
-    data = process(
-        base_name=args.base_name,
-        variable_sets=variable_sets,
-        z_min=args.z_min,
-        z_max=args.z_max,
-        mask=mask,
-        sample_angle=args.theta,
-        debug=args.debug,
-    )
+    import ipdb
+    with ipdb.launch_ipdb_on_exception():
+        data = process(
+            base_name=args.base_name,
+            variable_sets=variable_sets,
+            z_min=args.z_min,
+            z_max=args.z_max,
+            mask=mask,
+            sample_angle=args.theta,
+            debug=args.debug,
+        )
 
     data.attrs['mask'] = mask_description
 
