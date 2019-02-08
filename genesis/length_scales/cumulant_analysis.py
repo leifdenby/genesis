@@ -40,6 +40,8 @@ def fix_cumulant_name(name):
         'q_flux': r"w'q_t'",
         't_flux': r"w'\theta_l'",
         'l_flux': r"w'q_l'",
+        'd_q': r"q_t'",
+        'd_t': r"\theta_l'",
     }
 
     v1, v2, extra = RE_CUMULANT_NAME.match(name).groups()
@@ -148,12 +150,17 @@ def identify_principle_axis(C, sI_N=100):
     sI_x = slice(Nx//2 - sI_N//2, Nx//2 + sI_N//2)
     sI_y = slice(Ny//2 - sI_N//2, Ny//2 + sI_N//2)
 
+    # if the correlation is negative we still want to find the width over which
+    # this is true, so we invert the cumulant so that we still can integrate
+    # over its "mass"
+    s = np.sign(C[Nx//2, Ny//2])
+
     if C.dims == ('x', 'y'):
         x, y = np.meshgrid(x_[sI_x], y_[sI_y], indexing='ij')
-        I = I_func(x, y, C[sI_x, sI_y])
+        I = I_func(x, y, s*C[sI_x, sI_y])
     else:
         x, y = np.meshgrid(x_[sI_y], y_[sI_x], indexing='ij')
-        I = I_func(x, y, C[sI_y, sI_x])
+        I = I_func(x, y, s*C[sI_y, sI_x])
 
     la, v = np.linalg.eig(I)
 
@@ -263,7 +270,7 @@ def covariance_plot(v1, v2, s_N=200, extra_title="", theta_win_N=100,
         ax.set_title(
             """Covariance length-scale for\n{C_vv}
             t={t}{t_units} z={z}{z_units}
-            """.format(C_vv=C_vv.longname,
+            """.format(C_vv=fix_cumulant_name(C_vv.name),
                        t=float(v1.time), t_units=t_units,
                        z=float(v1[z_var]), z_units=v1[z_var].units)
         )
@@ -336,9 +343,14 @@ def _find_width_through_mass_weighting(data, theta, max_width=5000.):
     def mass_weighted_edge(dir):
         # we only integrate positive "mass" contributions, including negative
         # contributions didn't work...
+
+        # if the correlation is negative we still want to be able to calculate
+        # a width, the distance over which the correlation is negative. And so
+        # we multiply by the sign at the origin to flip the function
+        s = np.sign(sample_fn_normed(0.0)[1])
         def fn(mu):
             val = sample_fn_normed(mu)[1]
-            return np.maximum(0, val)
+            return np.maximum(0, s*val)
 
         fn_inertia = lambda mu: fn(mu)*np.abs(mu)
         fn_mass = lambda mu: fn(mu)
