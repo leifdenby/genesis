@@ -277,7 +277,7 @@ def covariance_plot(v1, v2, s_N=200, extra_title="", theta_win_N=100,
     except AttributeError:
         pass
 
-    return ax, cb
+    return ax
 
 
 def _get_line_sample_func(data, theta):
