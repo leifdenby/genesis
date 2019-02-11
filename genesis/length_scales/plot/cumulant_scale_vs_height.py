@@ -1,8 +1,9 @@
 """
 Routines for plotting cumulant characteristics from netCDF datafile
 """
-import matplotlib
-matplotlib.use("Agg")
+if __name__ == "__main__":
+    import matplotlib
+    matplotlib.use("Agg")
 
 import warnings
 import os
@@ -10,6 +11,7 @@ import os
 import xarray as xr
 from matplotlib.gridspec import GridSpec
 import matplotlib.pyplot as plot
+import numpy as np
 
 from genesis.length_scales.cumulant_analysis import fix_cumulant_name
 
@@ -76,8 +78,9 @@ def plot_full_suite(data, marker=''):
     lgd = plot.figlegend(lines, [l.get_label() for l in lines], loc='lower center', ncol=2)
 
 
-def plot_default(data, marker='', z_max=None, cumulants=[], split_subplots=True,
-                 with_legend=True, fig=None):
+
+def plot_angles(data, marker='', z_max=None, cumulants=[], split_subplots=True,
+                 with_legend=True, fig=None, **kwargs):
 
     if len(cumulants) == 0:
         cumulants = data.cumulant.values
@@ -92,6 +95,60 @@ def plot_default(data, marker='', z_max=None, cumulants=[], split_subplots=True,
 
     ax = None
 
+    axes = []
+
+    for i, cumulant in enumerate(cumulants):
+        lines = []
+        n = data.cumulant.values.tolist().index(cumulant)
+        s = data.isel(cumulant=n, drop=True).squeeze()
+        if split_subplots:
+            ax = plot.subplot(1,len(cumulants),i+1, sharey=ax)
+        else:
+            ax = plot.gca()
+        for p in data.dataset_name.values:
+            d = data.sel(dataset_name=p, drop=True).sel(cumulant=cumulant, drop=True)
+
+            line, = plot.plot(d.principle_axis, d.zt, marker=marker,
+                              label="{}, principle axis orientation".format(str(p)),
+                              **kwargs)
+
+            lines.append(line)
+
+        plot.title(fix_cumulant_name(cumulant))
+        plot.tight_layout()
+        plot.xlabel("angle [deg]")
+
+        if i == 0:
+            plot.ylabel('height [m]')
+        else:
+            plot.setp(ax.get_yticklabels(), visible=False)
+
+        axes.append(ax)
+
+    if with_legend:
+        plot.subplots_adjust(bottom=0.24)
+        lgd = plot.figlegend(lines, [l.get_label() for l in lines], loc='lower center', ncol=2)
+
+    return axes
+
+def plot_default(data, marker='', z_max=None, cumulants=[], split_subplots=True,
+                 with_legend=True, fig=None, fill_between_alpha=0.2, **kwargs):
+
+    if len(cumulants) == 0:
+        cumulants = data.cumulant.values
+
+    if z_max is not None:
+        data = data.copy().where(data.zt < z_max, drop=True)
+
+    if fig is None and split_subplots:
+        fig = plot.figure(figsize=(2.5*len(cumulants), 4))
+
+    z_ = data.zt
+
+    ax = None
+
+    axes = []
+
     for i, cumulant in enumerate(cumulants):
         lines = []
         n = data.cumulant.values.tolist().index(cumulant)
@@ -104,13 +161,19 @@ def plot_default(data, marker='', z_max=None, cumulants=[], split_subplots=True,
             d = data.sel(dataset_name=p, drop=True).sel(cumulant=cumulant, drop=True)
 
             line, = plot.plot(d.width_principle, d.zt, marker=marker,
-                              label="{} principle".format(str(p)))
+                              label="{} principle".format(str(p)), **kwargs)
             line2, = plot.plot(d.width_perpendicular, d.zt, marker=marker,
                                label="{} orthog.".format(str(p)),
-                               linestyle='--', color=line.get_color())
+                               linestyle='--', color=line.get_color(), **kwargs)
 
             lines.append(line)
             lines.append(line2)
+
+            ax.fill_betweenx(
+                y=line.get_ydata(), x1=line.get_xdata(),
+                x2=line2.get_xdata(), color=line.get_color(),
+                alpha=fill_between_alpha,
+            )
 
         plot.title(fix_cumulant_name(cumulant))
         plot.tight_layout()
@@ -121,9 +184,13 @@ def plot_default(data, marker='', z_max=None, cumulants=[], split_subplots=True,
         else:
             plot.setp(ax.get_yticklabels(), visible=False)
 
+        axes.append(ax)
+
     if with_legend:
         plot.subplots_adjust(bottom=0.24)
         lgd = plot.figlegend(lines, [l.get_label() for l in lines], loc='lower center', ncol=2)
+
+    return axes
 
 
 if __name__ == "__main__":
