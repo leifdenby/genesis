@@ -12,6 +12,7 @@ import scipy.integrate
 from intergrid import intergrid
 import xarray as xr
 from tqdm import tqdm
+from enum import Enum
 
 try:
     import pyfftw.interfaces
@@ -323,6 +324,12 @@ def _line_sample(data, theta, max_dist):
 
     return mu_l, sample(mu_l)[1]
 
+class WidthEstimationMethod(Enum):
+    MASS_WEIGHTING = 0
+    CUTOFF = 1
+
+    def __str__(self):
+        return self.name
 
 def _find_width_through_mass_weighting(data, theta, max_width=5000.):
     sample_fn = _get_line_sample_func(data, theta)
@@ -429,7 +436,8 @@ def _find_width_through_cutoff(data, theta, width_peak_fraction=0.5,
 def covariance_direction_plot(v1, v2, s_N=200, theta_win_N=100,
                               width_peak_fraction=0.5, mask=None,
                               max_dist=2000., with_45deg_sample=False,
-                              sample_angle=None, ax=None):
+                              sample_angle=None, ax=None,
+                              width_est_method=WidthEstimationMethod.MASS_WEIGHTING):
     """
     Compute 2nd-order cumulant between v1 and v2 and sample and perpendicular
     to pricinple axis. `s_N` sets plot window
@@ -449,6 +457,13 @@ def covariance_direction_plot(v1, v2, s_N=200, theta_win_N=100,
     assert np.all(v1.coords['x'] == v2.coords['x'])
     assert np.all(v1.coords['y'] == v2.coords['y'])
 
+    if width_est_method == WidthEstimationMethod.CUTOFF:
+        width_func = _find_width_through_
+    elif width_est_method == WidthEstimationMethod.MASS_WEIGHTING:
+        width_func = _find_width_through_mass_weighting
+    else:
+        raise NotImplementedError
+
     # TODO: don't actually need 2D coords here, but would have to fix indexing
     # below
     if v1.dims == ('x', 'y'):
@@ -466,13 +481,13 @@ def covariance_direction_plot(v1, v2, s_N=200, theta_win_N=100,
     mu_l, C_vv_l = _line_sample(data=C_vv, theta=theta, max_dist=max_dist)
 
     line_1, = ax.plot(mu_l, C_vv_l, label=r'$\theta=\theta_{princip}$')
-    width = _find_width_through_mass_weighting(C_vv, theta)
+    width = width_func(C_vv, theta)
     ax.axvline(-0.5*width, linestyle='--', color=line_1.get_color())
     ax.axvline(0.5*width, linestyle='--', color=line_1.get_color())
 
     mu_l, C_vv_l = _line_sample(data=C_vv, theta=theta+pi/2., max_dist=max_dist)
     line_2, = ax.plot(mu_l, C_vv_l, label=r'$\theta=\theta_{princip} + 90^{\circ}$')
-    width = _find_width_through_mass_weighting(C_vv, theta+pi/2.)
+    width = width_func(C_vv, theta+pi/2.)
     ax.axvline(-0.5*width, linestyle='--', color=line_2.get_color())
     ax.axvline(0.5*width, linestyle='--', color=line_2.get_color())
 
@@ -502,7 +517,8 @@ def covariance_direction_plot(v1, v2, s_N=200, theta_win_N=100,
     return [line_1, line_2]
 
 def charactistic_scales(v1, v2=None, l_theta_win=2000., mask=None,
-                        sample_angle=None):
+                        sample_angle=None,
+                        width_est_method=WidthEstimationMethod.MASS_WEIGHTING):
     """
     From 2nd-order cumulant of v1 and v2 compute principle axis angle,
     characteristic length-scales along and perpendicular to principle axis (as
@@ -514,6 +530,13 @@ def charactistic_scales(v1, v2=None, l_theta_win=2000., mask=None,
         assert v1.shape == v2.shape
         assert np.all(v1.coords['x'] == v2.coords['x'])
         assert np.all(v1.coords['y'] == v2.coords['y'])
+
+    if width_est_method == WidthEstimationMethod.CUTOFF:
+        width_func = _find_width_through_
+    elif width_est_method == WidthEstimationMethod.MASS_WEIGHTING:
+        width_func = _find_width_through_mass_weighting
+    else:
+        raise NotImplementedError
 
     Nx, Ny = v1.shape
 
@@ -528,15 +551,15 @@ def charactistic_scales(v1, v2=None, l_theta_win=2000., mask=None,
         theta = xr.DataArray(sample_angle*pi/180., attrs=dict(units='radians'),
                         coords=dict(zt=v1.zt))
 
-        width_principle_axis = _find_width_through_mass_weighting(C_vv, theta)
-        width_perpendicular = _find_width_through_mass_weighting(C_vv, theta+pi/2.)
+        width_principle_axis = width_func(C_vv, theta)
+        width_perpendicular = width_func(C_vv, theta+pi/2.)
     else:
         while True:
             s_N = int(l_win/dx)*2
             theta = identify_principle_axis(C_vv, sI_N=s_N)
 
-            width_principle_axis = _find_width_through_mass_weighting(C_vv, theta)
-            width_perpendicular = _find_width_through_mass_weighting(C_vv, theta+pi/2.)
+            width_principle_axis = width_func(C_vv, theta)
+            width_perpendicular = width_func(C_vv, theta+pi/2.)
 
             d_width = np.abs(width_perpendicular - width_principle_axis)
             mean_width = 0.5*(width_perpendicular + width_principle_axis)

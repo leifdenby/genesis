@@ -95,7 +95,8 @@ def _extract_horizontal(da, z):
     return da_slice
 
 
-def get_height_variation_of_characteristic_scales(v1_3d, z_max, v2_3d=None,
+def get_height_variation_of_characteristic_scales(v1_3d, z_max, 
+                                                  width_method, v2_3d=None,
                                                   z_min=0.0, mask=None,
                                                   sample_angle=None):
     datasets = []
@@ -113,7 +114,8 @@ def get_height_variation_of_characteristic_scales(v1_3d, z_max, v2_3d=None,
             v2 = v2.rename(dict(xt='x', yt='y'))
 
         scales = cumulant_analysis.charactistic_scales(v1=v1, v2=v2, mask=mask,
-                                                       sample_angle=sample_angle)
+                                                       sample_angle=sample_angle,
+                                                       width_est_method=width_method)
 
         datasets.append(scales)
 
@@ -127,7 +129,7 @@ def get_height_variation_of_characteristic_scales(v1_3d, z_max, v2_3d=None,
     return d
 
 
-def process(base_name, variable_sets, z_min, z_max, mask=None,
+def process(base_name, variable_sets, z_min, z_max, width_method, mask=None,
             sample_angle=None, debug=False):
     param_datasets = []
     for var_name_1, var_name_2 in variable_sets:
@@ -146,13 +148,13 @@ def process(base_name, variable_sets, z_min, z_max, mask=None,
             with ipdb.launch_ipdb_on_exception():
                 characteristic_scales = get_height_variation_of_characteristic_scales(
                     v1_3d=v1_3d, v2_3d=v2_3d, z_max=z_max, z_min=z_min, mask=mask,
-                    sample_angle=sample_angle,
+                    sample_angle=sample_angle, width_method=width_method
                 )
         else:
 
             characteristic_scales = get_height_variation_of_characteristic_scales(
                 v1_3d=v1_3d, v2_3d=v2_3d, z_max=z_max, z_min=z_min, mask=mask,
-                sample_angle=sample_angle,
+                sample_angle=sample_angle, width_method=width_method
             )
 
         param_datasets.append(characteristic_scales)
@@ -260,6 +262,11 @@ if __name__ == "__main__":
     argparser.add_argument('--output-in-cwd', default=True, action='store_true')
     argparser.add_argument('--theta', default=None, type=float)
     argparser.add_argument('--debug', default=False, action='store_true')
+    argparser.add_argument('--width-method',
+        type=lambda m: cumulant_analysis.WidthEstimationMethod[m],
+        choices=list(cumulant_analysis.WidthEstimationMethod),
+        default=cumulant_analysis.WidthEstimationMethod.MASS_WEIGHTING
+    )
 
     args = argparser.parse_args()
 
@@ -322,9 +329,15 @@ if __name__ == "__main__":
             mask=mask,
             sample_angle=args.theta,
             debug=args.debug,
+            width_method=args.width_method
         )
 
     data.attrs['mask'] = mask_description
+
+    out_filename = out_filename.replace('.nc', '.{}_width.nc'.format(
+        args.width_method.name.lower()
+    ))
+
 
     if args.output_in_cwd:
         out_filename = out_filename.replace('/', '__')
