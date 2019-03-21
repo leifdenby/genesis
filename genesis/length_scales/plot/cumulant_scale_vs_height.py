@@ -129,6 +129,10 @@ def plot_angles(data, marker='', z_max=None, cumulants=[], split_subplots=True,
         plot.subplots_adjust(bottom=0.24)
         lgd = plot.figlegend(lines, [l.get_label() for l in lines], loc='lower center', ncol=2)
 
+    [axes[0].get_shared_x_axes().join(axes[0], ax) for ax in axes[1:]]
+    axes[0].autoscale()
+    [ax.axvline(0, linestyle='--', color='grey') for ax in axes]
+
     return axes
 
 def plot_default(data, marker='', z_max=None, cumulants=[], split_subplots=True,
