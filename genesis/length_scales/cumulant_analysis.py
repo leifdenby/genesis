@@ -260,9 +260,10 @@ def covariance_plot(v1, v2, s_N=200, extra_title="", theta_win_N=100,
               "".format(theta.values*180./pi), transform=ax.transAxes,
               color='red')
 
-    if 'zt' in v1:
+    try:
+        v1.zt
         z_var = 'zt'
-    else:
+    except AttributeError:
         z_var = 'zm'
 
     try:
@@ -504,9 +505,10 @@ def covariance_direction_plot(v1, v2, s_N=200, theta_win_N=100,
     ax.text(0.05, 0.8, r"$\theta_{{princip}}={:.2f}^{{\circ}}$"
               "".format(theta.values*180./pi), transform=ax.transAxes)
 
-    if 'zt' in v1:
+    try:
+        v1.zt
         z_var = 'zt'
-    else:
+    except AttributeError:
         z_var = 'zm'
 
     ax.set_title("{} sampled along and\n perpendicular to principle axis "
