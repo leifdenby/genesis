@@ -210,6 +210,9 @@ def covariance_plot(v1, v2, s_N=200, extra_title="", theta_win_N=100,
     else:
         Ny, Nx = v1.shape
 
+    s_N = min(s_N, Nx)
+    theta_win_N = min(theta_win_N, Nx)
+
     assert np.all(v1.coords['x'] == v2.coords['x'])
     assert np.all(v1.coords['y'] == v2.coords['y'])
 
