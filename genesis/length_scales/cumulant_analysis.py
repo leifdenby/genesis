@@ -43,6 +43,7 @@ def fix_cumulant_name(name):
         'l_flux': r"w'q_l'",
         'd_q': r"q_t'",
         'd_t': r"\theta_l'",
+        'cvrxp': r"\phi",
     }
 
     v1, v2, extra = RE_CUMULANT_NAME.match(name).groups()
@@ -194,7 +195,7 @@ def identify_principle_axis(C, sI_N=100):
 
 def covariance_plot(v1, v2, s_N=200, extra_title="", theta_win_N=100,
                     mask=None, sample_angle=None, ax=None, add_colorbar=True,
-                    log_scale=True):
+                    log_scale=True, autoscale_dist=True):
     """
     Make a 2D covariance plot of v1 and v2 (both are expected to be
     xarray.DataArray) and identify principle axis. Covariance analysis is
@@ -232,12 +233,28 @@ def covariance_plot(v1, v2, s_N=200, extra_title="", theta_win_N=100,
     s_y = slice(Ny//2 - s_N//2, Ny//2 + s_N//2)
 
     if v1.dims == ('x', 'y'):
-        x_, y_, C_vv_ = x[s_x], y[s_y], C_vv[s_x, s_y]
+        C_vv_ = C_vv[s_x, s_y]
     else:
-        x_, y_, C_vv_ = x[s_x], y[s_y], C_vv[s_y, s_x]
+        C_vv_ = C_vv[s_y, s_x]
+
+    if autoscale_dist:
+        lx = x.max() - x.min()
+        if x.units == 'm' and lx > 1.0e3:
+            for v in ['x', 'y']:
+                v_new = '{}_scaled'.format(v)
+                C_vv_[v_new] = C_vv_[v]/1000.
+                C_vv_[v_new].attrs['units'] = 'km'
+                C_vv_[v_new].attrs['long_name'] = '{}-distance'.format(v)
+
+            C_vv_ = C_vv_.swap_dims(dict(x='x_scaled', y='y_scaled'))
 
     if log_scale:
         C_vv_ = np.sign(C_vv_)*np.log(np.abs(C_vv_))
+
+    if add_colorbar:
+        # add a latex formatted name for xarray to print on the colorbar
+        C_vv_.attrs['long_name'] = fix_cumulant_name(C_vv_.name)
+    C_vv_.attrs['units'] = C_vv.units
 
     im = C_vv_.plot.pcolormesh(rasterized=True, robust=True,
                                add_colorbar=add_colorbar, ax=ax)
@@ -252,8 +269,6 @@ def covariance_plot(v1, v2, s_N=200, extra_title="", theta_win_N=100,
         cb.update_ticks()
 
     ax.set_aspect(1)
-    ax.set_xlabel('x-distance [m]')
-    ax.set_ylabel('y-distance [m]')
 
     mu_l = x[s_x]
     fn_line = _get_line_sample_func(C_vv, theta)
@@ -336,6 +351,7 @@ class WidthEstimationMethod(Enum):
         return self.name
 
 def _find_width_through_mass_weighting(data, theta, max_width=5000.):
+    assert data.x.units == 'm'
     sample_fn = _get_line_sample_func(data, theta)
 
     d_max = data.values.max()
@@ -389,6 +405,7 @@ def _find_width_through_cutoff(data, theta, width_peak_fraction=0.5,
                                max_width=5000.):
     x = data.coords['x']
     x_ = x[np.abs(x) < max_width/2.]
+    assert x.units == 'm'
 
     sample_fn = _get_line_sample_func(data, theta)
 
