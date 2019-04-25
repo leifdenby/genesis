@@ -344,7 +344,7 @@ def _line_sample(data, theta, max_dist):
     return mu_l, sample(mu_l)[1]
 
 class WidthEstimationMethod(Enum):
-    MASS_WEIGHTING = 0
+    MASS_WEIGHTED = 0
     CUTOFF = 1
 
     def __str__(self):
@@ -387,6 +387,26 @@ def _find_width_through_mass_weighting(data, theta, max_width=5000.):
         else:
             kw = dict(a=-max_width/2., b=0)
 
+        # try to work out if function has a local minimum, i.e. whether we get
+        # a flip in correlation, if so we only want to integrate up to this
+        # limit so that we avoid getting contributions if the correlation
+        # becomes positive again
+        x_ = np.linspace(kw['a'], kw['b'], 100)
+        vals_ = s*sample_fn_normed(x_)[1]
+        if np.min(vals_) < 0.0:
+            max_width_local = x_[np.argmin(vals_)]
+            if dir == 1:
+                kw = dict(a=0, b=max_width_local)
+            else:
+                kw = dict(a=-max_width_local, b=0)
+
+        # import matplotlib.pyplot as plt
+        # if dif == 1:
+            # plt.figure()
+            # plt.plot(x_, fn(x_))
+        # else:
+            # plt.plot(x_, fn(x_))
+
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
             inertia, _ = scipy.integrate.quad(fn_inertia, **kw)
@@ -396,7 +416,10 @@ def _find_width_through_mass_weighting(data, theta, max_width=5000.):
 
         return dir*dist
 
-    width = mass_weighted_edge(1.0) - mass_weighted_edge(-1.0)
+    try:
+        width = mass_weighted_edge(1.0) - mass_weighted_edge(-1.0)
+    except ZeroDivisionError:
+        width = np.nan
 
     return xr.DataArray(width, coords=dict(zt=data.zt), attrs=dict(units='m'))
 
@@ -458,7 +481,7 @@ def covariance_direction_plot(v1, v2, s_N=200, theta_win_N=100,
                               width_peak_fraction=0.5, mask=None,
                               max_dist=2000., with_45deg_sample=False,
                               sample_angle=None, ax=None,
-                              width_est_method=WidthEstimationMethod.MASS_WEIGHTING):
+                              width_est_method=WidthEstimationMethod.MASS_WEIGHTED):
     """
     Compute 2nd-order cumulant between v1 and v2 and sample and perpendicular
     to pricinple axis. `s_N` sets plot window
@@ -479,11 +502,11 @@ def covariance_direction_plot(v1, v2, s_N=200, theta_win_N=100,
     assert np.all(v1.coords['y'] == v2.coords['y'])
 
     if width_est_method == WidthEstimationMethod.CUTOFF:
-        width_func = _find_width_through_
-    elif width_est_method == WidthEstimationMethod.MASS_WEIGHTING:
+        width_func = _find_width_through_cutoff
+    elif width_est_method == WidthEstimationMethod.MASS_WEIGHTED:
         width_func = _find_width_through_mass_weighting
     else:
-        raise NotImplementedError
+        raise NotImplementedError(width_est_method)
 
     # TODO: don't actually need 2D coords here, but would have to fix indexing
     # below
@@ -538,9 +561,9 @@ def covariance_direction_plot(v1, v2, s_N=200, theta_win_N=100,
 
     return [line_1, line_2]
 
-def charactistic_scales(v1, v2=None, l_theta_win=2000., mask=None,
+def charactistic_scales(v1, v2=None, l_theta_win=1000., mask=None,
                         sample_angle=None,
-                        width_est_method=WidthEstimationMethod.MASS_WEIGHTING):
+                        width_est_method=WidthEstimationMethod.MASS_WEIGHTED):
     """
     From 2nd-order cumulant of v1 and v2 compute principle axis angle,
     characteristic length-scales along and perpendicular to principle axis (as
@@ -554,8 +577,8 @@ def charactistic_scales(v1, v2=None, l_theta_win=2000., mask=None,
         assert np.all(v1.coords['y'] == v2.coords['y'])
 
     if width_est_method == WidthEstimationMethod.CUTOFF:
-        width_func = _find_width_through_
-    elif width_est_method == WidthEstimationMethod.MASS_WEIGHTING:
+        width_func = _find_width_through_cutoff
+    elif width_est_method == WidthEstimationMethod.MASS_WEIGHTED:
         width_func = _find_width_through_mass_weighting
     else:
         raise NotImplementedError
@@ -598,7 +621,7 @@ def charactistic_scales(v1, v2=None, l_theta_win=2000., mask=None,
                     width_principle_axis = np.nan
                     width_perpendicular = np.nan
                     theta = np.nan
-                    break
+                    # break
             else:
                 break
 
