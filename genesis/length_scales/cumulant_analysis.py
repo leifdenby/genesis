@@ -13,6 +13,7 @@ from intergrid import intergrid
 import xarray as xr
 from tqdm import tqdm
 from enum import Enum
+import skimage.measure
 
 try:
     import pyfftw.interfaces
@@ -192,6 +193,23 @@ def identify_principle_axis(C, sI_N=100):
     return xr.DataArray(theta, attrs=dict(units='radians'),
                         coords=dict(zt=C.zt))
 
+def _extract_cumulant_center(C_vv):
+    """
+    Mask everything but the contiguous part of the cumulant which has the same
+    sign as its origin. This is needed by the mass-weighted width method to
+    avoid including correlating regions outside of the principle region
+    """
+    nx, ny = C_vv.shape
+
+    mask = np.sign(C_vv) == np.sign(C_vv[nx//2, ny//2])
+    labels = skimage.measure.label(mask.values)
+
+    mask_center = labels == labels[nx//2, ny//2]
+
+    da_mask_center = xr.DataArray(mask_center, coords=C_vv.coords, dims=C_vv.dims)
+
+    return C_vv.where(da_mask_center, drop=True)
+
 
 def covariance_plot(v1, v2, s_N=200, extra_title="", theta_win_N=100,
                     mask=None, sample_angle=None, ax=None, add_colorbar=True,
@@ -350,13 +368,18 @@ class WidthEstimationMethod(Enum):
     def __str__(self):
         return self.name
 
-def _find_width_through_mass_weighting(data, theta, max_width=5000.):
+def _find_width_through_mass_weighting(data, theta, max_width=5000.,
+                                       center_only=True):
     assert data.x.units == 'm'
     sample_fn = _get_line_sample_func(data, theta)
 
-    d_max = data.values.max()
+    d_max = data.max().values
     # use corner of domain as reference
-    d_at_inf = data[0,0].values
+    d_at_inf = 0.0
+    # d_at_inf = data[0,0].values
+
+    if center_only:
+        data = _extract_cumulant_center(data)
 
     def sample_fn_normed(mu):
         """
@@ -393,7 +416,9 @@ def _find_width_through_mass_weighting(data, theta, max_width=5000.):
         # becomes positive again
         x_ = np.linspace(kw['a'], kw['b'], 100)
         vals_ = s*sample_fn_normed(x_)[1]
-        if np.min(vals_) < 0.0:
+        if np.all(np.isnan(vals_)):
+            raise Exception("No valid datapoints found")
+        elif np.min(vals_) < 0.0:
             max_width_local = x_[np.argmin(vals_)]
             if dir == 1:
                 kw = dict(a=0, b=max_width_local)
@@ -435,7 +460,8 @@ def _find_width_through_cutoff(data, theta, width_peak_fraction=0.5,
     d_max = data.values.max()
     # d_at_inf = sample_fn(x.max())[1]
     # use corner of domain as reference
-    d_at_inf = data[0,0].values
+    # d_at_inf = data[0,0].values
+    d_at_inf = 0.0
 
     def sample_fn_normed(mu):
         """
