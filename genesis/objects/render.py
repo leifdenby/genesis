@@ -52,32 +52,40 @@ class TransGrays(BaseColormap):
 class TransGrays2(BaseColormap):
     glsl_map = """
     vec4 translucent_grays(float t) {
-        return vec4(t, t, t, t*t*0.2);
+        return vec4(0.5, t, t*t, max(0, t*t-0.2));
+    }
+    """
+
+class TransGrays3(BaseColormap):
+    glsl_map = """
+    vec4 translucent_grays(float t) {
+        return vec4(0.5, t, t, max(0, t-0.2));
     }
     """
 
 # Setup colormap iterators
 opaque_cmaps = cycle(get_colormaps())
-translucent_cmaps = cycle([TransGrays(), TransGrays2()])
+translucent_cmaps = cycle([TransGrays2(), TransGrays3(), TransGrays(), TransFire()])
 opaque_cmap = next(opaque_cmaps)
 translucent_cmap = next(translucent_cmaps)
 
-def main(objects, object_id):
+def main(objects, object_id, var_name=None):
     m = objects.where(objects == object_id, drop=True)
 
     data_source, objects_mask = object_file.split('.objects.')
     path, base_name = data_source.split('__')
-    var_name = 'cvrxp'
-    var_name = 'cvrxp_p_stddivs'
-    fn = os.path.join(path, '3d_blocks', 'full_domain', "{}.{}.nc".format(base_name, var_name))
-    fn = os.path.join(path, 'masks', "{}.{}.nc".format(base_name, var_name))
+    if var_name:
+        fn = os.path.join(path, '3d_blocks', 'full_domain', "{}.{}.nc".format(base_name, var_name))
+        if not os.path.exists(fn):
+            fn = os.path.join(path, 'masks', "{}.{}.nc".format(base_name, var_name))
+        da = xr.open_dataarray(fn, decode_times=False)
+        da = da.squeeze().sel(xt=m.xt, yt=m.yt, zt=m.zt)
 
-
-    da = xr.open_dataarray(fn, decode_times=False)
-
-    da = da.squeeze().sel(xt=m.xt, yt=m.yt, zt=m.zt)
-
-    # da = m
+        da -= da.mean()
+        da /= da.max()
+        print(da.max())
+    else:
+        da = m
 
 
     # vispy expects data as (z, y, x)
@@ -114,7 +122,7 @@ def main(objects, object_id):
 
 
     volume1 = scene.visuals.Volume(data, parent=view.scene, threshold=0.5,
-                                   emulate_texture=emulate_texture, method='additive',
+                                   emulate_texture=emulate_texture, method='translucent',
                                    cmap=translucent_cmap)
     # volume1.transform = scene.STTransform(translate=(0, 0, nz))
     volume1.transform = scene.STTransform(translate=(-nx/2, -ny/2, 0))
@@ -179,6 +187,7 @@ if __name__ == "__main__":
 
     argparser.add_argument('object_file', type=str)
     argparser.add_argument('--object-id', type=int, required=True)
+    argparser.add_argument('--var-name', type=str)
 
     args = argparser.parse_args()
 
@@ -198,4 +207,4 @@ if __name__ == "__main__":
         raise Exception()
 
     print(__doc__)
-    main(objects=objects, object_id=args.object_id)
+    main(objects=objects, object_id=args.object_id, var_name=args.var_name)
