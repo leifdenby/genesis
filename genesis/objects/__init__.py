@@ -3,6 +3,8 @@ import os
 
 import xarray as xr
 
+from . import integrate, identify
+
 try:
     # python3 has moved reduce to functools
     from functools import reduce

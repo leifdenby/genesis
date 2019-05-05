@@ -9,6 +9,7 @@ import numpy as np
 
 import cloud_identification
 
+OUT_FILENAME_FORMAT = "{base_name}.objects.{mask_name}.nc"
 
 def label_objects(mask, splitting_scalar, remove_at_edge=True):
     def _remove_at_edge(object_labels):
@@ -63,7 +64,6 @@ def find_grid_spacing(mask):
 
     return dx
 
-
 if __name__ == "__main__":
     import argparse
     argparser = argparse.ArgumentParser(__doc__)
@@ -79,8 +79,9 @@ if __name__ == "__main__":
 
     input_name = args.base_name
 
-    out_filename = "{}.objects.{}.nc".format(
-        input_name.replace('/', '__'), args.mask_name
+    out_filename = OUT_FILENAME_FORMAT.format(
+        base_name=input_name.replace('/', '__'),
+        mask_name=args.mask_name
     ).replace('__masks', '')
 
     fn_mask = "{}.mask_3d.{}.nc".format(input_name, args.mask_name)
@@ -94,7 +95,6 @@ if __name__ == "__main__":
         raise Exception("Couldn't find mask file `{}` or `{}`"
                         "".format(fn_mask, fn_mask_2d))
     mask = xr.open_dataarray(fn_mask, decode_times=False)
-    print(mask)
 
     if args.splitting_scalar is not None:
         fn_ss = "{}.{}.nc".format(input_name, args.splitting_scalar)

@@ -21,6 +21,18 @@ from tqdm import tqdm
 
 from . import integral_properties
 
+CHUNKS = 200  # forget about using dask for now, np.unique is too slow
+
+def make_output_filename(base_name, mask_identifier, variable, operator=None):
+    fn = "{base_name}.objects.{mask_identifier}.integral.{variable}.nc".format(
+        **locals()
+    )
+
+    if operator is not None:
+        fn = fn.replace('.nc', '{}.nc'.format(operator))
+
+    return fn
+
 def _estimate_dx(da):
     dx = np.max(np.diff(da.xt))
     dy = np.max(np.diff(da.yt))
@@ -32,7 +44,7 @@ def _estimate_dx(da):
     return dx
 
 
-def integrate(objects, da, operator):
+def _integrate_scalar(objects, da, operator):
     if 'object_ids' in da.coords:
         object_ids = da.object_ids
     else:
@@ -81,13 +93,15 @@ def _integrate_per_object(da_objects, fn_int):
         object_ids = da_objects.object_ids
     else:
         # print("Finding unique values")
-        object_ids = np.unique(objects.chunk(None).values)
+        object_ids = np.unique(da_objects.chunk(None).values)
         # ensure object 0 (outside objects) is excluded
         if object_ids[0] == 0:
             object_ids = object_ids[1:]
 
     if 'xt' in da_objects.coords:
         da_objects = da_objects.rename(dict(xt='x', yt='y', zt='z'))
+
+    print(da_objects)
 
     ds_per_object = []
     for object_id in tqdm(object_ids):
@@ -99,6 +113,40 @@ def _integrate_per_object(da_objects, fn_int):
 
     return xr.concat(ds_per_object, dim='object_id')
 
+def integrate(objects, variable, operator='volume_integral'):
+    ds_out = None
+
+    if variable in objects.coords:
+        da_scalar = objects.coords[variable]
+    elif variable == 'com_angles':
+        fn_int = integral_properties.calc_com_incline_and_orientation_angle
+        ds_out = _integrate_per_object(da_objects=objects, fn_int=fn_int)
+    elif variable == 'volume':
+        dx = _estimate_dx(objects)
+        da_scalar = xr.DataArray(
+            np.ones_like(objects, dtype=np.float)*dx**3.0,
+            coords=objects.coords, attrs=dict(units='m^3')
+        )
+        da_scalar.name = 'volume'
+    else:
+        fn_scalar = "{}.{}.nc".format(base_name, variable)
+        if not os.path.exists(fn_scalar):
+            raise Exception("Couldn't find scalar file `{}`".format(fn_scalar))
+
+        da_scalar = xr.open_dataarray(
+            fn_scalar, decode_times=False, chunks=CHUNKS
+        ).squeeze()
+
+    if ds_out is None:
+        if objects.zt.max() < da_scalar.zt.max():
+            warnings.warn("Objects span smaller range than scalar field to "
+                          "reducing domain of scalar field")
+            zt_ = da_scalar.zt.values
+            da_scalar = da_scalar.sel(zt=slice(None, zt_[25]))
+
+        ds_out = _integrate_scalar(objects=objects, da=da_scalar, operator=operator)
+
+    return ds_out
 
 if __name__ == "__main__":
     import argparse
@@ -113,8 +161,6 @@ if __name__ == "__main__":
 
     op = args.operator
 
-    chunks = 200  # forget about using dask for now, np.unique is too slow
-
     if not 'objects' in object_file:
         raise Exception()
 
@@ -124,44 +170,17 @@ if __name__ == "__main__":
     if not os.path.exists(fn_objects):
         raise Exception("Couldn't find objects file `{}`".format(fn_objects))
     objects = xr.open_dataarray(
-        fn_objects, decode_times=False, chunks=chunks
+        fn_objects, decode_times=False, chunks=CHUNKS
     ).squeeze()
 
-    ds_out = None
+    ds_out = integrate(objects=objects, variable=args.scalar_field,
+                       operator=args.operator)
 
-    scalar_field = args.scalar_field
-    if scalar_field in objects.coords:
-        da_scalar = objects.coords[args.scalar_field]
-    elif scalar_field == 'com_angles':
-        fn_int = integral_properties.calc_com_incline_and_orientation_angle
-        ds_out = _integrate_per_object(da_objects=objects, fn_int=fn_int)
-    elif scalar_field == 'volume':
-        dx = _estimate_dx(objects)
-        da_scalar = xr.DataArray(
-            np.ones_like(objects, dtype=np.float)*dx**3.0,
-            coords=objects.coords, attrs=dict(units='m^3')
-        )
-        da_scalar.name = 'volume'
-    else:
-        fn_scalar = "{}.{}.nc".format(base_name, args.scalar_field)
-        if not os.path.exists(fn_scalar):
-            raise Exception("Couldn't find scalar file `{}`".format(fn_scalar))
-
-        da_scalar = xr.open_dataarray(
-            fn_scalar, decode_times=False, chunks=chunks
-        ).squeeze()
-
-    if ds_out is None:
-        if objects.zt.max() < da_scalar.zt.max():
-            warnings.warn("Objects span smaller range than scalar field to "
-                          "reducing domain of scalar field")
-            zt_ = da_scalar.zt.values
-            da_scalar = da_scalar.sel(zt=slice(None, zt_[25]))
-
-        ds_out = integrate(objects=objects, da=da_scalar, operator=args.operator)
-
-    out_filename = "{}.objects.{}.integral.{}.{}.nc".format(
-        base_name.replace('/', '__'), objects_mask, scalar_field, op,
+    out_filename = make_output_filename(
+        base_name=base_name.replace('/', '__'),
+        mask_identifier=objects_mask,
+        variable=scalar_field,
+        operator=op,
     )
 
     import ipdb

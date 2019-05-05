@@ -14,6 +14,8 @@ from . import mask_functions
 from dask.diagnostics import ProgressBar
 ProgressBar().register()
 
+OUT_FILENAME_FORMAT = "{base_name}.mask.{method_name}.nc"
+
 class StoreDictKeyPair(argparse.Action):
     """
     Custom parser so that we can provide extra values to mask functions
@@ -25,7 +27,6 @@ class StoreDictKeyPair(argparse.Action):
             k,v = kv.split("=")
             my_dict[k] = v
             setattr(namespace, self.dest, my_dict)
-
 
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser(__doc__)
@@ -96,7 +97,9 @@ if __name__ == "__main__":
     if hasattr(fn, "description"):
         mask.attrs['longname'] = fn.description.format(**kwargs)
 
-    out_filename = "{}.mask.{}.nc".format(args.base_name, args.fn)
+    out_filename = OUT_FILENAME_FORMAT.format(base_name=args.base_name,
+                                              method_name=args.fn)
+
     if len(extra_args_str) > 0:
         out_filename = out_filename.replace('.nc', '.{}.nc'.format(extra_args_str))
         mask.name = '{}.{}'.format(mask.name, extra_args_str)
