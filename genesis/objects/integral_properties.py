@@ -50,3 +50,45 @@ def calc_com_incline_and_orientation_angle(da_mask, plot_ax=None):
         xr.DataArray(phi, name='phi', attrs=dict(long_name='xy-plane angle', units='rad')),
         xr.DataArray(theta, name='theta', attrs=dict(long_name='z-axis slope angle', units='rad')),
     ])
+
+
+def calc_xy_proj_length(da_mask):
+    if np.any(da_mask.isnull()):
+        m = ~da_mask.isnull()
+    else:
+        m = da_mask
+
+    if len(da_mask.x.shape) == 3:
+        x_3d = da_mask.x
+        y_3d = da_mask.y
+    else:
+        x_3d, y_3d, _ = xr.broadcast(da_mask.x, da_mask.y, da_mask.z)
+
+    x_min, x_max = x_3d.where(m).min(), x_3d.where(m).max()
+    y_min, y_max = y_3d.where(m).min(), y_3d.where(m).max()
+
+    lx = x_max - x_min
+    ly = y_max - y_min
+
+    l = np.sqrt(lx**2. + ly**2.)
+    l.attrs['long_name'] = 'xy-projected length'
+    return l
+
+
+def calc_z_proj_length(da_mask):
+    if np.any(da_mask.isnull()):
+        m = ~da_mask.isnull()
+    else:
+        m = da_mask
+
+    if len(da_mask.x.shape) == 3:
+        x_3d = da_mask.x
+        y_3d = da_mask.y
+    else:
+        _, _, z_3d = xr.broadcast(da_mask.x, da_mask.y, da_mask.z)
+
+    z_min, z_max = z_3d.where(m).min(), z_3d.where(m).max()
+
+    l = z_max - z_min
+    l.attrs['long_name'] = 'z-projected length'
+    return l
