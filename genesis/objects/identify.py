@@ -120,6 +120,7 @@ if __name__ == "__main__":
     ds.attrs['input_name'] = input_name
     ds.attrs['mask_name'] = args.mask_name
     ds.attrs['z_max'] = args.z_max
+    ds.attrs['splitting_scalar'] = args.splitting_scalar
 
     ds.to_netcdf(out_filename)
     print("Wrote output to `{}`".format(out_filename))

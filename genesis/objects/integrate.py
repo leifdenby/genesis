@@ -121,6 +121,10 @@ def integrate(objects, variable, operator='volume_integral'):
     elif variable == 'com_angles':
         fn_int = integral_properties.calc_com_incline_and_orientation_angle
         ds_out = _integrate_per_object(da_objects=objects, fn_int=fn_int)
+    elif hasattr(integral_properties, 'calc_{}'.format(scalar_field)):
+        fn_int = getattr(integral_properties, 'calc_{}'.format(scalar_field))
+        ds_out = _integrate_per_object(da_objects=objects, fn_int=fn_int)
+        ds_out.name = scalar_field
     elif variable == 'volume':
         dx = _estimate_dx(objects)
         da_scalar = xr.DataArray(

@@ -95,7 +95,8 @@ def _extract_horizontal(da, z):
     return da_slice
 
 
-def get_height_variation_of_characteristic_scales(v1_3d, z_max, v2_3d=None,
+def get_height_variation_of_characteristic_scales(v1_3d, z_max, 
+                                                  width_method, v2_3d=None,
                                                   z_min=0.0, mask=None,
                                                   sample_angle=None):
     datasets = []
@@ -109,10 +110,12 @@ def get_height_variation_of_characteristic_scales(v1_3d, z_max, v2_3d=None,
         if v2_3d is None:
             v2 = v1
         else:
+            v2 = _extract_horizontal(v2_3d, z=z)
             v2 = v2.rename(dict(xt='x', yt='y'))
 
         scales = cumulant_analysis.charactistic_scales(v1=v1, v2=v2, mask=mask,
-                                                       sample_angle=sample_angle)
+                                                       sample_angle=sample_angle,
+                                                       width_est_method=width_method)
 
         datasets.append(scales)
 
@@ -126,36 +129,29 @@ def get_height_variation_of_characteristic_scales(v1_3d, z_max, v2_3d=None,
     return d
 
 
-def process(base_name, variable_sets, z_min, z_max, mask=None,
+def process(base_name, variable_sets, z_min, z_max, width_method, mask=None,
             sample_angle=None, debug=False):
     param_datasets = []
     for var_name_1, var_name_2 in variable_sets:
         v1_3d = get_data(base_name=base_name, var_name=var_name_1)
 
-        if var_name_2 != var_name_2:
+        if var_name_1 != var_name_2:
             v2_3d = get_data(base_name=base_name, var_name=var_name_2)
         else:
             v2_3d = None
 
-        if debug:
-            import ipdb
-            with ipdb.launch_ipdb_on_exception():
-                characteristic_scales = get_height_variation_of_characteristic_scales(
-                    v1_3d=v1_3d, v2_3d=v2_3d, z_max=z_max, z_min=z_min, mask=mask,
-                    sample_angle=sample_angle,
-                )
-        else:
-
-            characteristic_scales = get_height_variation_of_characteristic_scales(
-                v1_3d=v1_3d, v2_3d=v2_3d, z_max=z_max, z_min=z_min, mask=mask,
-                sample_angle=sample_angle,
-            )
+        print("Extract cumulant length-scales for C({},{})".format(var_name_1,
+                                                                   var_name_2))
+        characteristic_scales = get_height_variation_of_characteristic_scales(
+            v1_3d=v1_3d, v2_3d=v2_3d, z_max=z_max, z_min=z_min, mask=mask,
+            sample_angle=sample_angle, width_method=width_method
+        )
 
         param_datasets.append(characteristic_scales)
 
     ds = xr.concat(param_datasets, dim='cumulant')
 
-    ds.attrs['dataset_name'] = base_name
+    ds['dataset_name'] = base_name
     ds['time'] = v1_3d.time
 
     return ds
@@ -244,7 +240,7 @@ if __name__ == "__main__":
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
-    DEFAULT_VARS = "w q t l q_flux t_flux l_flux".split(" ")
+    DEFAULT_VARS = "w_zt,w_zt d_q,d_q d_t,d_t w_zt,d_q w_zt,d_t".split(" ")
 
     argparser.add_argument('base_name', help='e.g. `rico_gcss`', type=str)
     argparser.add_argument('--vars', default=DEFAULT_VARS, nargs="+")
@@ -256,13 +252,16 @@ if __name__ == "__main__":
     argparser.add_argument('--output-in-cwd', default=True, action='store_true')
     argparser.add_argument('--theta', default=None, type=float)
     argparser.add_argument('--debug', default=False, action='store_true')
+    argparser.add_argument('--width-method',
+        type=lambda m: cumulant_analysis.WidthEstimationMethod[m],
+        choices=list(cumulant_analysis.WidthEstimationMethod),
+        default=cumulant_analysis.WidthEstimationMethod.MASS_WEIGHTED
+    )
 
     args = argparser.parse_args()
 
 
-    out_filename = "{}.cumulant_length_scales.{}.nc".format(
-        args.base_name, "_".join(sorted(args.vars))
-    )
+    out_filename = "{}.cumulant_length_scales.nc".format(args.base_name)
 
     if not args.mask_name is None:
         if args.mask_field is None:
@@ -301,20 +300,36 @@ if __name__ == "__main__":
         mask = None
         mask_description = 'full domain'
 
+    variable_sets = []
+    for v_pair in args.vars:
+        v_split = v_pair.split(",")
+        if not len(v_split) == 2:
+            raise NotImplementedError("Not sure how to interpret `{}`"
+                    "".format(v_pair))
+        else:
+            variable_sets.append(v_split)
 
-    variable_sets = zip(args.vars, args.vars)
-
-    data = process(
-        base_name=args.base_name,
-        variable_sets=variable_sets,
-        z_min=args.z_min,
-        z_max=args.z_max,
-        mask=mask,
-        sample_angle=args.theta,
-        debug=args.debug,
-    )
+    with np.errstate(all='raise'):
+        import ipdb
+        with ipdb.launch_ipdb_on_exception():
+            data = process(
+                base_name=args.base_name,
+                variable_sets=variable_sets,
+                z_min=args.z_min,
+                z_max=args.z_max,
+                mask=mask,
+                sample_angle=args.theta,
+                debug=args.debug,
+                width_method=args.width_method
+            )
 
     data.attrs['mask'] = mask_description
+    data.attrs['width_method'] = args.width_method.name.lower()
+
+    out_filename = out_filename.replace('.nc', '.{}_width.nc'.format(
+        args.width_method.name.lower()
+    ))
+
 
     if args.output_in_cwd:
         out_filename = out_filename.replace('/', '__')
