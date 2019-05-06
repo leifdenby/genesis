@@ -10,6 +10,12 @@ try:
 except ImportError:
     pass
 
+try:
+    # python3 has moved reduce to functools
+    from functools import reduce
+except ImportError:
+    pass
+
 def get_data(base_name, mask_identifier='*', debug=False):
     print(base_name, mask_identifier)
     glob_patterns = [
