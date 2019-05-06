@@ -2,6 +2,7 @@ import glob
 import os
 
 import xarray as xr
+import pandas as pd
 
 try:
     # reduce moved in python3
@@ -25,7 +26,12 @@ def get_data(base_name, mask_identifier='*', debug=False):
         raise Exception("No files found with glob patterns: {}".format(
                         ", ".join(glob_patterns)))
 
-    ds = xr.open_mfdataset(fns)
+    try:
+        ds = xr.open_mfdataset(fns)
+    except Exception:
+        print("Error while loading:\n\t{}".format("\n\t".join(fns)))
+        raise
+
 
     # 4/3*pi*r**3 => r = (3/4*1/pi*v)**(1./3.)
     if 'volume__sum' in ds.data_vars:
