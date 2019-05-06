@@ -12,6 +12,9 @@ import cloud_identification
 
 import topology.minkowski
 
+def main(da_objects):
+    dx = topology.minkowski.find_grid_spacing(da_objects)
+    return topology.minkowski.calc_scales(object_labels=da_objects, dx=dx)
 
 if __name__ == "__main__":
     import argparse
@@ -38,9 +41,7 @@ if __name__ == "__main__":
         raise Exception("Couldn't find objects file `{}`".format(fn_objects))
     objects = xr.open_dataarray(fn_objects, decode_times=False)
 
-    dx = topology.minkowski.find_grid_spacing(objects)
-
-    ds = topology.minkowski.calc_scales(object_labels=objects, dx=dx)
+    ds = main(objects)
 
     ds.attrs['input_name'] = args.objects_file
     ds.attrs['mask'] = objects_mask
