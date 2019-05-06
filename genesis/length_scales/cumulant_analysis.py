@@ -45,6 +45,7 @@ def fix_cumulant_name(name):
         'd_q': r"q_t'",
         'd_t': r"\theta_l'",
         'cvrxp': r"\phi",
+        'w_zt': r"w",
     }
 
     v1, v2, extra = RE_CUMULANT_NAME.match(name).groups()
@@ -130,7 +131,6 @@ def calc_2nd_cumulant(v1, v2=None, mask=None):
 
     return xr.DataArray(c_vv, dims=v1.dims, coords=v1.coords, attrs=attrs,
                         name=name)
-
 
 def identify_principle_axis(C, sI_N=100):
     """

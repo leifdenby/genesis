@@ -142,26 +142,16 @@ def process(base_name, variable_sets, z_min, z_max, width_method, mask=None,
 
         print("Extract cumulant length-scales for C({},{})".format(var_name_1,
                                                                    var_name_2))
-
-        if debug:
-            import ipdb
-            with ipdb.launch_ipdb_on_exception():
-                characteristic_scales = get_height_variation_of_characteristic_scales(
-                    v1_3d=v1_3d, v2_3d=v2_3d, z_max=z_max, z_min=z_min, mask=mask,
-                    sample_angle=sample_angle, width_method=width_method
-                )
-        else:
-
-            characteristic_scales = get_height_variation_of_characteristic_scales(
-                v1_3d=v1_3d, v2_3d=v2_3d, z_max=z_max, z_min=z_min, mask=mask,
-                sample_angle=sample_angle, width_method=width_method
-            )
+        characteristic_scales = get_height_variation_of_characteristic_scales(
+            v1_3d=v1_3d, v2_3d=v2_3d, z_max=z_max, z_min=z_min, mask=mask,
+            sample_angle=sample_angle, width_method=width_method
+        )
 
         param_datasets.append(characteristic_scales)
 
     ds = xr.concat(param_datasets, dim='cumulant')
 
-    ds.attrs['dataset_name'] = base_name
+    ds['dataset_name'] = base_name
     ds['time'] = v1_3d.time
 
     return ds
@@ -265,7 +255,7 @@ if __name__ == "__main__":
     argparser.add_argument('--width-method',
         type=lambda m: cumulant_analysis.WidthEstimationMethod[m],
         choices=list(cumulant_analysis.WidthEstimationMethod),
-        default=cumulant_analysis.WidthEstimationMethod.MASS_WEIGHTING
+        default=cumulant_analysis.WidthEstimationMethod.MASS_WEIGHTED
     )
 
     args = argparser.parse_args()
@@ -319,20 +309,22 @@ if __name__ == "__main__":
         else:
             variable_sets.append(v_split)
 
-    import ipdb
-    with ipdb.launch_ipdb_on_exception():
-        data = process(
-            base_name=args.base_name,
-            variable_sets=variable_sets,
-            z_min=args.z_min,
-            z_max=args.z_max,
-            mask=mask,
-            sample_angle=args.theta,
-            debug=args.debug,
-            width_method=args.width_method
-        )
+    with np.errstate(all='raise'):
+        import ipdb
+        with ipdb.launch_ipdb_on_exception():
+            data = process(
+                base_name=args.base_name,
+                variable_sets=variable_sets,
+                z_min=args.z_min,
+                z_max=args.z_max,
+                mask=mask,
+                sample_angle=args.theta,
+                debug=args.debug,
+                width_method=args.width_method
+            )
 
     data.attrs['mask'] = mask_description
+    data.attrs['width_method'] = args.width_method.name.lower()
 
     out_filename = out_filename.replace('.nc', '.{}_width.nc'.format(
         args.width_method.name.lower()
