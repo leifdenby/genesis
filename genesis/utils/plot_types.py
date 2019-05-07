@@ -1,6 +1,12 @@
 import numpy as np
 import xarray as xr
 
+try:
+    # reduce moved in py3
+    from functools import reduce
+except ImportError:
+    pass
+
 
 def _find_bin_on_percentile(q, bin_counts):
     bc = bin_counts.flatten()
