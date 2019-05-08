@@ -1,6 +1,7 @@
 import os
 import subprocess
 from pathlib import Path
+import re
 
 import luigi
 import xarray as xr
@@ -231,21 +232,41 @@ class ExtractCrossSection2D(luigi.Task):
     base_name = luigi.Parameter()
     field_name = luigi.Parameter()
 
+    FN_FORMAT = "{exp_name}.out.xy.{field_name}.nc"
+
+
+    def _extract_and_symlink_local_file(self):
+        meta = _get_dataset_meta_info(self.base_name)
+
+        p_out = Path(self.output().fn)
+        p_in = Path(meta['path'])/"cross_sections"/"runtime_slices"/p_out.name
+
+        p_out.parent.mkdir(exist_ok=True, parents=True)
+
+        os.symlink(str(p_in), str(p_out))
+
     def output(self):
         meta = _get_dataset_meta_info(self.base_name)
-        dataset_name = meta['experiment_name']
-        FN_2D_FORMAT = "{}.out.xy.{}.nc"
 
-        fn = FN_2D_FORMAT.format(dataset_name, self.field_name)
-        p = Path(os.getcwd())/self.base_name/"cross_sections"/"runtime_slices"/fn
+        fn = self.FN_FORMAT.format(
+            exp_name=meta['experiment_name'],
+            field_name=self.field_name
+        )
+
+        p = Path("data")/self.base_name/"cross_sections"/"runtime_slices"/fn
 
         return luigi.LocalTarget(str(p))
 
     def run(self):
-        if not self.output().exists():
-            raise Exception("Please copy data for `{}` to `{}`".format(
-                self.field_name, self.output().fn
-            ))
+        meta = _get_dataset_meta_info(self.base_name)
+        fn_out = self.output()
+
+        if fn_out.exists():
+            pass
+        elif meta['host'] == 'localhost':
+            self._extract_and_symlink_local_file()
+        else:
+            raise NotImplementedError(fn_out.fn)
 
 class PerformObjectTracking2D(luigi.Task):
     base_name = luigi.Parameter()
@@ -253,6 +274,7 @@ class PerformObjectTracking2D(luigi.Task):
     def requires(self):
         return [
             ExtractCrossSection2D(base_name=self.base_name, field_name='core'),
+            ExtractCrossSection2D(base_name=self.base_name, field_name='cldbase'),
             ExtractCrossSection2D(base_name=self.base_name, field_name='cldtop'),
             ExtractCrossSection2D(base_name=self.base_name, field_name='lwp'),
         ]
@@ -276,7 +298,8 @@ class PerformObjectTracking2D(luigi.Task):
 
         tracking_identifier = self._get_tracking_identifier(meta)
 
-        cloud_tracking_analysis.cloud_data.ROOT_DIR = os.getcwd()
+        p_data = Path(os.getcwd())/"data"
+        cloud_tracking_analysis.cloud_data.ROOT_DIR = str(p_data)
         cloud_data = CloudData(dataset_name, tracking_identifier,
                                dataset_pathname=self.base_name)
 
@@ -284,47 +307,60 @@ class PerformObjectTracking2D(luigi.Task):
         self.get_cloud_data()
 
     def output(self):
+        if not all([i.exists() for i in self.input()]):
+            return luigi.LocalTarget("fakefile.nc")
+
         meta = _get_dataset_meta_info(self.base_name)
         tracking_identifier = self._get_tracking_identifier(meta)
+        tracking_identifier = tracking_identifier.replace('_', '__cloud_core__')
 
         dataset_name = meta['experiment_name']
         FN_2D_FORMAT = "{}.out.xy.{}.nc"
 
         fn = FN_2D_FORMAT.format(dataset_name, tracking_identifier)
-        p = Path(os.getcwd())/self.base_name/"tracking_output"/fn
+        p = Path(os.getcwd())/"data"/self.base_name/"tracking_output"/fn
         return luigi.LocalTarget(str(p))
 
 
 class ExtractCloudbaseState(luigi.Task):
     base_name = luigi.Parameter()
+    field_name = luigi.Parameter()
 
     def requires(self):
-        return [
-            PerformObjectTracking2D(base_name=self.base_name),
-            ExtractField3D(
-                base_name=self.base_name,
-                field_name="cvrxp"  # actually only needed for the timestep...
-            )
-        ]
+        return dict(
+            tracking=PerformObjectTracking2D(base_name=self.base_name),
+            field=ExtractField3D(base_name=self.base_name, field_name=self.field_name),
+        )
 
     def run(self):
-        tracking_output = Path(self.input()[0].fn)
-        dataset_name = tracking_output.name.split('.')[0]
-        tracking_identifier = tracking_output.name.split('.')[-2]
+        tracking_output = Path(self.input()["tracking"].fn)
+        matches = re.match("(.*).out.xy.track__cloud_core__(.*).nc", tracking_output.name)
+        dataset_name = matches[1]
+        tracking_timerange = matches[2]
+        tracking_identifier = "track_{}".format(tracking_timerange)
 
-        cloud_tracking_analysis.cloud_data.ROOT_DIR = os.getcwd()
+        p_data = Path(os.getcwd())/"data"
+        cloud_tracking_analysis.cloud_data.ROOT_DIR = str(p_data)
         cloud_data = CloudData(dataset_name, tracking_identifier,
                                dataset_pathname=self.base_name)
 
-        da_scalar_3d = xr.open_dataarray(self.input()[1].fn, decode_times=False)
+        da_scalar_3d = xr.open_dataarray(self.input()["field"].fn, decode_times=False)
 
         t0 = da_scalar_3d.time.values[0]
-        import ipdb
-        with ipdb.launch_ipdb_on_exception():
-            ds_cb = cross_correlation_with_height.get_cloudbase_data(cloud_data=cloud_data, t0=t0)
+        z_cb = cross_correlation_with_height.get_cloudbase_height(
+            cloud_data=cloud_data, t0=t0,
+        )
+        dz = cloud_data.dx
 
-        ds_cb.to_netcdf(self.output().fn)
+        da_cb = cross_correlation_with_height.extract_from_3d_at_heights_in_2d(
+            da_3d=da_scalar_3d, z_2d=z_cb-dz
+        )
+        da_cb = da_cb.squeeze()
+        da_cb.name = self.field_name
+
+        da_cb.to_netcdf(self.output().fn)
 
 
     def output(self):
-        fn = "{}.cloudbase.xy.nc".format(self.base_name)
+        fn = "{}.{}.cloudbase.xy.nc".format(self.base_name, self.field_name)
+        return luigi.LocalTarget(fn)

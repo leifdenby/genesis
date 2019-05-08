@@ -27,7 +27,7 @@ from ..utils.plot_types import joint_hist_contoured, JointHistPlotError
 
 Z_LEVELS_DEFAULT = np.arange(12.5, 650., 100.)
 
-def get_cloudbase_data(cloud_data, t0, t_age_max=200., z_base_max=700.):
+def get_cloudbase_height(cloud_data, t0, t_age_max=200., z_base_max=700.):
     tn = int(cloud_data.find_closest_timestep(t=t0))
 
     # clouds that are going to do vertical transport
@@ -49,36 +49,44 @@ def get_cloudbase_data(cloud_data, t0, t_age_max=200., z_base_max=700.):
 
     cldbase = cloud_set.cloud_data.get('cldbase', tn=tn)
     m = nrcloud_cloudbase == 0
-    cldbase_heights_2d = np.ma.masked_array(cldbase, m)
+    cldbase_heights_2d = cldbase.where(~m)
 
-    z_slice = cldbase_heights_2d - cloud_data.dx
-    theta_l__belowcloud = cloud_data.get_from_3d(var_name='t', z=z_slice, t=t0)
-    # r_l__belowcloud = cloud_data.get_from_3d(var_name='l', z=z_slice, t=tn*60.)
-    r_t__belowcloud = cloud_data.get_from_3d(var_name='q', z=z_slice, t=t0)
-    try:
-        d__r_t__belowcloud = cloud_data.get_from_3d(var_name='d_q', z=z_slice, t=t0)
-    except:
-        pass
+    return cldbase_heights_2d
 
-    dx = cloud_set.cloud_data.dx
-    try:
-        w__belowcloud = cloud_data.get_from_3d(var_name='w', z=z_slice+dx/2., t=t0)
-    except:
-        pass
 
-    ds = xr.Dataset()
-    # XXX: using non-xarray indexing here, this could be made faster (and
-    # probably more robust too)
-    if isinstance(r_t__belowcloud, xr.DataArray):
-        r_t__belowcloud = r_t__belowcloud.squeeze()
-        theta_l__belowcloud = theta_l__belowcloud.squeeze()
+def extract_from_3d_at_heights_in_2d(da_3d, z_2d):
+    z_unique = np.unique(z_2d)
+    z_unique = z_unique[~np.isnan(z_unique)]
+    v = xr.concat([
+        da_3d.sel(zt=z_).where(z_2d==z_, drop=True) for z_ in z_unique
+    ], dim='zt')
+    return v.max(dim='zt')
 
-    ds['r_t'] = r_t__belowcloud.values[~m]
-    # ds['d__r_t'] = d__r_t__belowcloud.values[~m]
-    ds['theta_l'] = theta_l__belowcloud.values[~m]
-    # ds['w'] = w__belowcloud.values[~m]
+def get_cloudbase_data(cloud_data, v, t0, t_age_max=200., z_base_max=700.):
 
-    return ds
+    v__belowcloud = cloud_data.get_from_3d(var_name=v, z=z_slice, t=t0)
+
+    # dx = cloud_set.cloud_data.dx
+    # try:
+        # w__belowcloud = cloud_data.get_from_3d(var_name='w', z=z_slice+dx/2., t=t0)
+    # except:
+        # pass
+
+    return v__belowcloud.where(m, drop=True)
+
+    # ds = xr.Dataset()
+    # # XXX: using non-xarray indexing here, this could be made faster (and
+    # # probably more robust too)
+    # if isinstance(r_t__belowcloud, xr.DataArray):
+        # r_t__belowcloud = r_t__belowcloud.squeeze()
+        # theta_l__belowcloud = theta_l__belowcloud.squeeze()
+
+    # ds['r_t'] = r_t__belowcloud.values[~m]
+    # # ds['d__r_t'] = d__r_t__belowcloud.values[~m]
+    # ds['theta_l'] = theta_l__belowcloud.values[~m]
+    # # ds['w'] = w__belowcloud.values[~m]
+
+    # return ds
 
 def main(ds_3d, z_levels, ds_cb=None, normed_levels = [5, 95], ax=None):
     colors = iter(sns.color_palette("cubehelix", len(z_levels)))
@@ -130,20 +138,17 @@ def main(ds_3d, z_levels, ds_cb=None, normed_levels = [5, 95], ax=None):
             print("error", ds_.zt.values)
             raise
 
-    cb_mapping = dict(
-        q='r_t', t='theta_l', w='w', d_q='d__r_t'
-    )
-
     if not ds_cb is None:
-        if not v1 in cb_mapping or not v2 in cb_mapping:
-            warnings.warn("Skipping cloud base plot, missing one or more variables")
-        elif cb_mapping[v1] in ds_cb.variables and cb_mapping[v2] in ds_cb.variables:
-            try:
+        import ipdb
+        with ipdb.launch_ipdb_on_exception():
+            if v1 in ds_cb.variables and v2 in ds_cb.variables:
+                xd = ds_cb[v1].values.flatten()*xscale
+                xd = xd[~np.isnan(xd)]
+                yd = ds_cb[v2].values.flatten()*yscale
+                yd = yd[~np.isnan(yd)]
+
                 _, _, cnt = joint_hist_contoured(
-                    xd=ds_cb[cb_mapping[v1]].values*xscale,
-                    yd=ds_cb[cb_mapping[v2]].values*yscale,
-                    normed_levels=normed_levels,
-                    ax=ax
+                    xd=xd, yd=yd, normed_levels=normed_levels, ax=ax
                 )
 
                 for n, l in enumerate(cnt.collections):
@@ -153,10 +158,8 @@ def main(ds_3d, z_levels, ds_cb=None, normed_levels = [5, 95], ax=None):
                         l.set_label('into cloudbase')
                         lines.append(l)
                         l.set_linestyle('--')
-            except:
-                pass
-        else:
-            warnings.warn("Skipping cloud base plot, missing one or more variables")
+            else:
+                warnings.warn("Skipping cloud base plot, missing one or more variables")
 
     #plt.figlegend(handles=lines, labels=[l.get_label() for l in lines], loc='right')
 

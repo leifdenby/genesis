@@ -29,11 +29,16 @@ class JointDistProfile(luigi.Task):
     base_name = luigi.Parameter()
 
     def requires(self):
-        return [
-            data.ExtractField3D(field_name=self.v1, base_name=self.base_name),
-            data.ExtractField3D(field_name=self.v2, base_name=self.base_name),
-            data.ExtractCloudbaseState(base_name=self.base_name)
-        ]
+        return dict(
+            full_domain=[
+                data.ExtractField3D(field_name=self.v1, base_name=self.base_name),
+                data.ExtractField3D(field_name=self.v2, base_name=self.base_name),
+            ],
+            cloudbase=[
+                data.ExtractCloudbaseState(base_name=self.base_name, field_name=self.v1),
+                data.ExtractCloudbaseState(base_name=self.base_name, field_name=self.v2),
+            ]
+        )
 
     def output(self):
         out_fn = '{}.cross_correlation.{}.{}.png'.format(
@@ -43,9 +48,17 @@ class JointDistProfile(luigi.Task):
 
     def run(self):
         ds_3d = xr.merge([
-            xr.open_dataarray(r.fn) for r in self.input()[:-1]
+            xr.open_dataarray(r.fn) for r in self.input()["full_domain"]
         ])
+        ds_cb = xr.merge([
+            xr.open_dataarray(r.fn) for r in self.input()["cloudbase"]
+        ])
+
         z_levels = (
             ds_3d.isel(zt=slice(None, None, self.dk))
                  .sel(zt=slice(0, self.z_max))
                  .zt)
+
+        cross_correlation_with_height.main(ds_3d=ds_3d, z_levels=z_levels, ds_cb=ds_cb)
+
+        plt.savefig(self.output().fn)
