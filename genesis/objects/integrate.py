@@ -23,15 +23,13 @@ from . import integral_properties
 
 CHUNKS = 200  # forget about using dask for now, np.unique is too slow
 
-def make_output_filename(base_name, mask_identifier, variable, operator=None):
-    fn = "{base_name}.objects.{mask_identifier}.integral.{variable}.nc".format(
-        **locals()
-    )
+FN_OUT_FORMAT = "{base_name}.objects.{objects_name}.integral.{name}.nc"
 
-    if operator is not None:
-        fn = fn.replace('.nc', '{}.nc'.format(operator))
-
-    return fn
+def make_name(variable, operator=None):
+    if operator:
+        return "{variable}.{operator}".format
+    else:
+        return variable
 
 def _estimate_dx(da):
     dx = np.max(np.diff(da.xt))
@@ -101,8 +99,6 @@ def _integrate_per_object(da_objects, fn_int):
     if 'xt' in da_objects.coords:
         da_objects = da_objects.rename(dict(xt='x', yt='y', zt='z'))
 
-    print(da_objects)
-
     ds_per_object = []
     for object_id in tqdm(object_ids):
         da_object = da_objects.where(da_objects == object_id, drop=True)
@@ -121,10 +117,10 @@ def integrate(objects, variable, operator='volume_integral'):
     elif variable == 'com_angles':
         fn_int = integral_properties.calc_com_incline_and_orientation_angle
         ds_out = _integrate_per_object(da_objects=objects, fn_int=fn_int)
-    elif hasattr(integral_properties, 'calc_{}'.format(scalar_field)):
-        fn_int = getattr(integral_properties, 'calc_{}'.format(scalar_field))
+    elif hasattr(integral_properties, 'calc_{}'.format(variable)):
+        fn_int = getattr(integral_properties, 'calc_{}'.format(variable))
         ds_out = _integrate_per_object(da_objects=objects, fn_int=fn_int)
-        ds_out.name = scalar_field
+        ds_out.name = variable
     elif variable == 'volume':
         dx = _estimate_dx(objects)
         da_scalar = xr.DataArray(

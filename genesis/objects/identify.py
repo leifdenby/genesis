@@ -9,7 +9,10 @@ import numpy as np
 
 import cloud_identification
 
-OUT_FILENAME_FORMAT = "{base_name}.objects.{mask_name}.nc"
+OUT_FILENAME_FORMAT = "{base_name}.objects.{objects_name}.nc"
+
+def make_objects_name(mask_name, splitting_var):
+    return "{mask_name}.split_on.{splitting_var}".format(**locals())
 
 def label_objects(mask, splitting_scalar, remove_at_edge=True):
     def _remove_at_edge(object_labels):
@@ -22,7 +25,9 @@ def label_objects(mask, splitting_scalar, remove_at_edge=True):
         raise Exception("Incompatible shapes of splitting scalar ({}) and "
                         "mask ({})".format(splitting_scalar.shape, mask.shape))
     assert mask.dims == splitting_scalar.dims
-    # NB: should check coord values too
+    for d in mask.dims:
+        assert np.all(mask[d].values == splitting_scalar[d].values)
+
 
     object_labels = cloud_identification.number_objects(
         splitting_scalar.values, mask=mask.values
@@ -33,15 +38,22 @@ def label_objects(mask, splitting_scalar, remove_at_edge=True):
 
     return object_labels
 
-
-def process(mask, splitting_scalar=None, remove_at_edge=True):
+def process(mask, splitting_scalar, remove_at_edge=True):
     dx = find_grid_spacing(mask)
+
+    if splitting_scalar is not None:
+        mask = mask.sel(zt=slice(0.0, splitting_scalar.zt.max())).squeeze()
 
     object_labels = label_objects(mask=mask, splitting_scalar=splitting_scalar,
                                   remove_at_edge=remove_at_edge)
 
     da = xr.DataArray(data=object_labels, coords=mask.coords, dims=mask.dims,
                       name="object_labels")
+
+    da.name = make_objects_name(
+        mask_name=mask.name, splitting_var=splitting_scalar.name
+    )
+    da.attrs['edge_touching_objects_removed'] = int(remove_at_edge)
 
     return da
 
@@ -78,11 +90,6 @@ if __name__ == "__main__":
     args = argparser.parse_args()
 
     input_name = args.base_name
-
-    out_filename = OUT_FILENAME_FORMAT.format(
-        base_name=input_name.replace('/', '__'),
-        mask_name=args.mask_name
-    ).replace('__masks', '')
 
     fn_mask = "{}.mask_3d.{}.nc".format(input_name, args.mask_name)
     fn_mask_2d = "{}.mask.{}.nc".format(input_name, args.mask_name)
@@ -121,6 +128,13 @@ if __name__ == "__main__":
     ds.attrs['mask_name'] = args.mask_name
     ds.attrs['z_max'] = args.z_max
     ds.attrs['splitting_scalar'] = args.splitting_scalar
+
+    out_filename = OUT_FILENAME_FORMAT.format(
+        base_name=input_name.replace('/', '__'),
+        objects_name=make_objects_name(
+            mask_name=args.mask_name, splitting_var=args.splitting_scalar
+        )
+    ).replace('__masks', '')
 
     ds.to_netcdf(out_filename)
     print("Wrote output to `{}`".format(out_filename))

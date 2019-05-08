@@ -20,7 +20,7 @@ def _get_dataset_meta_info(base_name):
     except IOError:
         raise Exception("please define your data sources in datasources.yaml")
 
-    if not base_name in datasources:
+    if datasources is None or not base_name in datasources:
         raise Exception("Please make a definition for `{}` in "
                         "datasources.yaml".format(base_name))
 
@@ -31,57 +31,109 @@ class ExtractField3D(luigi.Task):
     base_name = luigi.Parameter()
     field_name = luigi.Parameter()
 
+    FN_FORMAT = "{exp_name}.tn{timestep}.{field_name}.nc"
+
+
+    def _extract_and_symlink_local_file(self):
+        meta = _get_dataset_meta_info(self.base_name)
+
+        p_out = Path(self.output().fn)
+        p_in = Path(meta['path'])/"3d_blocks"/"full_domain"/p_out.name
+
+        p_out.parent.mkdir(exist_ok=True, parents=True)
+
+        os.symlink(str(p_in), str(p_out))
+
     def run(self):
+        meta = _get_dataset_meta_info(self.base_name)
+
         fn_out = self.output()
 
         if fn_out.exists():
             pass
+        elif meta['host'] == 'localhost':
+            self._extract_and_symlink_local_file()
         else:
             raise NotImplementedError(fn_out.fn)
 
     def output(self):
         meta = _get_dataset_meta_info(self.base_name)
 
-        fn_out = "{exp_name}.tn{timestep}.{field_name}.nc".format(
+        fn = self.FN_FORMAT.format(
             exp_name=meta['experiment_name'], timestep=meta['timestep'],
             field_name=self.field_name
         )
 
-        return luigi.LocalTarget(fn_out)
+        p = Path("data")/self.base_name/fn
+
+        return luigi.LocalTarget(str(p))
 
 
-class MakeRadTracerMask(luigi.Task):
-    cutoff = luigi.FloatParameter()
+class MakeMask(luigi.Task):
     base_name = luigi.Parameter()
-    method_name = 'rad_tracer_thermals'
+    method_extra_args = luigi.Parameter(default='')
+    method_name = luigi.Parameter()
 
     def requires(self):
-        return ExtractField3D(field_name='cvrxp', base_name=self.base_name)
+        method_kwargs = self._build_method_kwargs()
+        try:
+            make_mask.build_method_kwargs(method=self.method_name, kwargs=method_kwargs)
+        except make_mask.MissingInputException as e:
+            return dict([
+                (v, ExtractField3D(field_name=v, base_name=self.base_name))
+                for v in e.missing_kwargs
+            ])
+
+    def _build_method_kwargs(self):
+        kwargs = dict(base_name=self.base_name)
+        for kv in self.method_extra_args.split(","):
+            k,v = kv.split("=")
+            kwargs[k] = v
+        return kwargs
 
     def run(self):
-        mask_fn = getattr(mask_functions, self.method_name)
-        mask = mask_fn(
-            base_name=self.base_name, cvrxp=xr.open_dataarray(self.input().fn),
-            num_std_div=self.cutoff
-        )
+        method_kwargs = self._build_method_kwargs()
+
+        for (v, target) in self.input().items():
+            method_kwargs[v] = xr.open_dataarray(target.fn, decode_times=False)
+
+        mask = make_mask.main(method=self.method_name, method_kwargs=method_kwargs)
         mask.to_netcdf(self.output().fn)
 
     def output(self):
+        kwargs = self._build_method_kwargs()
+
+        try:
+            kwargs = make_mask.build_method_kwargs(
+                method=self.method_name, kwargs=kwargs
+            )
+        except make_mask.MissingInputException as e:
+            for v in e.missing_kwargs:
+                kwargs[v] = None
+        kwargs = make_mask.build_method_kwargs(
+            method=self.method_name, kwargs=kwargs
+        )
+
+        mask_name = make_mask.mask_mask_name(
+            method=self.method_name, method_kwargs=kwargs
+        )
         return luigi.LocalTarget(make_mask.OUT_FILENAME_FORMAT.format(
-            base_name=self.base_name, method_name=self.method_name
+            base_name=self.base_name, mask_name=mask_name
         ))
 
 
 class IdentifyObjects(luigi.Task):
     splitting_scalar = luigi.Parameter()
-    mask_cutoff = luigi.FloatParameter()
     base_name = luigi.Parameter()
+    mask_method = luigi.Parameter(default='rad_tracer_thermals')
+    mask_method_extra_args = luigi.Parameter(default='num_std_div=3.0')
 
     def requires(self):
         return dict(
-            mask=MakeRadTracerMask(
+            mask=MakeMask(
                 base_name=self.base_name,
-                cutoff=self.mask_cutoff,
+                method_name=self.mask_method,
+                method_extra_args=self.mask_method_extra_args
             ),
             scalar=ExtractField3D(
                 base_name=self.base_name,
@@ -100,17 +152,21 @@ class IdentifyObjects(luigi.Task):
         object_labels.to_netcdf(self.output().fn)
 
     def output(self):
-        mask_name = make_mask.OUT_FILENAME_FORMAT.format(
-            base_name=self.base_name, method_name=MakeRadTracerMask.method_name
+        if not self.input()["mask"].exists():
+            return luigi.LocalTarget("fakefile.nc")
+
+        da_mask = xr.open_dataarray(self.input()["mask"].fn, decode_times=False)
+        mask_name = da_mask.name
+        objects_name = objects.identify.make_objects_name(
+            mask_name=mask_name, splitting_var=self.splitting_scalar
         )
 
         return luigi.LocalTarget(objects.identify.OUT_FILENAME_FORMAT.format(
-            base_name=self.base_name, mask_name=mask_name
+            base_name=self.base_name, objects_name=objects_name
         ))
 
 class ComputeObjectScale(luigi.Task):
     object_splitting_scalar = luigi.Parameter()
-    mask_cutoff = luigi.Parameter()
     base_name = luigi.Parameter()
 
     variable = luigi.Parameter()
@@ -119,18 +175,22 @@ class ComputeObjectScale(luigi.Task):
     def requires(self):
         return IdentifyObjects(
             base_name=self.base_name,
-            mask_cutoff=self.mask_cutoff,
             splitting_scalar=self.object_splitting_scalar,
         )
 
     def output(self):
-        mask_name = make_mask.OUT_FILENAME_FORMAT.format(
-            base_name=self.base_name, method_name=MakeRadTracerMask.method_name
-        )
+        if not self.input().exists():
+            return luigi.LocalTarget("fakefile.nc")
 
-        fn = objects.integrate.make_output_filename(
-            base_name=self.base_name, mask_identifier=mask_name,
-            variable=self.variable, operator=self.operator
+        da_objects = xr.open_dataarray(self.input().fn, decode_times=False)
+        objects_name = da_objects.name
+
+        name = objects.integrate.make_name(variable=self.variable,
+                                           operator=self.operator)
+
+        fn = objects.integrate.FN_OUT_FORMAT.format(
+            base_name=self.base_name, objects_name=objects_name,
+            name=name
         )
         return luigi.LocalTarget(fn)
 
@@ -144,7 +204,6 @@ class ComputeObjectScale(luigi.Task):
 
 class ComputeObjectScales(luigi.Task):
     object_splitting_scalar = luigi.Parameter()
-    mask_cutoff = luigi.FloatParameter()
     base_name = luigi.Parameter()
 
     variables = [
@@ -156,7 +215,6 @@ class ComputeObjectScales(luigi.Task):
         return [
             ComputeObjectScale(
                 base_name=self.base_name,
-                mask_cutoff=self.mask_cutoff,
                 object_splitting_scalar=self.object_splitting_scalar,
                 variable=v, operator=op) 
             for (v, op) in self.variables
