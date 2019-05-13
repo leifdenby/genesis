@@ -101,69 +101,11 @@ def _wrap_angles(theta):
     return _wrap(theta)
 
 
-def plot_angles(data, marker='.', linestyle='', z_max=None, cumulants=[],
-                split_subplots=True, with_legend=True, fig=None, **kwargs):
+def plot(data, plot_type, marker='', z_max=None, cumulants=[],
+         split_subplots=True, with_legend=True, fill_between_alpha=0.2, **kwargs):
 
-    if len(cumulants) == 0:
-        cumulants = data.cumulant.values
-
-    if z_max is not None:
-        data = data.copy().where(data.zt < z_max, drop=True)
-
-    if fig is None and split_subplots:
-        fig = plt.figure(figsize=(2.5*len(cumulants), 4))
-
-    z_ = data.zt
-
-    ax = None
-
-    axes = []
-
-    data.principle_axis.values = np.rad2deg(_wrap_angles(
-        np.deg2rad(data.principle_axis)
-    ))
-
-    for i, cumulant in enumerate(cumulants):
-        lines = []
-        n = data.cumulant.values.tolist().index(cumulant)
-        s = data.isel(cumulant=n, drop=True).squeeze()
-        if split_subplots:
-            ax = plt.subplot(1,len(cumulants),i+1, sharey=ax)
-        else:
-            ax = plt.gca()
-        for p in data.dataset_name.values:
-            d = data.sel(dataset_name=p, drop=True).sel(cumulant=cumulant, drop=True)
-
-            line, = plt.plot(d.principle_axis, d.zt, marker=marker,
-                              linestyle=linestyle,
-                              label="{}, principle axis orientation".format(str(p)),
-                              **kwargs)
-
-            lines.append(line)
-
-        plt.title(fix_cumulant_name(cumulant))
-        plt.tight_layout()
-        plt.xlabel("angle [deg]")
-
-        if i == 0:
-            plt.ylabel('height [m]')
-        else:
-            plt.setp(ax.get_yticklabels(), visible=False)
-
-        axes.append(ax)
-
-    if with_legend:
-        plt.subplots_adjust(bottom=0.24)
-        lgd = plt.figlegend(lines, [l.get_label() for l in lines], loc='lower center', ncol=2)
-
-    [axes[0].get_shared_x_axes().join(axes[0], ax) for ax in axes[1:]]
-    axes[0].autoscale()
-    [ax.axvline(0, linestyle='--', color='grey') for ax in axes]
-
-    return axes
-
-def plot_default(data, marker='', z_max=None, cumulants=[], split_subplots=True,
-                 with_legend=True, fill_between_alpha=0.2, **kwargs):
+    if not plot_type in ["angles", "scales"]:
+        raise Exception
 
     if len(cumulants) == 0:
         cumulants = data.cumulant.values
@@ -181,6 +123,11 @@ def plot_default(data, marker='', z_max=None, cumulants=[], split_subplots=True,
 
     z_ = data.zt
 
+    if plot_type == 'angles':
+        data.principle_axis.values = np.rad2deg(_wrap_angles(
+            np.deg2rad(data.principle_axis)
+        ))
+
     for i, cumulant in enumerate(cumulants):
         lines = []
         n = data.cumulant.values.tolist().index(cumulant)
@@ -189,30 +136,42 @@ def plot_default(data, marker='', z_max=None, cumulants=[], split_subplots=True,
         if split_subplots:
             ax = axes[i]
 
-        print(cumulant, ax)
+        if plot_type == 'angles':
+            [ax.axvline(0, linestyle='--', color='lightgrey') for ax in axes]
 
         for p in data.dataset_name.values:
             d = data.sel(dataset_name=p, drop=True).sel(cumulant=cumulant, drop=True)
 
-            line, = d.width_principle.plot(ax=ax, y='zt', marker=marker,
-                                   label="{} principle".format(str(p)), **kwargs)
+            if plot_type == 'scales':
+                line, = d.width_principle.plot(ax=ax, y='zt', marker=marker,
+                                       label="{} principle".format(str(p)), **kwargs)
 
-            line2, = d.width_perpendicular.plot(ax=ax, y='zt', marker=marker,
-                                       label="{} perpendicular".format(str(p)),
-                                       color=line.get_color(), linestyle='--',
-                                       **kwargs)
+                line2, = d.width_perpendicular.plot(ax=ax, y='zt', marker=marker,
+                                           label="{} perpendicular".format(str(p)),
+                                           color=line.get_color(), linestyle='--',
+                                           **kwargs)
 
-            lines.append(line)
-            lines.append(line2)
+                lines.append(line)
+                lines.append(line2)
 
-            ax.fill_betweenx(
-                y=line.get_ydata(), x1=line.get_xdata(),
-                x2=line2.get_xdata(), color=line.get_color(),
-                alpha=fill_between_alpha,
-            )
+                ax.fill_betweenx(
+                    y=line.get_ydata(), x1=line.get_xdata(),
+                    x2=line2.get_xdata(), color=line.get_color(),
+                    alpha=fill_between_alpha,
+                )
+                ax.set_xlabel("characterisc width [m]")
+            elif plot_type == 'angles':
+                line, = d.principle_axis.plot(
+                    ax=ax, y='zt', marker='.', linestyle='',
+                    label="{}, principle axis orientation".format(str(p)),
+                    **kwargs
+                )
+                lines.append(line)
+                ax.set_xlabel("angle [deg]")
+            else:
+                raise NotImplementedError
 
         ax.set_title(fix_cumulant_name(cumulant))
-        ax.set_xlabel("characterisc width [m]")
         ax.set_ylabel(['height [m]',''][i>0])
         sns.despine()
 
@@ -292,15 +251,17 @@ if __name__ == "__main__":
         c for c in cumulants if not c in dataset.cumulant.values
     ]
 
+    if args.plot_angles:
+        plot_type = 'angles'
+    else:
+        plot_type = 'scales'
+
     if do_full_suite_plot:
         if not len(missing_cumulants) == 0:
             warnings.warn("Not all variables for full suite plot, missing: {}"
                           "".format(", ".join(missing_cumulants)))
-
-            if args.plot_angles:
-                plot_angles(dataset, z_max=args.z_max, cumulants=cumulants)
-            else:
-                plot_default(dataset, z_max=args.z_max, cumulants=cumulants)
+            plot(dataset, z_max=args.z_max, cumulants=cumulants,
+                 plot_type=plot_type)
         else:
             plot_full_suite(dataset)
     else:
@@ -311,10 +272,8 @@ if __name__ == "__main__":
         else:
             import ipdb
             with ipdb.launch_ipdb_on_exception():
-                if args.plot_angles:
-                    plot_angles(dataset, z_max=args.z_max, cumulants=cumulants)
-                else:
-                    plot_default(dataset, z_max=args.z_max, cumulants=cumulants)
+                plot(dataset, z_max=args.z_max, cumulants=cumulants,
+                     plot_type=plot_type)
 
     if args.x_max:
         for ax in plt.gcf().axes:

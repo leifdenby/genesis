@@ -61,8 +61,8 @@ class CumulantScalesProfile(luigi.Task):
     base_names = luigi.Parameter()
     cumulants = luigi.Parameter()
     z_max = luigi.FloatParameter(default=700.)
+    plot_type = luigi.Parameter(default='scales')
 
-    plot_type = 'length_scales'
     mask = 'no_mask'
 
     def _parse_cumulant_arg(self):
@@ -97,11 +97,11 @@ class CumulantScalesProfile(luigi.Task):
         cumulants = self._parse_cumulant_arg()
         cumulants_s = ["C({},{})".format(c[0],c[1]) for c in cumulants]
 
-        plot_fn = length_scales.cumulant.vertical_profile.plot.plot_default
+        plot_fn = length_scales.cumulant.vertical_profile.plot.plot
 
         import ipdb
         with ipdb.launch_ipdb_on_exception():
-            plot_fn(data=ds, cumulants=cumulants_s)
+            plot_fn(data=ds, cumulants=cumulants_s, plot_type=self.plot_type)
 
         plt.savefig(self.output().path, bbox_inches='tight')
 
