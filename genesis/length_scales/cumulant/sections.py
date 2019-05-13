@@ -10,8 +10,8 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as plticker
 from tqdm import tqdm
 
-from .. import cumulant_analysis
-from ..cumulant_analysis import WidthEstimationMethod
+from . import calc as cumulant_analysis
+from .calc import WidthEstimationMethod
 
 
 def _load_data(dataset_names, var_names, z_max, z_step):
@@ -31,7 +31,7 @@ def _load_data(dataset_names, var_names, z_max, z_step):
     return datasets
 
 
-def main(datasets, var_names, est_method = WidthEstimationMethod.MASS_WEIGHTED):
+def plot(datasets, var_names, est_method = WidthEstimationMethod.MASS_WEIGHTED):
     z = datasets[0].zt
 
     v1, v2 = var_names
@@ -69,6 +69,7 @@ def main(datasets, var_names, est_method = WidthEstimationMethod.MASS_WEIGHTED):
 
     fig.tight_layout()
 
+FN_FORMAT_PLOT = 'cumulant_with_height__{v1}__{v2}.pdf'
 
 if __name__ == "__main__":
     import seaborn as sns
@@ -94,7 +95,7 @@ if __name__ == "__main__":
     with ipdb.launch_ipdb_on_exception():
         main(datasets, var_names)
 
-    fn = 'cumulant_with_height__{}__{}.pdf'.format(*var_names)
+    fn = FN_FORMAT_PLOT.format(v1=var_names[0], v2=var_names[1])
 
     plt.savefig(fn, bbox_inches='tight')
 

@@ -13,8 +13,9 @@ from matplotlib.gridspec import GridSpec
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.constants import pi
+import seaborn as sns
 
-from genesis.length_scales.cumulant_analysis import fix_cumulant_name
+from ..calc import fix_cumulant_name
 
 
 FULL_SUITE_PLOT_PARTS = dict(
@@ -162,7 +163,7 @@ def plot_angles(data, marker='.', linestyle='', z_max=None, cumulants=[],
     return axes
 
 def plot_default(data, marker='', z_max=None, cumulants=[], split_subplots=True,
-                 with_legend=True, fig=None, fill_between_alpha=0.2, **kwargs):
+                 with_legend=True, fill_between_alpha=0.2, **kwargs):
 
     if len(cumulants) == 0:
         cumulants = data.cumulant.values
@@ -170,32 +171,36 @@ def plot_default(data, marker='', z_max=None, cumulants=[], split_subplots=True,
     if z_max is not None:
         data = data.copy().where(data.zt < z_max, drop=True)
 
-    if fig is None and split_subplots:
-        fig = plt.figure(figsize=(2.5*len(cumulants), 4))
+        
+    if split_subplots:
+        fig, axes = plt.subplots(ncols=len(cumulants), 
+                                 figsize=(2.5*len(cumulants), 4),
+                                 sharex=True, sharey=True)
+    else:
+        fig, ax = plt.subplots()
 
     z_ = data.zt
-
-    ax = None
-
-    axes = []
 
     for i, cumulant in enumerate(cumulants):
         lines = []
         n = data.cumulant.values.tolist().index(cumulant)
         s = data.isel(cumulant=n, drop=True).squeeze()
+
         if split_subplots:
-            ax = plt.subplot(1,len(cumulants),i+1, sharey=ax)
-        else:
-            ax = plt.gca()
+            ax = axes[i]
+
+        print(cumulant, ax)
 
         for p in data.dataset_name.values:
             d = data.sel(dataset_name=p, drop=True).sel(cumulant=cumulant, drop=True)
 
-            line, = plt.plot(d.width_principle, d.zt, marker=marker,
-                              label="{} principle".format(str(p)), **kwargs)
-            line2, = plt.plot(d.width_perpendicular, d.zt, marker=marker,
-                               label="{} orthog.".format(str(p)),
-                               linestyle='--', color=line.get_color(), **kwargs)
+            line, = d.width_principle.plot(ax=ax, y='zt', marker=marker,
+                                   label="{} principle".format(str(p)), **kwargs)
+
+            line2, = d.width_perpendicular.plot(ax=ax, y='zt', marker=marker,
+                                       label="{} perpendicular".format(str(p)),
+                                       color=line.get_color(), linestyle='--',
+                                       **kwargs)
 
             lines.append(line)
             lines.append(line2)
@@ -206,17 +211,12 @@ def plot_default(data, marker='', z_max=None, cumulants=[], split_subplots=True,
                 alpha=fill_between_alpha,
             )
 
-        plt.title(fix_cumulant_name(cumulant))
-        plt.tight_layout()
-        plt.xlabel("characterisc width [m]")
-        
-        if i == 0:
-            plt.ylabel('height [m]')
-        else:
-            plt.setp(ax.get_yticklabels(), visible=False)
+        ax.set_title(fix_cumulant_name(cumulant))
+        ax.set_xlabel("characterisc width [m]")
+        ax.set_ylabel(['height [m]',''][i>0])
+        sns.despine()
 
-        axes.append(ax)
-
+    plt.tight_layout()
     if with_legend:
         plt.subplots_adjust(bottom=0.24)
         lgd = plt.figlegend(lines, [l.get_label() for l in lines], loc='lower center', ncol=2)
@@ -234,6 +234,10 @@ def _make_output_filename(input_filenames):
 
     raise Exception("Can't find common root between input filenames: {}"
                     "".format(", ".join(input_filenames)))
+
+
+FN_FORMAT = "{base_name}.cumulant_profile_{plot_type}.{mask}.pdf"
+
 
 if __name__ == "__main__":
     import matplotlib

@@ -11,7 +11,7 @@ from tqdm import tqdm
 
 from collections import OrderedDict
 
-from genesis.length_scales import cumulant_analysis
+from .. import calc as cumulant_analysis
 
 
 def z_center_field(phi_da):
@@ -64,33 +64,41 @@ def compute_vertical_flux(phi_da, w_da):
     return v_flux
 
 def _extract_horizontal(da, z):
-    fn = da.from_file
-
-    fn_slice = os.path.join(
-        os.path.dirname(fn),
-        'k-slices',
-        os.path.basename(fn).replace('.nc', '.z{}m.nc'.format(z.values))
-    )
-
-    if not os.path.exists(os.path.dirname(fn_slice)):
-        raise Exception("Remember to symlink k-slices into `{}`".format(
-            os.path.dirname(fn)
-        ))
-
-
-    if not os.path.exists(fn_slice):
+    if not hasattr(da, 'from_file'):
+        # warnings.warn("input dataset doesn't have its `from_file` "
+                      # "attribute set so can't store horizontal cross-sections "
+                      # "for optimisation")
         da_slice = da.isel(time=0, drop=True)\
                      .where(da.zt==z, drop=True).squeeze()
-
-        # copy over the shorthand name so that they can be used when naming the
-        # cumulant
         da_slice.name = da.name
+    else:
+        fn = da.from_file
 
-        da_slice.to_netcdf(fn_slice)
-        da_slice.close()
+        fn_slice = os.path.join(
+            os.path.dirname(fn),
+            'k-slices',
+            os.path.basename(fn).replace('.nc', '.z{}m.nc'.format(z.values))
+        )
 
-    da_slice = xr.open_dataarray(fn_slice, decode_times=False)
-    # da_slice = da_slice.transpose('xt', 'yt')
+        if not os.path.exists(os.path.dirname(fn_slice)):
+            raise Exception("Remember to symlink k-slices into `{}`".format(
+                os.path.dirname(fn)
+            ))
+
+
+        if not os.path.exists(fn_slice):
+            da_slice = da.isel(time=0, drop=True)\
+                         .where(da.zt==z, drop=True).squeeze()
+
+            # copy over the shorthand name so that they can be used when naming the
+            # cumulant
+            da_slice.name = da.name
+
+            da_slice.to_netcdf(fn_slice)
+            da_slice.close()
+
+        da_slice = xr.open_dataarray(fn_slice, decode_times=False)
+        # da_slice = da_slice.transpose('xt', 'yt')
 
     return da_slice
 
@@ -231,6 +239,8 @@ def run_default(debug=False):
         ('l_flux', 'l_flux'),
     )
     return process(PARAM_NAMES, VARIABLE_SETS, z_min=0., z_max=700.)
+
+FN_FORMAT = "{base_name}.cumulant_scales_profile.{v1}.{v2}.{mask}.nc"
 
 if __name__ == "__main__":
     import argparse

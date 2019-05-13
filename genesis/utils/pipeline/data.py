@@ -35,7 +35,15 @@ class XArrayTarget(luigi.target.FileSystemTarget):
         self.path = path
 
     def open(self, *args, **kwargs):
-        return xr.open_dataset(self.path, *args, **kwargs)
+        ds = xr.open_dataset(self.path, *args, **kwargs)
+
+        if len(ds.data_vars) == 1:
+            name = list(ds.data_vars)[0]
+            da = ds[name]
+            da.name = name
+            return da
+        else:
+            return ds
 
     @property
     def fn(self):

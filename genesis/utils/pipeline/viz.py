@@ -1,3 +1,5 @@
+import itertools
+
 import matplotlib
 matplotlib.use("Agg")
 
@@ -6,21 +8,109 @@ import xarray as xr
 import matplotlib.pyplot as plt
 
 # from ...length_scales.plot import cumulant_scale_vs_height
-from ...length_scales.process import cumulant_scale_vs_height
 from ...bulk_statistics import cross_correlation_with_height
-from ...length_scales.plot import cumulant_sections_vs_height as cumulant_sections_vs_height_plot
+
+from ... import length_scales
 
 from . import data
 
+class ExtractCumulantScaleProfile(luigi.Task):
+    base_name = luigi.Parameter()
+    v1 = luigi.Parameter()
+    v2 = luigi.Parameter()
+    z_max = luigi.FloatParameter(default=700.)
+    mask = luigi.Parameter(default='no_mask')
+    width_method = length_scales.cumulant.calc.WidthEstimationMethod.MASS_WEIGHTED
 
-class CumulantScalesProfile(luigi.Task):
     def requires(self):
-        pass
+        def _fixname(v):
+            if v == 'w':
+                return 'w_zt'
+            else:
+                return v
+
+        return [
+                data.ExtractField3D(base_name=self.base_name,
+                                    field_name=_fixname(self.v1)),
+                data.ExtractField3D(base_name=self.base_name,
+                                    field_name=_fixname(self.v2)),
+        ]
 
     def run(self):
-        cumulant_scale_vs_height.process
-        cumulant_scale_vs_height.plot_default()
-        pass
+        da_v1 = self.input()[0].open(decode_times=False)
+        da_v2 = self.input()[1].open(decode_times=False)
+
+        calc_fn = length_scales.cumulant.vertical_profile.calc.get_height_variation_of_characteristic_scales
+
+        da = calc_fn(
+            v1_3d=da_v1, v2_3d=da_v2, width_method=self.width_method,
+            z_max=self.z_max
+        )
+
+        da.to_netcdf(self.output().path)
+
+    def output(self):
+        fn = length_scales.cumulant.vertical_profile.calc.FN_FORMAT.format(
+            base_name=self.base_name, v1=self.v1, v2=self.v2,
+            mask=self.mask
+        )
+        return data.XArrayTarget(fn)
+
+
+class CumulantScalesProfile(luigi.Task):
+    base_names = luigi.Parameter()
+    cumulants = luigi.Parameter()
+    z_max = luigi.FloatParameter(default=700.)
+
+    plot_type = 'length_scales'
+    mask = 'no_mask'
+
+    def _parse_cumulant_arg(self):
+        cums = [c.split(':') for c in self.cumulants.split(',')]
+        return [c for (n,c) in enumerate(cums) if cums.index(c) == n]
+
+    def requires(self):
+        reqs = {}
+
+        for base_name in self.base_names.split(','):
+            reqs[base_name] = [
+                ExtractCumulantScaleProfile(
+                    base_name=base_name, v1=c[0], v2=c[1]
+                )
+                for c in self._parse_cumulant_arg()
+            ]
+
+        return reqs
+
+    def run(self):
+        datasets = []
+        for base_name in self.base_names.split(','):
+            ds_ = xr.concat([
+                input.open(decode_times=False)
+                for input in self.input()[base_name]
+            ], dim='cumulant')
+            ds_['dataset_name'] = base_name
+            datasets.append(ds_)
+
+        ds = xr.concat(datasets, dim='dataset_name')
+
+        cumulants = self._parse_cumulant_arg()
+        cumulants_s = ["C({},{})".format(c[0],c[1]) for c in cumulants]
+
+        plot_fn = length_scales.cumulant.vertical_profile.plot.plot_default
+
+        import ipdb
+        with ipdb.launch_ipdb_on_exception():
+            plot_fn(data=ds, cumulants=cumulants_s)
+
+        plt.savefig(self.output().path, bbox_inches='tight')
+
+    def output(self):
+        base_name = "__".join(self.base_names.split(','))
+        fn = length_scales.cumulant.vertical_profile.plot.FN_FORMAT.format(
+            base_name=base_name, plot_type=self.plot_type, mask=self.mask
+        )
+        return luigi.LocalTarget(fn)
 
 class JointDistProfile(luigi.Task):
     dk = luigi.IntParameter()
@@ -78,7 +168,6 @@ class JointDistProfile(luigi.Task):
 
         plt.savefig(self.output().fn)
 
-
 class CumulantSlices(luigi.Task):
     v1 = luigi.Parameter()
     v2 = luigi.Parameter()
@@ -122,16 +211,14 @@ class CumulantSlices(luigi.Task):
             ds.attrs['name'] = base_name
             datasets.append(ds)
 
-        main = cumulant_sections_vs_height_plot.main
-        main(datasets=datasets, var_names=[self.v1, self.v2],)
+        plot_fn = length_scales.cumulant.sections.plot
+        plot_fn(datasets=datasets, var_names=[self.v1, self.v2],)
 
         plt.savefig(self.output().fn, bbox_inches='tight')
 
     def output(self):
-        fn = cumulant_sections_vs_height_plot.FN_FORMAT.format(
+        fn = length_scales.cumulant.sections.FN_FORMAT_PLOT.format(
             v1=self.v1, v2=self.v2
         )
 
         return luigi.LocalTarget(fn)
-
-
