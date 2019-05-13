@@ -27,6 +27,19 @@ def _get_dataset_meta_info(base_name):
 
     return datasources[base_name]
 
+class XArrayTarget(luigi.target.FileSystemTarget):
+    fs = luigi.local_target.LocalFileSystem()
+
+    def __init__(self, path, *args, **kwargs):
+        super(XArrayTarget, self).__init__(path, *args, **kwargs)
+        self.path = path
+
+    def open(self, *args, **kwargs):
+        return xr.open_dataset(self.path, *args, **kwargs)
+
+    @property
+    def fn(self):
+        return self.path
 
 class ExtractField3D(luigi.Task):
     base_name = luigi.Parameter()
@@ -67,7 +80,7 @@ class ExtractField3D(luigi.Task):
 
         p = Path("data")/self.base_name/fn
 
-        return luigi.LocalTarget(str(p))
+        return XArrayTarget(str(p))
 
 
 class MakeMask(luigi.Task):
