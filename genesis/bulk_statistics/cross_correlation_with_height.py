@@ -182,7 +182,8 @@ def main(ds_3d, z_levels, ds_cb=None, normed_levels = [5, 95], ax=None):
     if ax is None:
         plt.subplots_adjust(right=0.75)
         ax = plt.gca()
-        ax.legend()
+        # ax.legend()
+        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 
     sns.despine()
 
