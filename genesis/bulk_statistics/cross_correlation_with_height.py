@@ -201,8 +201,8 @@ def main(ds_3d, z_levels, ds_cb=None, normed_levels = [5, 95], ax=None):
 
     sns.despine()
 
-    ax.set_xlabel(r'{} [{}]'.format(ds_3d[v1].longname, ds_3d[v1].units))
-    ax.set_ylabel(r'{} [{}]'.format(ds_3d[v2].longname, ds_3d[v2].units))
+    ax.set_xlabel(xr.plot.utils.label_from_attrs(ds_3d[v1]))
+    ax.set_ylabel(xr.plot.utils.label_from_attrs(ds_3d[v2]))
 
     if type(ds_.time.values) == float:
         ax.set_title("t={}hrs".format(ds_.time.values/60/60))
