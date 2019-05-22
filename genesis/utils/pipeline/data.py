@@ -141,6 +141,8 @@ class MakeMask(luigi.Task):
     def _build_method_kwargs(self):
         kwargs = dict(base_name=self.base_name)
         for kv in self.method_extra_args.split(","):
+            if kv == "":
+                continue
             k,v = kv.split("=")
             kwargs[k] = v
         return kwargs
@@ -171,7 +173,7 @@ class MakeMask(luigi.Task):
         mask_name = make_mask.mask_mask_name(
             method=self.method_name, method_kwargs=kwargs
         )
-        return luigi.LocalTarget(make_mask.OUT_FILENAME_FORMAT.format(
+        return XArrayTarget(make_mask.OUT_FILENAME_FORMAT.format(
             base_name=self.base_name, mask_name=mask_name
         ))
 
@@ -417,7 +419,7 @@ class ExtractCloudbaseState(luigi.Task):
                 cloud_data=cloud_data, t0=t0,
             )
             dz = cloud_data.dx
-            method='tracked clouds'
+            method = 'tracked clouds'
         else:
             qc = self.input()['qc'].open()
             z_cb = cross_correlation_with_height.get_approximate_cloudbase_height(
@@ -426,11 +428,12 @@ class ExtractCloudbaseState(luigi.Task):
             da_scalar_3d = self.input()['field'].open()
             try:
                 dz = find_vertical_grid_spacing(da_scalar_3d)
+                method = 'approximate'
             except:
-                warnings.warn("Currently using at cloud-base cells because"
-                              " grid is non-regular")
-                dz = 0.
-            method='approximate'
+                warnings.warn("Using cloud-base state because vertical grid"
+                              " spacing is non-uniform")
+                dz = 0.0
+                method = 'approximate, in-cloud'
 
         da_cb = cross_correlation_with_height.extract_from_3d_at_heights_in_2d(
             da_3d=da_scalar_3d, z_2d=z_cb-dz

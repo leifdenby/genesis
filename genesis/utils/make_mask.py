@@ -98,7 +98,7 @@ def main(method, method_kwargs):
     mask = fn(**method_kwargs).squeeze()
 
     if hasattr(fn, "description"):
-        mask.attrs['longname'] = fn.description.format(**method_kwargs)
+        mask.attrs['long_name'] = fn.description.format(**method_kwargs)
 
     mask.name = mask_mask_name(method, method_kwargs)
 

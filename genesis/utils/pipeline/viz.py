@@ -137,15 +137,19 @@ class JointDistProfile(luigi.Task):
 
         if self.mask is not None:
             reqs['mask'] = data.MakeMask(method_name=self.mask,
-                                         method_extra_args=self.mask_args)
+                                         method_extra_args=self.mask_args,
+                                         base_name=self.base_name
+                                         )
 
         return reqs
 
     def output(self):
         if self.mask is not None:
-            raise NotImplementedError
             if not self.input()["mask"].exists():
-                pass
+                mask_name = 'not__a__real__mask__name'
+            else:
+                mask = self.input()["mask"].open()
+                mask_name = mask.name
             out_fn = '{}.cross_correlation.{}.{}.masked_by.{}.png'.format(
                 self.base_name, self.v1, self.v2, mask_name
             )
@@ -166,14 +170,24 @@ class JointDistProfile(luigi.Task):
         else:
             ds_cb = None
 
+        if 'mask' in self.input():
+            mask = self.input()["mask"].open()
+            ds_3d = ds_3d.where(mask)
+
         z_levels = (
             ds_3d.isel(zt=slice(None, None, self.dk))
                  .sel(zt=slice(0, self.z_max))
                  .zt)
 
-        cross_correlation_with_height.main(ds_3d=ds_3d, z_levels=z_levels, ds_cb=ds_cb)
+        ax = cross_correlation_with_height.main(ds_3d=ds_3d, z_levels=z_levels,
+                                                ds_cb=ds_cb)
 
-        plt.savefig(self.output().fn)
+        if 'mask' in self.input():
+            title = ax.get_title()
+            title += "\nmasked by {}".format(mask.long_name)
+            ax.set_title(title)
+
+        plt.savefig(self.output().fn, bbox_inches='tight')
 
 class CumulantSlices(luigi.Task):
     v1 = luigi.Parameter()

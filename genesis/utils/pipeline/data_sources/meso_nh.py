@@ -10,6 +10,7 @@ FIELD_NAME_MAPPING = dict(
     qv='RVT',
     qc='RCT',
     t='THT',
+    cvrxp='SVT001',
 )
 
 FIELD_DESCRIPTIONS = dict(
@@ -17,6 +18,7 @@ FIELD_DESCRIPTIONS = dict(
     qv='water vapour',
     qc='cloud liquid water',
     t='potential temperature',
+    cvrxp='radioactive tracer'
 )
 
 UNITS_FORMAT = {
@@ -47,7 +49,7 @@ def _scale_field(da):
     if da.units == 'km':
         da.values *= 1000.
         da.attrs['units'] = 'm'
-    elif da.units == 'kg/kg':
+    elif 'q' in da.name and da.units == 'kg/kg':
         da.values *= 1000.
         da.attrs['units'] = 'g/kg'
 
@@ -87,5 +89,7 @@ def extract_field_to_filename(path_in, path_out, field_name):
         da.coords[c] = _scale_field(da[c])
 
     _scale_field(da)
+
+    da = da.squeeze()
 
     da.to_netcdf(path_out)

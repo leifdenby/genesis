@@ -32,8 +32,8 @@ def find_vertical_grid_spacing(da):
 
     dz_all = np.diff(zt.values)
 
-    print(dz_all)
-
-    assert np.min(dz_all) == np.max(dz_all)
+    if np.min(dz_all) != np.max(dz_all):
+        print(dz_all)
+        raise Exception("Non-uniform vertical grid")
 
     return np.min(dz_all)

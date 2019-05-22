@@ -218,6 +218,8 @@ def main(ds_3d, z_levels, ds_cb=None, normed_levels = [5, 95], ax=None):
     if axis_lims_spans_zero(ax.get_ylim()):
         ax.axhline(0.0, linestyle='--', alpha=0.2, color='black')
 
+    return ax
+
 
 def axis_lims_spans_zero(lims):
     return np.sign(lims[0]) != np.sign(lims[1])
