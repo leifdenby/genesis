@@ -58,7 +58,6 @@ class ExtractCumulantScaleProfile(luigi.Task):
         )
         return data.XArrayTarget(fn)
 
-
 class CumulantScalesProfile(luigi.Task):
     base_names = luigi.Parameter()
     cumulants = luigi.Parameter()
@@ -131,11 +130,10 @@ class JointDistProfile(luigi.Task):
             ],
         )
 
-        if data.HAS_CLOUD_TRACKING:
-            reqs['cloudbase'] = [
-                data.ExtractCloudbaseState(base_name=self.base_name, field_name=self.v1),
-                data.ExtractCloudbaseState(base_name=self.base_name, field_name=self.v2),
-            ]
+        reqs['cloudbase'] = [
+            data.ExtractCloudbaseState(base_name=self.base_name, field_name=self.v1),
+            data.ExtractCloudbaseState(base_name=self.base_name, field_name=self.v2),
+        ]
 
         if self.mask is not None:
             reqs['mask'] = data.MakeMask(method_name=self.mask,
@@ -231,7 +229,6 @@ class CumulantSlices(luigi.Task):
         )
 
         return luigi.LocalTarget(fn)
-
 
 class HorizontalMeanProfile(luigi.Task):
     base_name = luigi.Parameter()

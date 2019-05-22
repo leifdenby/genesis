@@ -2,6 +2,7 @@ import os
 import subprocess
 from pathlib import Path
 import re
+import warnings
 
 import luigi
 import xarray as xr
@@ -10,6 +11,7 @@ import yaml
 from .. import mask_functions, make_mask
 from ... import objects
 from ...bulk_statistics import cross_correlation_with_height
+from ...utils import find_vertical_grid_spacing
 
 import importlib
 
@@ -381,38 +383,64 @@ class ExtractCloudbaseState(luigi.Task):
     field_name = luigi.Parameter()
 
     def requires(self):
-        return dict(
-            tracking=PerformObjectTracking2D(base_name=self.base_name),
-            field=ExtractField3D(base_name=self.base_name, field_name=self.field_name),
-        )
+        if HAS_CLOUD_TRACKING:
+            return dict(
+                tracking=PerformObjectTracking2D(base_name=self.base_name),
+                field=ExtractField3D(base_name=self.base_name, field_name=self.field_name),
+            )
+        else:
+            warnings.warn("cloud tracking isn't available. Using approximate"
+                          " method for finding cloud-base height rather than"
+                          "tracking")
+            return dict(
+                qc=ExtractField3D(base_name=self.base_name, field_name='qc'),
+                field=ExtractField3D(base_name=self.base_name, field_name=self.field_name),
+            )
 
     def run(self):
-        tracking_output = Path(self.input()["tracking"].fn)
-        matches = re.match("(.*).out.xy.track__cloud_core__(.*).nc", tracking_output.name)
-        dataset_name = matches[1]
-        tracking_timerange = matches[2]
-        tracking_identifier = "track_{}".format(tracking_timerange)
+        if HAS_CLOUD_TRACKING:
+            tracking_output = Path(self.input()["tracking"].fn)
+            matches = re.match("(.*).out.xy.track__cloud_core__(.*).nc", tracking_output.name)
+            dataset_name = matches[1]
+            tracking_timerange = matches[2]
+            tracking_identifier = "track_{}".format(tracking_timerange)
 
-        p_data = Path(os.getcwd())/"data"
-        cloud_tracking_analysis.cloud_data.ROOT_DIR = str(p_data)
-        cloud_data = CloudData(dataset_name, tracking_identifier,
-                               dataset_pathname=self.base_name)
+            p_data = Path(os.getcwd())/"data"
+            cloud_tracking_analysis.cloud_data.ROOT_DIR = str(p_data)
+            cloud_data = CloudData(dataset_name, tracking_identifier,
+                                   dataset_pathname=self.base_name)
 
-        da_scalar_3d = xr.open_dataarray(self.input()["field"].fn, decode_times=False)
+            da_scalar_3d = xr.open_dataarray(self.input()["field"].fn, decode_times=False)
 
-        t0 = da_scalar_3d.time.values[0]
-        z_cb = cross_correlation_with_height.get_cloudbase_height(
-            cloud_data=cloud_data, t0=t0,
-        )
-        dz = cloud_data.dx
+            t0 = da_scalar_3d.time.values[0]
+            z_cb = cross_correlation_with_height.get_cloudbase_height(
+                cloud_data=cloud_data, t0=t0,
+            )
+            dz = cloud_data.dx
+            method='tracked clouds'
+        else:
+            qc = self.input()['qc'].open()
+            z_cb = cross_correlation_with_height.get_approximate_cloudbase_height(
+                qc=qc, z_tol=50.
+            )
+            da_scalar_3d = self.input()['field'].open()
+            try:
+                dz = find_vertical_grid_spacing(da_scalar_3d)
+            except:
+                warnings.warn("Currently using at cloud-base cells because"
+                              " grid is non-regular")
+                dz = 0.
+            method='approximate'
 
         da_cb = cross_correlation_with_height.extract_from_3d_at_heights_in_2d(
             da_3d=da_scalar_3d, z_2d=z_cb-dz
         )
         da_cb = da_cb.squeeze()
         da_cb.name = self.field_name
+        da_cb.attrs['method'] = method
 
         da_cb.to_netcdf(self.output().fn)
+
 
 
     def output(self):

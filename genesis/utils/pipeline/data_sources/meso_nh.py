@@ -70,7 +70,6 @@ def extract_field_to_filename(path_in, path_out, field_name):
     old_coords = [_get_meso_nh_field(c) for c in new_coords]
     coord_map = dict(zip(old_coords, new_coords))
     da = da.rename(coord_map)
-    da.attrs['longname'] = _get_meso_nh_field_description(field_name)
     da.attrs['long_name'] = _get_meso_nh_field_description(field_name)
     da.attrs['units'] = _cleanup_units(da.units)
 

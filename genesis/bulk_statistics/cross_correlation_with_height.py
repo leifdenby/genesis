@@ -31,6 +31,15 @@ from ..utils.plot_types import joint_hist_contoured, JointHistPlotError
 
 Z_LEVELS_DEFAULT = np.arange(12.5, 650., 100.)
 
+def get_approximate_cloudbase_height(qc, z_tol=100.):
+    z_cloud_underside = qc.zt.where(qc > 0.0).min(dim='zt')
+
+    m = z_cloud_underside < z_tol + z_cloud_underside.min()
+    z_cb = z_cloud_underside.where(m)
+
+    return z_cb
+
+
 def get_cloudbase_height(cloud_data, t0, t_age_max=200., z_base_max=700.):
     if not HAS_CLOUD_TRACKING:
         raise Exception("cloud_tracking_analysis module isn't available")
@@ -162,7 +171,12 @@ def main(ds_3d, z_levels, ds_cb=None, normed_levels = [5, 95], ax=None):
                     l.set_color('red')
 
                     if n == 0:
-                        l.set_label('into cloudbase')
+                        if 'method' in ds_cb[v1].attrs:
+                            assert ds_cb[v1].method == ds_cb[v2].method
+                            l.set_label('into cloudbase\n({})'.format(
+                                        ds_cb[v1].method))
+                        else:
+                            l.set_label('into cloudbase')
                         lines.append(l)
                         l.set_linestyle('--')
             else:
