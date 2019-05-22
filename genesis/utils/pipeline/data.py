@@ -153,7 +153,11 @@ class MakeMask(luigi.Task):
         for (v, target) in self.input().items():
             method_kwargs[v] = xr.open_dataarray(target.fn, decode_times=False)
 
+        cwd = os.getcwd()
+        p_data = Path('data')/self.base_name
+        os.chdir(p_data)
         mask = make_mask.main(method=self.method_name, method_kwargs=method_kwargs)
+        os.chdir(cwd)
         mask.to_netcdf(self.output().fn)
 
     def output(self):
@@ -173,9 +177,11 @@ class MakeMask(luigi.Task):
         mask_name = make_mask.mask_mask_name(
             method=self.method_name, method_kwargs=kwargs
         )
-        return XArrayTarget(make_mask.OUT_FILENAME_FORMAT.format(
+        fn = make_mask.OUT_FILENAME_FORMAT.format(
             base_name=self.base_name, mask_name=mask_name
-        ))
+        )
+        p = Path('data')/self.base_name/fn
+        return XArrayTarget(str(p))
 
 
 class IdentifyObjects(luigi.Task):
@@ -444,8 +450,7 @@ class ExtractCloudbaseState(luigi.Task):
 
         da_cb.to_netcdf(self.output().fn)
 
-
-
     def output(self):
         fn = "{}.{}.cloudbase.xy.nc".format(self.base_name, self.field_name)
-        return luigi.LocalTarget(fn)
+        p = Path('data')/self.base_name/fn
+        return XArrayTarget(str(p))
