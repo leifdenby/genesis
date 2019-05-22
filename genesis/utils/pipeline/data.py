@@ -11,8 +11,14 @@ from .. import mask_functions, make_mask
 from ... import objects
 from ...bulk_statistics import cross_correlation_with_height
 
-import cloud_tracking_analysis.cloud_data
-from cloud_tracking_analysis import CloudData, CloudType, cloud_operations
+import importlib
+
+try:
+    import cloud_tracking_analysis.cloud_data
+    from cloud_tracking_analysis import CloudData, CloudType, cloud_operations
+    HAS_CLOUD_TRACKING = True
+except ImportError:
+    HAS_CLOUD_TRACKING = False
 
 def _get_dataset_meta_info(base_name):
     try:
@@ -49,11 +55,23 @@ class XArrayTarget(luigi.target.FileSystemTarget):
     def fn(self):
         return self.path
 
+
+def _extract_field_with_helper(model_name, **kwargs):
+    module_name = ".data_sources.{}".format(
+        model_name.lower().replace('-', '_')
+    )
+    module = importlib.import_module(module_name,
+                                     package='genesis.utils.pipeline')
+
+    fn = getattr(module, 'extract_field_to_filename')
+    fn(**kwargs)
+
+
 class ExtractField3D(luigi.Task):
     base_name = luigi.Parameter()
     field_name = luigi.Parameter()
 
-    FN_FORMAT = "{exp_name}.tn{timestep}.{field_name}.nc"
+    FN_FORMAT = "{experiment_name}.tn{timestep}.{field_name}.nc"
 
 
     def _extract_and_symlink_local_file(self):
@@ -74,7 +92,18 @@ class ExtractField3D(luigi.Task):
         if fn_out.exists():
             pass
         elif meta['host'] == 'localhost':
-            self._extract_and_symlink_local_file()
+            if 'model' in meta:
+                fn_format = meta.get('fn_format', self.FN_FORMAT)
+                p_in = Path(meta['path'])/fn_format.format(
+                    field_name=self.field_name, **meta
+                )
+                p_out = Path(self.output().fn)
+                _extract_field_with_helper(
+                    model_name=meta['model'],
+                    path_in=p_in, path_out=p_out, field_name=self.field_name
+                )
+            else:
+                self._extract_and_symlink_local_file()
         else:
             raise NotImplementedError(fn_out.fn)
 
@@ -82,7 +111,7 @@ class ExtractField3D(luigi.Task):
         meta = _get_dataset_meta_info(self.base_name)
 
         fn = self.FN_FORMAT.format(
-            exp_name=meta['experiment_name'], timestep=meta['timestep'],
+            experiment_name=meta['experiment_name'], timestep=meta['timestep'],
             field_name=self.field_name
         )
 
@@ -293,6 +322,9 @@ class PerformObjectTracking2D(luigi.Task):
     base_name = luigi.Parameter()
 
     def requires(self):
+        if not HAS_CLOUD_TRACKING:
+            raise Exception("cloud_tracking_analysis module isn't available")
+
         return [
             ExtractCrossSection2D(base_name=self.base_name, field_name='core'),
             ExtractCrossSection2D(base_name=self.base_name, field_name='cldbase'),
