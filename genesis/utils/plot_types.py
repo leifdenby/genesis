@@ -25,6 +25,11 @@ def _find_bin_on_percentile(q, bin_counts):
 class JointHistPlotError(Exception):
     pass
 
+def _estimate_bin_count(xd):
+    import operator
+    n = reduce(operator.mul, xd.shape, 1)
+    bins = int((float(n))**(1./4.))
+    return bins
 
 def _raw_calc_joint_hist(xd, yd, bins=None):
     x_range = (np.nanmin(xd), np.nanmax(xd))
@@ -34,9 +39,7 @@ def _raw_calc_joint_hist(xd, yd, bins=None):
         raise JointHistPlotError
 
     if bins is None:
-        import operator
-        n = reduce(operator.mul, xd.shape, 1)
-        bins = int((float(n))**(1./4.))
+        bins = _estimate_bin_count(xd=xd)
 
     bin_counts, x_bins, y_bins = np.histogram2d(
         xd, yd, bins=bins, range=(x_range, y_range)
@@ -91,7 +94,26 @@ def joint_hist_contoured(xd, yd, bins=None, normed_levels=None, ax=None,
             _find_bin_on_percentile(bin_counts=bin_counts, q=q)
             for q in normed_levels
         ]
+
         cnt = ax.contour(x_, y_, bin_counts, levels=levels, **kwargs)
+
+        # attempt of adapting the number of bins below so that we get exactly
+        # one line per contour. This should reduce some of the messiness when
+        # we're using very few datapoints
+        if all([len(seg) == 1 for seg in cnt.allsegs]):
+            pass
+        elif any([len(seg) == 0 for seg in cnt.allsegs]):
+            pass
+        else:
+            if bins is None:
+                bins = _estimate_bin_count(xd)
+            bins = int(bins*0.95)
+            for col in cnt.collections:
+                col.remove()
+            return joint_hist_contoured(
+                xd=xd, yd=yd, bins=bins, normed_levels=normed_levels, ax=ax,
+                **kwargs
+            )
     else:
         cnt = ax.contour(x_, y_, bin_counts, **kwargs)
 
