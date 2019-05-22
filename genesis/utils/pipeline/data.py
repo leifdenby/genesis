@@ -98,6 +98,7 @@ class ExtractField3D(luigi.Task):
                     field_name=self.field_name, **meta
                 )
                 p_out = Path(self.output().fn)
+                p_out.parent.mkdir(parents=True, exist_ok=True)
                 _extract_field_with_helper(
                     model_name=meta['model'],
                     path_in=p_in, path_out=p_out, field_name=self.field_name

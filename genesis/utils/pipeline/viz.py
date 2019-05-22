@@ -5,7 +5,9 @@ matplotlib.use("Agg")
 
 import luigi
 import xarray as xr
+import numpy as np
 import matplotlib.pyplot as plt
+import seaborn as sns
 
 # from ...length_scales.plot import cumulant_scale_vs_height
 from ...bulk_statistics import cross_correlation_with_height
@@ -127,15 +129,19 @@ class JointDistProfile(luigi.Task):
                 data.ExtractField3D(field_name=self.v1, base_name=self.base_name),
                 data.ExtractField3D(field_name=self.v2, base_name=self.base_name),
             ],
-            cloudbase=[
+        )
+
+        if data.HAS_CLOUD_TRACKING:
+            reqs['cloudbase'] = [
                 data.ExtractCloudbaseState(base_name=self.base_name, field_name=self.v1),
                 data.ExtractCloudbaseState(base_name=self.base_name, field_name=self.v2),
             ]
-        )
 
         if self.mask is not None:
             reqs['mask'] = data.MakeMask(method_name=self.mask,
                                          method_extra_args=self.mask_args)
+
+        return reqs
 
     def output(self):
         if self.mask is not None:
@@ -155,9 +161,12 @@ class JointDistProfile(luigi.Task):
         ds_3d = xr.merge([
             xr.open_dataarray(r.fn) for r in self.input()["full_domain"]
         ])
-        ds_cb = xr.merge([
-            xr.open_dataarray(r.fn) for r in self.input()["cloudbase"]
-        ])
+        if 'cloudbase' in self.input():
+            ds_cb = xr.merge([
+                xr.open_dataarray(r.fn) for r in self.input()["cloudbase"]
+            ])
+        else:
+            ds_cb = None
 
         z_levels = (
             ds_3d.isel(zt=slice(None, None, self.dk))
@@ -219,6 +228,54 @@ class CumulantSlices(luigi.Task):
     def output(self):
         fn = length_scales.cumulant.sections.FN_FORMAT_PLOT.format(
             v1=self.v1, v2=self.v2
+        )
+
+        return luigi.LocalTarget(fn)
+
+
+class HorizontalMeanProfile(luigi.Task):
+    base_name = luigi.Parameter()
+    field_names = luigi.Parameter(default='qv,qc,t')
+
+    @property
+    def _field_names(self):
+        return self.field_names.split(',')
+
+    def requires(self):
+        return [
+            data.ExtractField3D(field_name=v, base_name=self.base_name)
+            for v in self._field_names
+        ]
+
+    def run(self):
+        ds = xr.merge([
+            input.open() for input in self.input()
+        ])
+
+        fig, axes = plt.subplots(ncols=len(self._field_names), sharey=True)
+        sns.set(style='ticks')
+
+        title = None
+        for v, ax in zip(self._field_names, axes):
+            v_mean = ds[v].mean(dim=('xt', 'yt'), dtype=np.float64,
+                                keep_attrs=True)
+            v_mean.plot(ax=ax, y='zt')
+            ax.set_ylim(0, None)
+            ax.set_ylabel('')
+            title = ax.get_title()
+            ax.set_title('')
+
+            print(v_mean.longname)
+
+        sns.despine()
+        plt.suptitle(title)
+
+        plt.savefig(self.output().fn)
+
+    def output(self):
+        fn = "{base_name}.{variables}.mean_profile.pdf".format(
+            base_name=self.base_name,
+            variables="__".join(self._field_names)
         )
 
         return luigi.LocalTarget(fn)

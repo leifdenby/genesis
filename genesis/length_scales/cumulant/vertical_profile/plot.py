@@ -118,6 +118,8 @@ def plot(data, plot_type, marker='', z_max=None, cumulants=[],
         fig, axes = plt.subplots(ncols=len(cumulants), 
                                  figsize=(2.5*len(cumulants), 4),
                                  sharex=True, sharey=True)
+        if not isinstance(axes, list):
+            axes = [axes,]
     else:
         fig, ax = plt.subplots()
 
