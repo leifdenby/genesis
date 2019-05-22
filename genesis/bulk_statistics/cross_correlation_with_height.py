@@ -17,9 +17,13 @@ import matplotlib.pyplot as plt
 import tqdm
 import numpy as np
 
-from cloud_tracking_analysis import CloudData, CloudType, cloud_operations
-from cloud_tracking_analysis.cloud_mask_methods import cloudbase as get_cloudbase_mask
-from cloud_tracking_analysis.cloud_mask_methods import CloudbaseEstimationMethod
+try:
+    from cloud_tracking_analysis import CloudData, CloudType, cloud_operations
+    from cloud_tracking_analysis.cloud_mask_methods import cloudbase as get_cloudbase_mask
+    from cloud_tracking_analysis.cloud_mask_methods import CloudbaseEstimationMethod
+    HAS_CLOUD_TRACKING = True
+except ImportError:
+    HAS_CLOUD_TRACKING = False
 
 from . import get_dataset
 from ..utils.plot_types import joint_hist_contoured, JointHistPlotError
@@ -28,6 +32,9 @@ from ..utils.plot_types import joint_hist_contoured, JointHistPlotError
 Z_LEVELS_DEFAULT = np.arange(12.5, 650., 100.)
 
 def get_cloudbase_height(cloud_data, t0, t_age_max=200., z_base_max=700.):
+    if not HAS_CLOUD_TRACKING:
+        raise Exception("cloud_tracking_analysis module isn't available")
+
     tn = int(cloud_data.find_closest_timestep(t=t0))
 
     # clouds that are going to do vertical transport
