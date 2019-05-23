@@ -4,6 +4,7 @@ from pathlib import Path
 import re
 import warnings
 
+import ipdb
 import luigi
 import xarray as xr
 import yaml
@@ -58,11 +59,6 @@ class XArrayTarget(luigi.target.FileSystemTarget):
     def fn(self):
         return self.path
 
-
-def _extract_field_with_helper(model_name, meta, **kwargs):
-    fn(dataset_meta=meta, **kwargs)
-
-
 class ExtractField3D(luigi.Task):
     base_name = luigi.Parameter()
     field_name = luigi.Parameter()
@@ -108,10 +104,11 @@ class ExtractField3D(luigi.Task):
             p_out.parent.mkdir(parents=True, exist_ok=True)
 
             data_loader = self._get_data_loader_module(meta=meta)
-            data_loader.extract_field_to_filename(
-                dataset_meta=meta, path_out=p_out, field_name=self.field_name,
-                **self.input()
-            )
+            with ipdb.launch_ipdb_on_exception():
+                data_loader.extract_field_to_filename(
+                    dataset_meta=meta, path_out=p_out,
+                    field_name=self.field_name, **self.input()
+                )
         else:
             raise NotImplementedError(fn_out.fn)
 
