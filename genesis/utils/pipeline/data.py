@@ -25,7 +25,7 @@ except ImportError:
 def _get_dataset_meta_info(base_name):
     try:
         with open('datasources.yaml') as fh:
-            datasources = yaml.load(fh)
+            datasources = yaml.load(fh, Loader=yaml.FullLoader)
     except IOError:
         raise Exception("please define your data sources in datasources.yaml")
 
