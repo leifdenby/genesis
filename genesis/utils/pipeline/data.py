@@ -75,6 +75,20 @@ class ExtractField3D(luigi.Task):
 
     FN_FORMAT = "{experiment_name}.tn{timestep}.{field_name}.nc"
 
+    def requires(self):
+        meta = _get_dataset_meta_info(self.base_name)
+
+        reqs = {}
+
+        if 'model' in meta and meta['model'] == 'Meso-NH':
+            if self.field_name == 'theta_v':
+                reqs['t'] = ExtractField3D(base_name=self.base_name,
+                                           field_name='t')
+
+                reqs['qv'] = ExtractField3D(base_name=self.base_name,
+                                            field_name='qv')
+
+        return reqs
 
     def _extract_and_symlink_local_file(self):
         meta = _get_dataset_meta_info(self.base_name)
@@ -101,9 +115,11 @@ class ExtractField3D(luigi.Task):
                 )
                 p_out = Path(self.output().fn)
                 p_out.parent.mkdir(parents=True, exist_ok=True)
+
                 _extract_field_with_helper(
                     model_name=meta['model'],
-                    path_in=p_in, path_out=p_out, field_name=self.field_name
+                    path_in=p_in, path_out=p_out, field_name=self.field_name,
+                    **self.input()
                 )
             else:
                 self._extract_and_symlink_local_file()

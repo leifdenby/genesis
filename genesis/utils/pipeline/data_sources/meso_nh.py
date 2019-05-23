@@ -14,7 +14,7 @@ FIELD_NAME_MAPPING = dict(
 )
 
 FIELD_DESCRIPTIONS = dict(
-    w='vertical_velocity',
+    w='vertical velocity',
     qv='water vapour',
     qc='cloud liquid water',
     t='potential temperature',
@@ -58,38 +58,55 @@ def _scale_field(da):
 def _cleanup_units(units):
     return UNITS_FORMAT.get(units, units)
 
-def extract_field_to_filename(path_in, path_out, field_name):
-    ds = xr.open_dataset(path_in)
+def _calculate_theta_v(theta, qv):
+    assert qv.units == 'g/kg'
+    assert theta.units == 'K'
 
-    field_name_src = _get_meso_nh_field(field_name)
+    return theta*(1.0 + 0.61*qv/1000.)
 
-    da = ds[field_name_src]
-    if field_name == 'w_zt':
-        field_name = 'w'
-    da.name = field_name
+def extract_field_to_filename(path_in, path_out, field_name, **kwargs):
+    if field_name == 'theta_v':
+        assert 'qv' in kwargs and 't' in kwargs
 
-    new_coords = "xt yt".split(" ")
-    old_coords = [_get_meso_nh_field(c) for c in new_coords]
-    coord_map = dict(zip(old_coords, new_coords))
-    da = da.rename(coord_map)
-    da.attrs['long_name'] = _get_meso_nh_field_description(field_name)
-    da.attrs['units'] = _cleanup_units(da.units)
+        da_theta = kwargs['t'].open()
+        da_qv = kwargs['qv'].open()
 
-    # all height levels should be the same, we do a quick check and then use
-    # those values
-    z__min = ds.VLEV.min(dim=old_coords)
-    z__max = ds.VLEV.max(dim=old_coords)
-    assert np.all(z__max - z__min < 1.0e-10)
-    da['zt'] = np.round(z__min, decimals=3)
-    da.zt.attrs['units'] = ds[old_coords[0]].units
+        da = _calculate_theta_v(theta=da_theta, qv=da_qv)
+        da.name = 'theta_v'
+        da.attrs['units'] = 'K'
+        da.attrs['long_name'] = 'virtual potential temperature'
+    else:
+        ds = xr.open_dataset(path_in)
 
-    da = da.swap_dims(dict(vertical_levels='zt'))
+        field_name_src = _get_meso_nh_field(field_name)
 
-    for c in "xt yt zt".split(" "):
-        da.coords[c] = _scale_field(da[c])
+        da = ds[field_name_src]
+        if field_name == 'w_zt':
+            field_name = 'w'
+        da.name = field_name
 
-    _scale_field(da)
+        new_coords = "xt yt".split(" ")
+        old_coords = [_get_meso_nh_field(c) for c in new_coords]
+        coord_map = dict(zip(old_coords, new_coords))
+        da = da.rename(coord_map)
+        da.attrs['long_name'] = _get_meso_nh_field_description(field_name)
+        da.attrs['units'] = _cleanup_units(da.units)
 
-    da = da.squeeze()
+        # all height levels should be the same, we do a quick check and then
+        # use those values
+        z__min = ds.VLEV.min(dim=old_coords)
+        z__max = ds.VLEV.max(dim=old_coords)
+        assert np.all(z__max - z__min < 1.0e-10)
+        da['zt'] = np.round(z__min, decimals=3)
+        da.zt.attrs['units'] = ds[old_coords[0]].units
+
+        da = da.swap_dims(dict(vertical_levels='zt'))
+
+        for c in "xt yt zt".split(" "):
+            da.coords[c] = _scale_field(da[c])
+
+        _scale_field(da)
+
+        da = da.squeeze()
 
     da.to_netcdf(path_out)
