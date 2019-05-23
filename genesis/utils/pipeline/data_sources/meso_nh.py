@@ -1,5 +1,8 @@
 from pathlib import Path
+import warnings
+from collections import OrderedDict
 
+import ipdb
 import xarray as xr
 import numpy as np
 
@@ -28,6 +31,7 @@ UNITS_FORMAT = {
     'METERS/SECOND': 'm/s',
     'KELVIN': 'K',
     'KG/KG': 'kg/kg',
+    'kg kg-1': 'kg/kg',
 }
 
 DERIVED_FIELDS = {
@@ -62,14 +66,74 @@ def _scale_field(da):
 
     return da
 
-def _cleanup_units(units):
-    return UNITS_FORMAT.get(units, units)
+def _cleanup_units(da):
+    if hasattr(da, 'units'):
+        return UNITS_FORMAT.get(da.units, da.units)
+    # one datafile didn't have an actually units attribute, but had a mention
+    # in the COMMENT attribute...
+    elif hasattr(da, 'COMMENT'):
+        if da.COMMENT.strip().endswith('(KG/KG)'):
+            return 'kg/kg'
+        elif da.COMMENT.strip().endswith('(K)'):
+            return 'K'
+        elif da.COMMENT.strip().endswith('(m/s)'):
+            return 'm/s'
+        raise NotImplementedError(da.COMMENT)
+    # sometimes the distance coordinates don't have units it seems..
+    elif da.name in ["xt", "yt"]:
+        warnings.warn("Assuming units for `{}` are in km".format(da.name))
+        return 'km'
+    else:
+        raise NotImplementedError
 
 def _calculate_theta_v(theta, qv):
     assert qv.units == 'g/kg'
     assert theta.units == 'K'
 
     return theta*(1.0 + 0.61*qv/1000.)
+
+def _get_height_coordinate(ds, horz_coords):
+    if 'VLEV' in ds.data_vars:
+        # all height levels should be the same, we do a quick check and then
+        # use those values
+        z__min = ds.VLEV.min(dim=horz_coords)
+        z__max = ds.VLEV.max(dim=horz_coords)
+        assert np.all(z__max - z__min < 1.0e-10)
+        da_zt = np.round(z__min, decimals=3)
+        da_zt.attrs['units'] = ds[horz_coords[0]].units
+        return da_zt
+    elif 'vertical_levels' in ds.coords:
+        da_zt = np.round(ds.vertical_levels*1000., decimals=3)
+        da_zt.attrs['units'] = 'm'
+        da_zt.attrs['long_name'] = 'height'
+        return da_zt
+    else:
+        raise NotImplementedError
+
+def _center_vertical_velocity_field(w_old):
+    w_bottom = w_old.isel(level_w=slice(0, -1))
+    w_top = w_old.isel(level_w=slice(1, None))
+
+    w_center = 0.5*(w_bottom.values + w_top.values)
+    zt = 0.5*(w_bottom.level_w.values + w_top.level_w.values)
+
+    dims = list(w_old.dims)
+    dims[dims.index('level_w')] = 'zt'
+
+    # create new coordinates for cell-centered vertical velocity
+    coords=OrderedDict(w_old.coords)
+    del(coords['level_w'])
+    coords['zt'] = zt
+
+    w_cc = xr.DataArray(
+        w_center, coords=coords, dims=dims,
+        attrs=dict(units=w_old.units, long_name='vertical velocity')
+    )
+    w_cc.zt.attrs['units'] = 'm'
+    w_cc.zt.attrs['long_name'] = 'height'
+    w_cc.name = 'w'
+
+    return w_cc
 
 def extract_field_to_filename(dataset_meta, path_out, field_name, **kwargs):
     if field_name == 'theta_v':
@@ -104,19 +168,16 @@ def extract_field_to_filename(dataset_meta, path_out, field_name, **kwargs):
         coord_map = dict(zip(old_coords, new_coords))
         da = da.rename(coord_map)
         da.attrs['long_name'] = _get_meso_nh_field_description(field_name)
-        da.attrs['units'] = _cleanup_units(da.units)
+        da.attrs['units'] = _cleanup_units(da)
 
-        # all height levels should be the same, we do a quick check and then
-        # use those values
-        z__min = ds.VLEV.min(dim=old_coords)
-        z__max = ds.VLEV.max(dim=old_coords)
-        assert np.all(z__max - z__min < 1.0e-10)
-        da['zt'] = np.round(z__min, decimals=3)
-        da.zt.attrs['units'] = ds[old_coords[0]].units
-
-        da = da.swap_dims(dict(vertical_levels='zt'))
+        if field_name == 'w' and 'level_w' in da.coords:
+            da = _center_vertical_velocity_field(w_old=da)
+        else:
+            da['zt'] = _get_height_coordinate(ds=ds, horz_coords=old_coords)
+            da = da.swap_dims(dict(vertical_levels='zt'))
 
         for c in "xt yt zt".split(" "):
+            da.coords[c].attrs['units'] = _cleanup_units(da[c])
             da.coords[c] = _scale_field(da[c])
 
         _scale_field(da)
