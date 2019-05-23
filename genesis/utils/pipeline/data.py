@@ -190,7 +190,7 @@ class MakeMask(luigi.Task):
             method=self.method_name, kwargs=kwargs
         )
 
-        mask_name = make_mask.mask_mask_name(
+        mask_name = make_mask.make_mask_name(
             method=self.method_name, method_kwargs=kwargs
         )
         fn = make_mask.OUT_FILENAME_FORMAT.format(

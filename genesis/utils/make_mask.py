@@ -33,7 +33,7 @@ class MissingInputException(Exception):
     def __init__(self, missing_kwargs, *args, **kwargs):
         self.missing_kwargs = missing_kwargs
 
-def mask_mask_name(method, method_kwargs):
+def make_mask_name(method, method_kwargs):
     method_kwargs = build_method_kwargs(method=method, kwargs=method_kwargs)
 
     def include_kw_in_name(v):
@@ -100,7 +100,7 @@ def main(method, method_kwargs):
     if hasattr(fn, "description"):
         mask.attrs['long_name'] = fn.description.format(**method_kwargs)
 
-    mask.name = mask_mask_name(method, method_kwargs)
+    mask.name = make_mask_name(method, method_kwargs)
 
     return mask
 
