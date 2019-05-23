@@ -279,7 +279,7 @@ class JointDistProfileGrid(luigi.Task):
         Nx, Ny = 2, len(base_names)
         fig, axes = plt.subplots(nrows=len(base_names), ncols=2,
                                  sharex=True, sharey=True,
-                                 figsize=(Nx*4, Ny*3))
+                                 figsize=(Nx*4, Ny*3+2))
 
         if Ny == 1:
             axes = np.array([axes,])
@@ -317,7 +317,8 @@ class JointDistProfileGrid(luigi.Task):
 
         # rediculous hack to make sure matplotlib includes the figlegend in the
         # saved image
-        plt.text(0.5, -0.02, ' ', transform=fig.transFigure)
+        ax = axes[-1,0]
+        ax.text(0.5, -0.3, ' ', transform=ax.transAxes)
 
         plt.tight_layout()
         plt.savefig(self.output().fn, bbox_inches='tight')
