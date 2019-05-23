@@ -13,8 +13,8 @@ import seaborn as sns
 
 # from ...length_scales.plot import cumulant_scale_vs_height
 from ...bulk_statistics import cross_correlation_with_height
-
 from ... import length_scales
+from ... import objects
 
 from . import data
 
@@ -426,5 +426,46 @@ class HorizontalMeanProfile(luigi.Task):
             base_name=self.base_name,
             variables="__".join(self._field_names)
         )
+        return luigi.LocalTarget(fn)
 
+
+class ObjectScales(luigi.Task):
+    object_splitting_scalar = luigi.Parameter()
+    base_name = luigi.Parameter()
+    variables = luigi.Parameter(default='com_angles')
+
+    def requires(self):
+        variables = self.variables.split(',')
+        reqs = []
+
+        MINKOWSKI_VARS = "length width thickness".split(" ")
+
+        for v in variables:
+            if v in MINKOWSKI_VARS:
+                reqs.append(
+                    data.ComputeObjectMinkowskiScales(
+                        base_name=self.base_name,
+                        object_splitting_scalar=self.object_splitting_scalar
+                    )
+                )
+            else:
+                reqs.append(
+                    data.ComputeObjectScale(
+                        base_name=self.base_name,
+                        variable=v,
+                        object_splitting_scalar=self.object_splitting_scalar
+                    )
+                )
+
+        return reqs
+
+    def run(self):
+        ds = xr.merge([
+            input.open(decode_times=False) for input in self.input()
+        ])
+        objects.topology.plots.minkowski_scales.main(ds=ds)
+        plt.savefig(self.output().path)
+
+    def output(self):
+        fn = '{}.minkowski_scales.pdf'.format(self.base_name)
         return luigi.LocalTarget(fn)

@@ -15,26 +15,7 @@ import math
 
 from genesis.objects import get_data
 
-
-if __name__ == "__main__":
-    import argparse
-
-    argparser = argparse.ArgumentParser(__doc__)
-    argparser.add_argument('base_name')
-    argparser.add_argument('--objects', default='*')
-    argparser.add_argument('--frac', default=0.9)
-    argparser.add_argument('--min-thickness', default=None, type=float)
-    argparser.add_argument('--exclude-thin', default=False, action="store_true")
-    argparser.add_argument('--sharex', default=False, action="store_true")
-    argparser.add_argument('--as-pairgrid', default=False, action="store_true")
-
-    args = argparser.parse_args()
-
-    base_name = args.base_name
-    frac = args.frac
-
-    ds = get_data(base_name=base_name, mask_identifier=args.objects)
-
+def main(ds):
     N_objects_orig = int(ds.object_id.count())
     ds = ds.dropna('object_id')
     N_objects_nonan = int(ds.object_id.count())
@@ -72,6 +53,26 @@ if __name__ == "__main__":
 
     if args.sharex:
         [ax.set_xlim(0, ds.length.max()) for ax in g.axes.flatten()]
+
+if __name__ == "__main__":
+    import argparse
+
+    argparser = argparse.ArgumentParser(__doc__)
+    argparser.add_argument('base_name')
+    argparser.add_argument('--objects', default='*')
+    argparser.add_argument('--frac', default=0.9)
+    argparser.add_argument('--min-thickness', default=None, type=float)
+    argparser.add_argument('--exclude-thin', default=False, action="store_true")
+    argparser.add_argument('--sharex', default=False, action="store_true")
+    argparser.add_argument('--as-pairgrid', default=False, action="store_true")
+
+    args = argparser.parse_args()
+
+    base_name = args.base_name
+    frac = args.frac
+
+    ds = get_data(base_name=base_name, mask_identifier=args.objects)
+    main(ds=ds)
 
     if args.objects != "*":
         identifier = "{}.{}".format(base_name, args.objects)

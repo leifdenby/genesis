@@ -20,6 +20,7 @@ from scipy import ndimage
 from tqdm import tqdm
 
 from . import integral_properties
+from . import minkowski_scales
 
 CHUNKS = 200  # forget about using dask for now, np.unique is too slow
 
@@ -128,6 +129,9 @@ def integrate(objects, variable, operator='volume_integral'):
             coords=objects.coords, attrs=dict(units='m^3')
         )
         da_scalar.name = 'volume'
+    elif variable in ['length', 'width', 'thickness']:
+        ds_minkowski = minkowski_scales.main(da_objects=objects)
+        ds_out = ds_minkowski[variable]
     else:
         fn_scalar = "{}.{}.nc".format(base_name, variable)
         if not os.path.exists(fn_scalar):

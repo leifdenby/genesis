@@ -90,19 +90,6 @@ def get_cloudbase_data(cloud_data, v, t0, t_age_max=200., z_base_max=700.):
 
     return v__belowcloud.where(m, drop=True)
 
-    # ds = xr.Dataset()
-    # # XXX: using non-xarray indexing here, this could be made faster (and
-    # # probably more robust too)
-    # if isinstance(r_t__belowcloud, xr.DataArray):
-        # r_t__belowcloud = r_t__belowcloud.squeeze()
-        # theta_l__belowcloud = theta_l__belowcloud.squeeze()
-
-    # ds['r_t'] = r_t__belowcloud.values[~m]
-    # # ds['d__r_t'] = d__r_t__belowcloud.values[~m]
-    # ds['theta_l'] = theta_l__belowcloud.values[~m]
-    # # ds['w'] = w__belowcloud.values[~m]
-
-    # return ds
 
 def main(ds_3d, ds_cb=None, normed_levels = [5, 95], ax=None):
     colors = iter(sns.color_palette("cubehelix", len(ds_3d.zt)))

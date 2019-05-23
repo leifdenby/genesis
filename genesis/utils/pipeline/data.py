@@ -243,6 +243,36 @@ class IdentifyObjects(luigi.Task):
             base_name=self.base_name, objects_name=objects_name
         ))
 
+class ComputeObjectMinkowskiScales(luigi.Task):
+    object_splitting_scalar = luigi.Parameter()
+    base_name = luigi.Parameter()
+
+    def requires(self):
+        return IdentifyObjects(
+            base_name=self.base_name,
+            splitting_scalar=self.object_splitting_scalar,
+        )
+
+    def run(self):
+        da_objects = xr.open_dataarray(self.input().fn)
+
+        ds = objects.minkowski_scales.main(da_objects=da_objects)
+
+        ds.to_netcdf(self.output().fn)
+
+    def output(self):
+        if not self.input().exists():
+            return luigi.LocalTarget("fakefile.nc")
+
+        da_objects = xr.open_dataarray(self.input().fn, decode_times=False)
+        objects_name = da_objects.name
+
+        fn = objects.minkowski_scales.FN_FORMAT.format(
+            base_name=self.base_name, objects_name=objects_name
+        )
+
+        return XArrayTarget(fn)
+
 class ComputeObjectScale(luigi.Task):
     object_splitting_scalar = luigi.Parameter()
     base_name = luigi.Parameter()
@@ -268,9 +298,8 @@ class ComputeObjectScale(luigi.Task):
 
         fn = objects.integrate.FN_OUT_FORMAT.format(
             base_name=self.base_name, objects_name=objects_name,
-            name=name
         )
-        return luigi.LocalTarget(fn)
+        return XArrayTarget(fn)
 
     def run(self):
         da_objects = xr.open_dataarray(self.input().fn)

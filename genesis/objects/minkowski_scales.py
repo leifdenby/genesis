@@ -10,11 +10,13 @@ import numpy as np
 
 import cloud_identification
 
-import topology.minkowski
+from . import topology
 
 def main(da_objects):
     dx = topology.minkowski.find_grid_spacing(da_objects)
     return topology.minkowski.calc_scales(object_labels=da_objects, dx=dx)
+
+FN_FORMAT = "{base_name}.objects.{objects_name}.minkowski_scales.nc"
 
 if __name__ == "__main__":
     import argparse
@@ -32,8 +34,8 @@ if __name__ == "__main__":
 
     base_name, objects_mask = object_file.split('.objects.')
 
-    out_filename = "{}.objects.{}.minkowski_scales.nc".format(
-        base_name, objects_mask
+    out_filename = FN_FORMAT.format(
+        base_name=base_name, objects_name=object_mask
     )
 
     fn_objects = "{}.nc".format(object_file)
