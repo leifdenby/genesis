@@ -119,8 +119,10 @@ class JointDistProfile(luigi.Task):
     v1 = luigi.Parameter()
     v2 = luigi.Parameter()
     base_name = luigi.Parameter()
+
     mask = luigi.Parameter(default=None)
     mask_args = luigi.Parameter(default='')
+    plot_limits = luigi.ListParameter(default=None)
 
     def requires(self):
         reqs = dict(
@@ -182,10 +184,17 @@ class JointDistProfile(luigi.Task):
         ax = cross_correlation_with_height.main(ds_3d=ds_3d, z_levels=z_levels,
                                                 ds_cb=ds_cb)
 
+        title = ax.get_title()
+        title = "{}\n{}".format(self.base_name, title)
         if 'mask' in self.input():
-            title = ax.get_title()
             title += "\nmasked by {}".format(mask.long_name)
-            ax.set_title(title)
+        ax.set_title(title)
+
+        if self.plot_limits:
+            x_min, x_max, y_min, y_max = self.plot_limits
+
+            ax.set_xlim(x_min, x_max)
+            ax.set_ylim(y_min, y_max)
 
         plt.savefig(self.output().fn, bbox_inches='tight')
 
