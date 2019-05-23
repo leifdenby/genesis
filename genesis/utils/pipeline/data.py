@@ -71,6 +71,10 @@ class ExtractField3D(luigi.Task):
 
     @staticmethod
     def _get_data_loader_module(meta):
+        model_name = meta.get('model')
+        if model_name is None:
+            model_name = 'UCLALES'
+
         module_name = ".data_sources.{}".format(
             model_name.lower().replace('-', '_')
         )
@@ -83,11 +87,12 @@ class ExtractField3D(luigi.Task):
 
         reqs = {}
 
-        if 'composite_fields' in data_loader:
-            reqd_fields = data_loader.composite_fields.get(self.field_name, [])
-            for req_field in reqd_fields:
+        derived_fields = getattr(data_loader, 'DERIVED_FIELDS', None)
+
+        if derived_fields is not None:
+            for req_field in derived_fields.get(self.field_name, []):
                 reqs[req_field] = ExtractField3D(base_name=self.base_name,
-                                                  field_name=req_field)
+                                                 field_name=req_field)
 
         return reqs
 
@@ -99,16 +104,12 @@ class ExtractField3D(luigi.Task):
         if fn_out.exists():
             pass
         elif meta['host'] == 'localhost':
-            model_name = meta.get('model')
-            if model_name is None:
-                model_name = 'UCLALES'
             p_out = Path(self.output().fn)
             p_out.parent.mkdir(parents=True, exist_ok=True)
 
             data_loader = self._get_data_loader_module(meta=meta)
             data_loader.extract_field_to_filename(
-                model_name=model_name, meta=meta,
-                path_out=p_out, field_name=self.field_name,
+                dataset_meta=meta, path_out=p_out, field_name=self.field_name,
                 **self.input()
             )
         else:

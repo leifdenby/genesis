@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import xarray as xr
 import numpy as np
 
@@ -9,7 +11,7 @@ FIELD_NAME_MAPPING = dict(
     zt='vertical_levels',
     qv='RVT',
     qc='RCT',
-    t='THT',
+    theta='THT',
     cvrxp='SVT001',
 )
 
@@ -18,13 +20,18 @@ FIELD_DESCRIPTIONS = dict(
     qv='water vapour',
     qc='cloud liquid water',
     t='potential temperature',
-    cvrxp='radioactive tracer'
+    cvrxp='radioactive tracer',
+    theta='potential temperature',
 )
 
 UNITS_FORMAT = {
     'METERS/SECOND': 'm/s',
     'KELVIN': 'K',
     'KG/KG': 'kg/kg',
+}
+
+DERIVED_FIELDS = {
+    'theta_v': ('qv', 'theta'),
 }
 
 def _get_meso_nh_field(field_name):
@@ -64,11 +71,11 @@ def _calculate_theta_v(theta, qv):
 
     return theta*(1.0 + 0.61*qv/1000.)
 
-def extract_field_to_filename(path_in, path_out, field_name, **kwargs):
+def extract_field_to_filename(dataset_meta, path_out, field_name, **kwargs):
     if field_name == 'theta_v':
-        assert 'qv' in kwargs and 't' in kwargs
+        assert 'qv' in kwargs and 'theta' in kwargs
 
-        da_theta = kwargs['t'].open()
+        da_theta = kwargs['theta'].open()
         da_qv = kwargs['qv'].open()
 
         da = _calculate_theta_v(theta=da_theta, qv=da_qv)
@@ -76,6 +83,13 @@ def extract_field_to_filename(path_in, path_out, field_name, **kwargs):
         da.attrs['units'] = 'K'
         da.attrs['long_name'] = 'virtual potential temperature'
     else:
+        field_name_src = _get_meso_nh_field(field_name)
+        fn_format = dataset_meta['fn_format']
+
+        path_in = Path(dataset_meta['path'])/fn_format.format(
+            field_name=field_name_src, **dataset_meta
+        )
+
         ds = xr.open_dataset(path_in)
 
         field_name_src = _get_meso_nh_field(field_name)
