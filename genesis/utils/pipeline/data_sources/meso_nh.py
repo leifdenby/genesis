@@ -36,6 +36,10 @@ UNITS_FORMAT = {
 
 DERIVED_FIELDS = {
     'theta_v': ('qv', 'theta'),
+    'd_theta_v': ('theta_v',),
+    'ddz_w': ('w'),
+    'ddt_w': ('w', 'ddz_w'),
+    'ww': ('w', ),
 }
 
 def _get_meso_nh_field(field_name):
@@ -146,6 +150,56 @@ def extract_field_to_filename(dataset_meta, path_out, field_name, **kwargs):
         da.name = 'theta_v'
         da.attrs['units'] = 'K'
         da.attrs['long_name'] = 'virtual potential temperature'
+        da.name = field_name
+    elif field_name.startswith('d_'):
+        da_v = kwargs[field_name[2:]].open()
+
+        v_mean = da_v.mean(dim=('xt', 'yt'), dtype=np.float64, keep_attrs=True)
+        dv = da_v - v_mean
+        dv.attrs['long_name'] = '{} horz. dev.'.format(da_v.long_name)
+        dv.attrs['units'] = da_v.units
+        da = dv
+    elif field_name.startswith('ddz_'):
+        da_v = kwargs[field_name[4:]].open()
+
+        z_axis = list(da_v.dims).index('zt')
+
+        dv = np.gradient(da_v, axis=z_axis)
+        dz = np.gradient(da_v.zt)
+
+        da_dv = xr.DataArray(dv, coords=da_v.coords, dims=da_v.dims)
+        da_dz = xr.DataArray(dz, coords=da_v.zt.coords, dims=da_v.zt.dims)
+
+        ddz_v = da_dv/da_dz
+        ddz_v.attrs['units'] = da_v.units + '/' + da_v.zt.units
+        ddz_v.attrs['long_name'] = 'vertical gradient of {}'.format(
+            da_v.long_name
+        )
+        ddz_v.name = field_name
+
+        da = ddz_v
+    elif field_name.startswith('ddt_'):
+        ddz_v = kwargs[field_name.replace('ddt_', 'ddz_')].open()
+        da_w = kwargs['w'].open()
+
+        ddt_v = da_w*ddz_v
+        long_name = ddz_v.long_name.replace(
+            'vertical gradient of', 'time rate of change of'
+        )
+        ddt_v.attrs['long_name'] = long_name
+        ddt_v.attrs['units'] = ddz_v.units.replace('/m', '/s')
+        ddt_v.name = field_name
+
+        da = ddt_v
+    elif field_name == 'ww':
+        da_w = kwargs['w'].open()
+        da_ww = da_w*da_w
+        long_name = 'form-drag from vertical velocity'
+        da_ww.attrs['long_name'] = long_name
+        da_ww.attrs['units'] = "m^2/s^2"
+        da_ww.name = field_name
+
+        da = da_ww
     else:
         field_name_src = _get_meso_nh_field(field_name)
         fn_format = dataset_meta['fn_format']
