@@ -65,6 +65,7 @@ class CumulantScalesProfile(luigi.Task):
     cumulants = luigi.Parameter()
     z_max = luigi.FloatParameter(default=700.)
     plot_type = luigi.Parameter(default='scales')
+    filetype = luigi.Parameter(default='pdf')
 
     mask = 'no_mask'
 
@@ -111,7 +112,8 @@ class CumulantScalesProfile(luigi.Task):
     def output(self):
         base_name = "__".join(self.base_names.split(','))
         fn = length_scales.cumulant.vertical_profile.plot.FN_FORMAT.format(
-            base_name=base_name, plot_type=self.plot_type, mask=self.mask
+            base_name=base_name, plot_type=self.plot_type, mask=self.mask,
+            filetype=self.filetype
         )
         return luigi.LocalTarget(fn)
 
@@ -330,6 +332,7 @@ class CumulantSlices(luigi.Task):
 
     z_step = luigi.IntParameter(default=4)
     z_max = luigi.FloatParameter(default=700.)
+    filetype = luigi.Parameter(default='pdf')
 
     def requires(self):
         base_names = self.base_names.split(',')
@@ -373,10 +376,11 @@ class CumulantSlices(luigi.Task):
 
     def output(self):
         fn = length_scales.cumulant.sections.FN_FORMAT_PLOT.format(
-            v1=self.v1, v2=self.v2
+            v1=self.v1, v2=self.v2, filetype=self.filetype
         )
 
         return luigi.LocalTarget(fn)
+
 
 class HorizontalMeanProfile(luigi.Task):
     base_name = luigi.Parameter()

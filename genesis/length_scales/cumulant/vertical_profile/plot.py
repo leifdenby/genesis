@@ -197,7 +197,7 @@ def _make_output_filename(input_filenames):
                     "".format(", ".join(input_filenames)))
 
 
-FN_FORMAT = "{base_name}.cumulant_profile_{plot_type}.{mask}.pdf"
+FN_FORMAT = "{base_name}.cumulant_profile_{plot_type}.{mask}.{filetype}"
 
 
 if __name__ == "__main__":

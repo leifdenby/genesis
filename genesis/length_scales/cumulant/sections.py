@@ -69,7 +69,7 @@ def plot(datasets, var_names, est_method = WidthEstimationMethod.MASS_WEIGHTED):
 
     fig.tight_layout()
 
-FN_FORMAT_PLOT = 'cumulant_with_height__{v1}__{v2}.pdf'
+FN_FORMAT_PLOT = 'cumulant_with_height__{v1}__{v2}.{filetype}'
 
 if __name__ == "__main__":
     import seaborn as sns
@@ -95,7 +95,7 @@ if __name__ == "__main__":
     with ipdb.launch_ipdb_on_exception():
         main(datasets, var_names)
 
-    fn = FN_FORMAT_PLOT.format(v1=var_names[0], v2=var_names[1])
+    fn = FN_FORMAT_PLOT.format(v1=var_names[0], v2=var_names[1], filetype='pdf')
 
     plt.savefig(fn, bbox_inches='tight')
 
