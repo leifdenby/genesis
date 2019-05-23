@@ -25,7 +25,8 @@ except ImportError:
 def _get_dataset_meta_info(base_name):
     try:
         with open('datasources.yaml') as fh:
-            datasources = yaml.load(fh, Loader=yaml.FullLoader)
+            loader = getattr(yaml, 'FullLoader', yaml.Loader)
+            datasources = yaml.load(fh, Loader=loader)
     except IOError:
         raise Exception("please define your data sources in datasources.yaml")
 
@@ -58,47 +59,37 @@ class XArrayTarget(luigi.target.FileSystemTarget):
         return self.path
 
 
-def _extract_field_with_helper(model_name, **kwargs):
-    module_name = ".data_sources.{}".format(
-        model_name.lower().replace('-', '_')
-    )
-    module = importlib.import_module(module_name,
-                                     package='genesis.utils.pipeline')
-
-    fn = getattr(module, 'extract_field_to_filename')
-    fn(**kwargs)
+def _extract_field_with_helper(model_name, meta, **kwargs):
+    fn(dataset_meta=meta, **kwargs)
 
 
 class ExtractField3D(luigi.Task):
     base_name = luigi.Parameter()
     field_name = luigi.Parameter()
 
-    FN_FORMAT = "{experiment_name}.tn{timestep}.{field_name}.nc"
+    FN_FORMAT = "{experiment_name}.{field_name}.nc"
+
+    @staticmethod
+    def _get_data_loader_module(meta):
+        module_name = ".data_sources.{}".format(
+            model_name.lower().replace('-', '_')
+        )
+        return importlib.import_module(module_name,
+                                       package='genesis.utils.pipeline')
 
     def requires(self):
         meta = _get_dataset_meta_info(self.base_name)
+        data_loader = self._get_data_loader_module(meta=meta)
 
         reqs = {}
 
-        if 'model' in meta and meta['model'] == 'Meso-NH':
-            if self.field_name == 'theta_v':
-                reqs['t'] = ExtractField3D(base_name=self.base_name,
-                                           field_name='t')
-
-                reqs['qv'] = ExtractField3D(base_name=self.base_name,
-                                            field_name='qv')
+        if 'composite_fields' in data_loader:
+            reqd_fields = data_loader.composite_fields.get(self.field_name, [])
+            for req_field in reqd_fields:
+                reqs[req_field] = ExtractField3D(base_name=self.base_name,
+                                                  field_name=req_field)
 
         return reqs
-
-    def _extract_and_symlink_local_file(self):
-        meta = _get_dataset_meta_info(self.base_name)
-
-        p_out = Path(self.output().fn)
-        p_in = Path(meta['path'])/"3d_blocks"/"full_domain"/p_out.name
-
-        p_out.parent.mkdir(exist_ok=True, parents=True)
-
-        os.symlink(str(p_in), str(p_out))
 
     def run(self):
         meta = _get_dataset_meta_info(self.base_name)
@@ -108,21 +99,18 @@ class ExtractField3D(luigi.Task):
         if fn_out.exists():
             pass
         elif meta['host'] == 'localhost':
-            if 'model' in meta:
-                fn_format = meta.get('fn_format', self.FN_FORMAT)
-                p_in = Path(meta['path'])/fn_format.format(
-                    field_name=self.field_name, **meta
-                )
-                p_out = Path(self.output().fn)
-                p_out.parent.mkdir(parents=True, exist_ok=True)
+            model_name = meta.get('model')
+            if model_name is None:
+                model_name = 'UCLALES'
+            p_out = Path(self.output().fn)
+            p_out.parent.mkdir(parents=True, exist_ok=True)
 
-                _extract_field_with_helper(
-                    model_name=meta['model'],
-                    path_in=p_in, path_out=p_out, field_name=self.field_name,
-                    **self.input()
-                )
-            else:
-                self._extract_and_symlink_local_file()
+            data_loader = self._get_data_loader_module(meta=meta)
+            data_loader.extract_field_to_filename(
+                model_name=model_name, meta=meta,
+                path_out=p_out, field_name=self.field_name,
+                **self.input()
+            )
         else:
             raise NotImplementedError(fn_out.fn)
 

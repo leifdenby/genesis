@@ -281,6 +281,9 @@ class JointDistProfileGrid(luigi.Task):
                                  sharex=True, sharey=True,
                                  figsize=(Nx*4, Ny*3))
 
+        if Ny == 1:
+            axes = np.array([axes,])
+
         for i, base_name in enumerate(base_names):
             for j, part in enumerate(['nomask', 'masked']):
                 ds_3d = self.input()[base_name][part].open()
