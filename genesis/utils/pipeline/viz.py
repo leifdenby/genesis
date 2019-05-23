@@ -1,4 +1,6 @@
 import itertools
+import textwrap
+from pathlib import Path
 
 import matplotlib
 matplotlib.use("Agg")
@@ -123,6 +125,7 @@ class JointDistProfile(luigi.Task):
     mask = luigi.Parameter(default=None)
     mask_args = luigi.Parameter(default='')
     plot_limits = luigi.ListParameter(default=None)
+    data_only = luigi.BoolParameter(default=False)
 
     def requires(self):
         reqs = dict(
@@ -159,7 +162,13 @@ class JointDistProfile(luigi.Task):
             out_fn = '{}.cross_correlation.{}.{}.png'.format(
                 self.base_name, self.v1, self.v2
             )
-        return luigi.LocalTarget(out_fn)
+
+        if self.data_only:
+            out_fn = out_fn.replace('.png', '.nc')
+            p_out = Path("data")/self.base_name/out_fn
+            return data.XArrayTarget(str(p_out))
+        else:
+            return luigi.LocalTarget(out_fn)
 
     def run(self):
         ds_3d = xr.merge([
@@ -176,27 +185,143 @@ class JointDistProfile(luigi.Task):
             mask = self.input()["mask"].open()
             ds_3d = ds_3d.where(mask)
 
-        z_levels = (
-            ds_3d.isel(zt=slice(None, None, self.dk))
+        ds_3d = (ds_3d.isel(zt=slice(None, None, self.dk))
                  .sel(zt=slice(0, self.z_max))
-                 .zt)
+                 )
 
-        ax = cross_correlation_with_height.main(ds_3d=ds_3d, z_levels=z_levels,
-                                                ds_cb=ds_cb)
+        if self.data_only:
+            if 'mask' in self.input():
+                ds_3d.attrs['mask_desc'] = mask.long_name
+            ds_3d.to_netcdf(self.output().fn)
+        else:
+            ax = cross_correlation_with_height.main(ds_3d=ds_3d, ds_cb=ds_cb)
 
-        title = ax.get_title()
-        title = "{}\n{}".format(self.base_name, title)
-        if 'mask' in self.input():
-            title += "\nmasked by {}".format(mask.long_name)
-        ax.set_title(title)
+            title = ax.get_title()
+            title = "{}\n{}".format(self.base_name, title)
+            if 'mask' in self.input():
+                title += "\nmasked by {}".format(mask.long_name)
+            ax.set_title(title)
 
-        if self.plot_limits:
-            x_min, x_max, y_min, y_max = self.plot_limits
+            if self.plot_limits:
+                x_min, x_max, y_min, y_max = self.plot_limits
 
-            ax.set_xlim(x_min, x_max)
-            ax.set_ylim(y_min, y_max)
+                ax.set_xlim(x_min, x_max)
+                ax.set_ylim(y_min, y_max)
 
+            plt.savefig(self.output().fn, bbox_inches='tight')
+
+
+def _textwrap(s, l):
+    lines = []
+    line = ''
+
+    n = 0
+    in_tex = False
+    for c in s:
+        if c == '$':
+            in_tex = not in_tex
+        if n < l:
+            line += c
+        else:
+            if c == ' ' and not in_tex:
+                lines.append(line)
+                line = ''
+                n = 0
+            else:
+                line += c
+        n += 1
+
+    lines.append(line)
+    return "\n".join(lines)
+
+class JointDistProfileGrid(luigi.Task):
+    dk = luigi.IntParameter()
+    z_max = luigi.FloatParameter(significant=True, default=700.)
+    v1 = luigi.Parameter()
+    v2 = luigi.Parameter()
+    base_names = luigi.Parameter()
+    mask = luigi.Parameter()
+
+    mask_args = luigi.Parameter(default='')
+
+    def requires(self):
+        reqs = {}
+
+        for base_name in self.base_names.split(','):
+            r = dict(
+                nomask=JointDistProfile(
+                    dk=self.dk, z_max=self.z_max, v1=self.v1,
+                    v2=self.v2, base_name=base_name,
+                    data_only=True
+                ),
+                masked=JointDistProfile(
+                    dk=self.dk, z_max=self.z_max, v1=self.v1,
+                    v2=self.v2, base_name=base_name,
+                    mask=self.mask, mask_args=self.mask_args,
+                    data_only=True
+                ),
+                cloudbase=[
+                    data.ExtractCloudbaseState(base_name=base_name,
+                                               field_name=self.v1),
+                    data.ExtractCloudbaseState(base_name=base_name,
+                                               field_name=self.v2),
+                ]
+            )
+            reqs[base_name] = r
+
+        return reqs
+
+    def run(self):
+        base_names = self.base_names.split(',')
+
+        Nx, Ny = 2, len(base_names)
+        fig, axes = plt.subplots(nrows=len(base_names), ncols=2,
+                                 sharex=True, sharey=True,
+                                 figsize=(Nx*4, Ny*3))
+
+        for i, base_name in enumerate(base_names):
+            for j, part in enumerate(['nomask', 'masked']):
+                ds_3d = self.input()[base_name][part].open()
+                ds_cb = xr.merge([
+                    xr.open_dataarray(r.fn)
+                    for r in self.input()[base_name]["cloudbase"]
+                ])
+
+                ax = axes[i,j]
+
+                _, lines = cross_correlation_with_height.main(
+                    ds_3d=ds_3d, ds_cb=ds_cb, ax=ax
+                )
+
+                if j > 0:
+                    ax.set_ylabel('')
+                if i < Ny-1:
+                    ax.set_xlabel('')
+
+                title = base_name
+                if part == 'masked':
+                    title += "\nmasked by {}".format(
+                        _textwrap(ds_3d.mask_desc, 30)
+                    )
+                ax.set_title(title)
+
+        lgd = plt.figlegend(
+            handles=lines, labels=[l.get_label() for l in lines],
+            loc='lower center', ncol=3, bbox_to_anchor=(0.5, 0.)
+        )
+
+        # rediculous hack to make sure matplotlib includes the figlegend in the
+        # saved image
+        plt.text(0.5, -0.02, ' ', transform=fig.transFigure)
+
+        plt.tight_layout()
         plt.savefig(self.output().fn, bbox_inches='tight')
+
+    def output(self):
+        fn_out = "{}.cross_correlation.grid.{}.{}.png".format(
+            self.base_names.replace(',', '__'), self.v1, self.v2
+        )
+        return luigi.LocalTarget(fn_out)
 
 class CumulantSlices(luigi.Task):
     v1 = luigi.Parameter()

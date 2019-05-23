@@ -104,8 +104,8 @@ def get_cloudbase_data(cloud_data, v, t0, t_age_max=200., z_base_max=700.):
 
     # return ds
 
-def main(ds_3d, z_levels, ds_cb=None, normed_levels = [5, 95], ax=None):
-    colors = iter(sns.color_palette("cubehelix", len(z_levels)))
+def main(ds_3d, ds_cb=None, normed_levels = [5, 95], ax=None):
+    colors = iter(sns.color_palette("cubehelix", len(ds_3d.zt)))
     sns.set_color_codes()
 
     lines = []
@@ -129,7 +129,7 @@ def main(ds_3d, z_levels, ds_cb=None, normed_levels = [5, 95], ax=None):
         yscale = 1.
 
 
-    for z in tqdm.tqdm(z_levels):
+    for z in tqdm.tqdm(ds_3d.zt):
         ds_ = ds_3d.sel(zt=z, method='nearest').squeeze()
 
         c = next(colors)
@@ -218,7 +218,7 @@ def main(ds_3d, z_levels, ds_cb=None, normed_levels = [5, 95], ax=None):
     if axis_lims_spans_zero(ax.get_ylim()):
         ax.axhline(0.0, linestyle='--', alpha=0.2, color='black')
 
-    return ax
+    return ax, lines
 
 
 def axis_lims_spans_zero(lims):
@@ -281,7 +281,9 @@ if __name__ == "__main__":
 
     if mask_3d is not None:
         ds_3d = ds_3d.where(mask_3d)
-    main(ds_3d=ds_3d, ds_cb=ds_cb, z_levels=args.z)
+
+    ds_3d = ds_3d.sel(zt=args.z)
+    main(ds_3d=ds_3d, ds_cb=ds_cb)
 
     name = input_name.replace('/','__')
 
