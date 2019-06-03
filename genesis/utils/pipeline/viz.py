@@ -489,8 +489,7 @@ class ObjectScalesComparison(luigi.Task):
 
         return ds
 
-
-    def run(self):
+    def _load_data(self):
         def _add_dataset_label(label, input):
             ds = input.open(decode_times=False)
             ds['dataset'] = label
@@ -512,10 +511,12 @@ class ObjectScalesComparison(luigi.Task):
         if ds.object_id.count() == 0:
             raise Exception("After filter operations there is nothing to plot!")
 
-        variables = global_params.pop('variables').split(',')
-        objects.topology.plots.overview.main(
-            ds=ds, as_pairgrid=True, variables=variables
-        )
+        return ds
+
+    def _set_suptitle(self):
+        plot_definition = self._parse_plot_definition()
+        global_params = plot_definition['global']
+        global_params.pop('variables')
 
         identifier = "\n".join([
             "{}={}".format(str(k), str(v))
@@ -523,6 +524,18 @@ class ObjectScalesComparison(luigi.Task):
         ])
 
         plt.suptitle(identifier, y=1.1)
+
+    def run(self):
+        ds = self._load_data()
+
+        plot_definition = self._parse_plot_definition()
+        global_params = plot_definition['global']
+        variables = global_params.pop('variables').split(',')
+        objects.topology.plots.overview(
+            ds=ds, as_pairgrid=True, variables=variables
+        )
+
+        self._set_suptitle()
 
         plt.savefig(self.output().fn, bbox_inches='tight')
 
@@ -532,3 +545,18 @@ class ObjectScalesComparison(luigi.Task):
         )
         return luigi.LocalTarget(fn)
 
+
+class FilamentarityPlanarityComparison(ObjectScalesComparison):
+    def run(self):
+        ds = self._load_data()
+        objects.topology.plots.filamentarity_planarity(ds=ds)
+        self._set_suptitle()
+        plt.savefig(self.output().fn, bbox_inches='tight')
+
+
+    def output(self):
+        fn_base = super().output().fn
+
+        return luigi.LocalTarget(
+            fn_base.replace('.object_scales.', '.filamentarity_planarity.')
+        )
