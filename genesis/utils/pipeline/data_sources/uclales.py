@@ -14,6 +14,7 @@ FIELD_NAME_MAPPING = dict(
     qr='r',
     theta_l='t',
     cvrxp='cvrxp',
+    p='p',
 )
 
 FIELD_DESCRIPTIONS = dict(
@@ -30,6 +31,10 @@ UNITS_FORMAT = {
     'KELVIN': 'K',
     'KG/KG': 'kg/kg',
 }
+
+DERIVED_FIELDS = dict(
+    T=('qc', 'theta_l', 'p'),
+)
 
 FN_FORMAT_3D = "3d_blocks/full_domain/{experiment_name}.tn{timestep}.{field_name}.nc"
 
