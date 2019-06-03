@@ -15,7 +15,8 @@ import math
 
 from genesis.objects import get_data
 
-def main(ds):
+def main(ds, min_thickness=None, as_pairgrid=False, exclude_thin=False,
+         sharex=False):
     N_objects_orig = int(ds.object_id.count())
     ds = ds.dropna('object_id')
     N_objects_nonan = int(ds.object_id.count())
@@ -23,24 +24,24 @@ def main(ds):
           " or thickness have been remove".format(N_objects_nonan,
           N_objects_orig))
 
-    if args.min_thickness:
-        hue_label = "thickness > {}m".format(args.min_thickness)
-        ds[hue_label] = ds.thickness > args.min_thickness
-        if args.exclude_thin:
+    if min_thickness:
+        hue_label = "thickness > {}m".format(min_thickness)
+        ds[hue_label] = ds.thickness > min_thickness
+        if exclude_thin:
             ds = ds.where(ds[hue_label], drop=True)
             print(ds.object_id.count())
     else:
         hue_label = None
 
 
-    if args.as_pairgrid:
+    if as_pairgrid:
         g = sns.pairplot(ds.to_dataframe(), vars=["length", "width", "thickness"], hue=hue_label)
     else:
         fig, axes = plt.subplots(ncols=3, figsize=(12, 4))
 
         for n, v in enumerate(["length", "width", "thickness"]):
             ax = axes[n]
-            if not args.exclude_thin:
+            if not exclude_thin:
                 _, bins, _ = ds[v].plot.hist(ax=ax)
             else:
                 bins = None
@@ -51,7 +52,7 @@ def main(ds):
             ax.set_title("")
     sns.despine()
 
-    if args.sharex:
+    if sharex:
         [ax.set_xlim(0, ds.length.max()) for ax in g.axes.flatten()]
 
 if __name__ == "__main__":

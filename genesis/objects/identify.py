@@ -43,7 +43,7 @@ def process(mask, splitting_scalar, remove_at_edge=True):
     dx = find_grid_spacing(mask)
 
     if splitting_scalar is not None:
-        mask = mask.sel(zt=slice(0.0, splitting_scalar.zt.max())).squeeze()
+        mask = mask.sel(zt=splitting_scalar.zt).squeeze()
 
     object_labels = label_objects(mask=mask, splitting_scalar=splitting_scalar,
                                   remove_at_edge=remove_at_edge)

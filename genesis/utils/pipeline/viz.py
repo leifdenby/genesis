@@ -10,6 +10,7 @@ import xarray as xr
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+import yaml
 
 # from ...length_scales.plot import cumulant_scale_vs_height
 from ...bulk_statistics import cross_correlation_with_height
@@ -432,43 +433,96 @@ class HorizontalMeanProfile(luigi.Task):
         return luigi.LocalTarget(fn)
 
 
-class ObjectScales(luigi.Task):
-    object_splitting_scalar = luigi.Parameter()
-    base_name = luigi.Parameter()
-    variables = luigi.Parameter(default='com_angles')
+class ObjectScalesComparison(luigi.Task):
+    plot_definition = luigi.Parameter()
+    file_type = luigi.Parameter(default='png')
+
+    def _parse_plot_definition(self):
+        try:
+            with open('{}.yaml'.format(self.plot_definition)) as fh:
+                loader = getattr(yaml, 'FullLoader', yaml.Loader)
+                return yaml.load(fh, Loader=loader)
+        except IOError as e:
+            raise e
 
     def requires(self):
-        variables = self.variables.split(',')
-        reqs = []
+        plot_definition = self._parse_plot_definition()
 
-        MINKOWSKI_VARS = "length width thickness".split(" ")
+        def _make_dataset_label(**kws):
+            return ", ".join([
+                "{}={}".format(str(k), str(v))
+                for (k,v) in kws.items()
+            ])
 
-        for v in variables:
-            if v in MINKOWSKI_VARS:
-                reqs.append(
-                    data.ComputeObjectMinkowskiScales(
-                        base_name=self.base_name,
-                        object_splitting_scalar=self.object_splitting_scalar
-                    )
-                )
-            else:
-                reqs.append(
-                    data.ComputeObjectScale(
-                        base_name=self.base_name,
-                        variable=v,
-                        object_splitting_scalar=self.object_splitting_scalar
-                    )
-                )
+        global_kws = plot_definition['global']
+        global_kws.pop('filters', None)
 
-        return reqs
+        return dict([
+            (
+                _make_dataset_label(**kws),
+                data.ComputeObjectScales(**global_kws, **kws)
+            )
+            for kws in plot_definition['sources']
+        ])
+
+    def _apply_filters(self, ds, filter_defs):
+        ops = {
+            '>': lambda f, v: f > v,
+            '<': lambda f, v: f < v,
+        }
+        for filter_s in filter_defs.split(','):
+            found_op = False
+            for op_str, func in ops.items():
+                if op_str in filter_s:
+                    field, value = filter_s.split(op_str)
+                    ds = ds.where(func(ds[field], float(value)))
+                    found_op = True
+
+            if not found_op:
+                raise NotImplementedError(filter_s)
+
+        return ds
+
 
     def run(self):
-        ds = xr.merge([
-            input.open(decode_times=False) for input in self.input()
+        def _add_dataset_label(label, input):
+            ds = input.open(decode_times=False)
+            ds['dataset'] = label
+            return ds
+
+        ds = xr.concat(
+            [
+                _add_dataset_label(k, input)
+                for (k, input) in self.input().items()
+            ],
+            dim='dataset'
+        )
+        plot_definition = self._parse_plot_definition()
+        global_params = plot_definition['global']
+
+        ds = self._apply_filters(ds=ds,
+                                 filter_defs=global_params.get('filters', ''))
+
+        if ds.object_id.count() == 0:
+            raise Exception("After filter operations there is nothing to plot!")
+
+        variables = global_params.pop('variables').split(',')
+        objects.topology.plots.overview.main(
+            ds=ds, as_pairgrid=True, variables=variables
+        )
+
+        identifier = "\n".join([
+            "{}={}".format(str(k), str(v))
+            for (k,v) in global_params.items()
         ])
-        objects.topology.plots.minkowski_scales.main(ds=ds)
-        plt.savefig(self.output().path)
+
+        plt.suptitle(identifier, y=1.1)
+
+        plt.savefig(self.output().fn, bbox_inches='tight')
 
     def output(self):
-        fn = '{}.minkowski_scales.pdf'.format(self.base_name)
+        fn = "{}.object_scales.{}".format(
+            self.plot_definition, self.file_type
+        )
         return luigi.LocalTarget(fn)
+

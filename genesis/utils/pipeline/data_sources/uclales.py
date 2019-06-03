@@ -6,6 +6,7 @@ import os
 
 FIELD_NAME_MAPPING = dict(
     w_zt='w_zt',
+    w='w_zt',
     xt='xt',
     yt='yt',
     zt='zt',

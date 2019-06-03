@@ -12,6 +12,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
 import math
+import pandas as pd
 
 from genesis.objects import get_data
 
@@ -43,6 +44,57 @@ def p_sum(x, y, frac=None, reverse=True, ax=None, **kwargs):
         plt.axhline(y_lim, linestyle='--')
         
         return x_[np.nanargmin(np.abs(y_ - y_lim))]
+
+
+def _add_unit_line_to_pairgrid(g):
+    for i in range(g.axes.shape[0]):
+        for j in range(g.axes.shape[1]):
+            if i == j:
+                continue
+
+            ax = g.axes[i][j]
+
+            xmin, xmax = ax.get_xlim()
+            ymin, ymax = ax.get_ylim()
+
+            pmin = np.max([xmin, ymin])
+            pmax = np.min([xmax, ymax])
+
+            ax.plot([pmin, pmax], [pmin, pmax], linestyle='-', color='red')
+
+
+def main(ds, variables, as_pairgrid=False, sharex=False):
+    # N_objects_orig = int(ds.object_id.count())
+    # ds = ds.dropna('object_id')
+    # N_objects_nonan = int(ds.object_id.count())
+    # print("{} objects out of {} remain after ones with nan for length, width"
+          # " or thickness have been remove".format(N_objects_nonan,
+          # N_objects_orig))
+
+    hue_label = 'dataset'
+
+    if as_pairgrid:
+        df = pd.DataFrame(ds.to_dataframe().to_records()).dropna()
+        g = sns.pairplot(df, hue=hue_label, vars=variables)
+    else:
+        fig, axes = plt.subplots(ncols=3, figsize=(12, 4))
+
+        for n, v in enumerate(variables):
+            ax = axes[n]
+            if not exclude_thin:
+                _, bins, _ = ds[v].plot.hist(ax=ax)
+            else:
+                bins = None
+            if hue_label:
+                ds_ = ds.where(ds[hue_label], drop=True)
+                ds_[v].plot.hist(ax=ax, bins=bins)
+            ax.set_xlim(0, None)
+            ax.set_title("")
+    sns.despine()
+
+    if sharex:
+        [ax.set_xlim(0, ds.length.max()) for ax in g.axes.flatten()]
+
 
 
 if __name__ == "__main__":

@@ -10,8 +10,6 @@ try:
 except ImportError:
     pass
 
-from . import integrate, identify
-
 try:
     # python3 has moved reduce to functools
     from functools import reduce
@@ -67,3 +65,6 @@ def make_mask_from_objects_file(filename):
     mask.attrs['longname'] = "mask from {} objects".format(objects.mask_name)
 
     return mask
+
+from . import topology
+from . import integrate, identify

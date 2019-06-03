@@ -6,6 +6,7 @@ import warnings
 
 import luigi
 import xarray as xr
+import numpy as np
 import yaml
 
 from .. import mask_functions, make_mask
@@ -62,6 +63,9 @@ class XArrayTarget(luigi.target.FileSystemTarget):
 def _extract_field_with_helper(model_name, meta, **kwargs):
     fn(dataset_meta=meta, **kwargs)
 
+COMPOSITE_FIELD_METHODS = dict(
+    p_stddivs=mask_functions.calc_scalar_perturbation_in_std_div,
+)
 
 class ExtractField3D(luigi.Task):
     base_name = luigi.Parameter()
@@ -94,6 +98,14 @@ class ExtractField3D(luigi.Task):
                 reqs[req_field] = ExtractField3D(base_name=self.base_name,
                                                  field_name=req_field)
 
+        for (postfix, func) in COMPOSITE_FIELD_METHODS.items():
+            if self.field_name.endswith(postfix):
+                req_field = self.field_name.replace('_{}'.format(postfix), '')
+                # XXX: the p_stddivs method takes a `da` arg for now because it
+                # is general purpose
+                reqs['da'] = ExtractField3D(base_name=self.base_name,
+                                                 field_name=req_field)
+
         return reqs
 
     def run(self):
@@ -107,11 +119,26 @@ class ExtractField3D(luigi.Task):
             p_out = Path(self.output().fn)
             p_out.parent.mkdir(parents=True, exist_ok=True)
 
-            data_loader = self._get_data_loader_module(meta=meta)
-            data_loader.extract_field_to_filename(
-                dataset_meta=meta, path_out=p_out, field_name=self.field_name,
-                **self.input()
-            )
+            is_composite = False
+            for (postfix, func) in COMPOSITE_FIELD_METHODS.items():
+                if self.field_name.endswith(postfix):
+                    das_input = dict([
+                        (k, input.open(decode_times=False))
+                        for (k, input) in self.input().items()
+                    ])
+                    da = func(**das_input)
+                    # XXX: remove infs for now
+                    da = da.where(~np.isinf(da))
+                    da.to_netcdf(self.output().fn)
+                    is_composite = True
+
+            if not is_composite:
+                data_loader = self._get_data_loader_module(meta=meta)
+                data_loader.extract_field_to_filename(
+                    dataset_meta=meta, path_out=p_out,
+                    field_name=self.field_name,
+                    **self.input()
+                )
         else:
             raise NotImplementedError(fn_out.fn)
 
@@ -192,8 +219,8 @@ class MakeMask(luigi.Task):
 class IdentifyObjects(luigi.Task):
     splitting_scalar = luigi.Parameter()
     base_name = luigi.Parameter()
-    mask_method = luigi.Parameter(default='rad_tracer_thermals')
-    mask_method_extra_args = luigi.Parameter(default='num_std_div=3.0')
+    mask_method = luigi.Parameter()
+    mask_method_extra_args = luigi.Parameter(default='')
 
     def requires(self):
         return dict(
@@ -235,11 +262,15 @@ class IdentifyObjects(luigi.Task):
 class ComputeObjectMinkowskiScales(luigi.Task):
     object_splitting_scalar = luigi.Parameter()
     base_name = luigi.Parameter()
+    mask_method = luigi.Parameter()
+    mask_method_extra_args = luigi.Parameter(default='')
 
     def requires(self):
         return IdentifyObjects(
             base_name=self.base_name,
             splitting_scalar=self.object_splitting_scalar,
+            mask_method=self.mask_method,
+            mask_method_extra_args=self.mask_method_extra_args,
         )
 
     def run(self):
@@ -260,11 +291,14 @@ class ComputeObjectMinkowskiScales(luigi.Task):
             base_name=self.base_name, objects_name=objects_name
         )
 
-        return XArrayTarget(fn)
+        p = Path("data")/self.base_name/fn
+        return XArrayTarget(str(p))
 
 class ComputeObjectScale(luigi.Task):
     object_splitting_scalar = luigi.Parameter()
     base_name = luigi.Parameter()
+    mask_method = luigi.Parameter()
+    mask_method_extra_args = luigi.Parameter(default='')
 
     variable = luigi.Parameter()
     operator = luigi.Parameter(default=None)
@@ -273,6 +307,8 @@ class ComputeObjectScale(luigi.Task):
         return IdentifyObjects(
             base_name=self.base_name,
             splitting_scalar=self.object_splitting_scalar,
+            mask_method=self.mask_method,
+            mask_method_extra_args=self.mask_method_extra_args,
         )
 
     def output(self):
@@ -287,8 +323,10 @@ class ComputeObjectScale(luigi.Task):
 
         fn = objects.integrate.FN_OUT_FORMAT.format(
             base_name=self.base_name, objects_name=objects_name,
+            name=name
         )
-        return XArrayTarget(fn)
+        p = Path("data")/self.base_name/fn
+        return XArrayTarget(str(p))
 
     def run(self):
         da_objects = xr.open_dataarray(self.input().fn)
@@ -301,23 +339,60 @@ class ComputeObjectScale(luigi.Task):
 class ComputeObjectScales(luigi.Task):
     object_splitting_scalar = luigi.Parameter()
     base_name = luigi.Parameter()
-
-    variables = [
-        ('com_angles', None),
-        ('volume', None),
-    ]
+    mask_method = luigi.Parameter()
+    mask_method_extra_args = luigi.Parameter(default='')
+    variables = luigi.Parameter(default='com_angles')
 
     def requires(self):
-        return [
-            ComputeObjectScale(
-                base_name=self.base_name,
-                object_splitting_scalar=self.object_splitting_scalar,
-                variable=v, operator=op) 
-            for (v, op) in self.variables
-        ]
+        variables = self.variables.split(',')
+        reqs = []
+
+        MINKOWSKI_VARS = "length width thickness".split(" ")
+
+        for v in variables:
+            if v in MINKOWSKI_VARS:
+                reqs.append(
+                    ComputeObjectMinkowskiScales(
+                        base_name=self.base_name,
+                        object_splitting_scalar=self.object_splitting_scalar,
+                        mask_method=self.mask_method,
+                        mask_method_extra_args=self.mask_method_extra_args,
+                    )
+                )
+            else:
+                append(
+                    data.ComputeObjectScale(
+                        base_name=self.base_name,
+                        variable=v,
+                        object_splitting_scalar=self.object_splitting_scalar,
+                        mask_method=self.mask_method,
+                        mask_method_extra_args=self.mask_method_extra_args,
+                    )
+                )
+
+        return reqs
 
     def run(self):
-        pass
+        ds = xr.merge([
+            input.open(decode_times=False) for input in self.input()
+        ])
+
+        ds.to_netcdf(self.output().fn)
+
+    def output(self):
+        if not self.input()[0].exists():
+            return luigi.LocalTarget('fakename.nc')
+
+        # XXX: ideally I'd use the mask method's filename generation method
+        # here
+        fn_scales0 = Path(self.input()[0].fn).name
+        name = fn_scales0.split('.objects.')[-1]\
+                         .replace('.minkowski_scales.nc', '')
+        fn = '{}.{}.object_scales.nc'.format(
+            self.base_name, name
+        )
+        p = Path("data")/self.base_name/fn
+        return XArrayTarget(str(p))
 
 class ComputeCumulantProfiles(luigi.Task):
     pass
