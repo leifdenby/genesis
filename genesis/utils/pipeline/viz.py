@@ -245,6 +245,7 @@ class JointDistProfileGrid(luigi.Task):
     base_names = luigi.Parameter()
     mask = luigi.Parameter()
 
+    separate_axis_limits = luigi.BoolParameter(default=False)
     mask_args = luigi.Parameter(default='')
 
     def requires(self):
@@ -278,9 +279,13 @@ class JointDistProfileGrid(luigi.Task):
         base_names = self.base_names.split(',')
 
         Nx, Ny = 2, len(base_names)
+        if self.separate_axis_limits:
+            shareaxes = 'row'
+        else:
+            shareaxes = True
         fig, axes = plt.subplots(nrows=len(base_names), ncols=2,
-                                 sharex=True, sharey=True,
-                                 figsize=(Nx*4, Ny*3))
+                                 sharex=shareaxes, sharey=shareaxes,
+                                 figsize=(Nx*4, Ny*3+2))
 
         if Ny == 1:
             axes = np.array([axes,])
@@ -318,7 +323,8 @@ class JointDistProfileGrid(luigi.Task):
 
         # rediculous hack to make sure matplotlib includes the figlegend in the
         # saved image
-        plt.text(0.5, -0.02, ' ', transform=fig.transFigure)
+        ax = axes[-1,0]
+        ax.text(0.5, -0.2-Ny*0.1, ' ', transform=ax.transAxes)
 
         plt.tight_layout()
         plt.savefig(self.output().fn, bbox_inches='tight')

@@ -4,6 +4,7 @@ from pathlib import Path
 import re
 import warnings
 
+import ipdb
 import luigi
 import xarray as xr
 import numpy as np
@@ -58,10 +59,6 @@ class XArrayTarget(luigi.target.FileSystemTarget):
     @property
     def fn(self):
         return self.path
-
-
-def _extract_field_with_helper(model_name, meta, **kwargs):
-    fn(dataset_meta=meta, **kwargs)
 
 COMPOSITE_FIELD_METHODS = dict(
     p_stddivs=mask_functions.calc_scalar_perturbation_in_std_div,
