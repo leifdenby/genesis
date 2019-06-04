@@ -231,6 +231,10 @@ def extract_field_to_filename(dataset_meta, path_out, field_name, **kwargs):
             da = da.swap_dims(dict(vertical_levels='zt'))
 
         for c in "xt yt zt".split(" "):
+            if 'fixes' in dataset_meta:
+                if '{}_scale_is_km'.format(c[0]) in dataset_meta['fixes']:
+                    da.coords[c].attrs['units'] = 'km'
+
             da.coords[c].attrs['units'] = _cleanup_units(da[c])
             da.coords[c] = _scale_field(da[c])
 
