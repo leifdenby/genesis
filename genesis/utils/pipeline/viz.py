@@ -472,6 +472,9 @@ class ObjectScalesComparison(luigi.Task):
         ])
 
     def _apply_filters(self, ds, filter_defs):
+        if filter_defs is None:
+            return ds
+
         ops = {
             '>': lambda f, v: f > v,
             '<': lambda f, v: f < v,
@@ -505,8 +508,10 @@ class ObjectScalesComparison(luigi.Task):
         plot_definition = self._parse_plot_definition()
         global_params = plot_definition['global']
 
-        ds = self._apply_filters(ds=ds,
-                                 filter_defs=global_params.get('filters', ''))
+        ds = self._apply_filters(
+            ds=ds,
+            filter_defs=global_params.get('filters', None)
+        )
 
         if ds.object_id.count() == 0:
             raise Exception("After filter operations there is nothing to plot!")
