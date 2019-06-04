@@ -2,6 +2,7 @@ import numpy as np
 
 import warnings
 
+REQUIRED_DX_PRECISION = 4
 
 def find_grid_spacing(mask):
     # NB: should also checked for stretched grids..
@@ -11,12 +12,17 @@ def find_grid_spacing(mask):
     dy_all = np.diff(yt.values)
     dx, dy = np.max(dx_all), np.max(dy_all)
 
+    dx = np.round(dx, REQUIRED_DX_PRECISION)
+    dy = np.round(dx, REQUIRED_DX_PRECISION)
+
     if not 'zt' in mask.coords:
         warnings.warn("zt hasn't got any coordinates defined, assuming dz=dx")
         dz = np.max(dx)
     else:
         dz_all = np.diff(zt.values)
         dz = np.max(dz_all)
+        dz = np.round(dz, REQUIRED_DX_PRECISION)
+
         if not dx == dy or not dx == dz:
             raise NotImplementedError("Only isotropic grids are supported"
                                       "(dx,dy,dz)=({},{},{})".format(
