@@ -394,7 +394,7 @@ class CumulantSlices(luigi.Task):
 
 class HorizontalMeanProfile(luigi.Task):
     base_name = luigi.Parameter()
-    field_names = luigi.Parameter(default='qv,qc,t')
+    field_names = luigi.Parameter(default='qv,qc,theta')
 
     @property
     def _field_names(self):
@@ -423,8 +423,6 @@ class HorizontalMeanProfile(luigi.Task):
             ax.set_ylabel('')
             title = ax.get_title()
             ax.set_title('')
-
-            print(v_mean.longname)
 
         sns.despine()
         plt.suptitle(title)
