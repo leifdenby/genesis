@@ -77,19 +77,49 @@ def main(ds, variables, as_pairgrid=False, sharex=False):
         df = pd.DataFrame(ds.to_dataframe().to_records()).dropna()
         g = sns.pairplot(df, hue=hue_label, vars=variables)
     else:
-        fig, axes = plt.subplots(ncols=3, figsize=(12, 4))
+        df = pd.DataFrame(ds.to_dataframe().to_records()).dropna()
+        g = sns.PairGrid(df, x_vars=variables, y_vars=variables[:1],
+                         hue=hue_label)
 
-        for n, v in enumerate(variables):
-            ax = axes[n]
-            if not exclude_thin:
-                _, bins, _ = ds[v].plot.hist(ax=ax)
+        def unlink_axes(_, __, **kwargs):
+            ax = plt.gca()
+            ax.get_shared_y_axes().remove(ax)
+            ax.clear()
+
+        g.map(unlink_axes)
+
+        def plot_hist(x, _, **kwargs):
+            dx = 25.0
+            x_min = (x.min()/dx).astype(int)*dx
+            x_max = (x.max()/dx).astype(int)*dx
+            nbins = int((x_max - x_min)/dx)
+            hist_kws = dict(range=(x_min, x_max))
+            kwargs['bins'] = nbins
+            sns.distplot(x, norm_hist=True, hist_kws=hist_kws, **kwargs)
+
+        g.map(plot_hist)
+
+        def scale_axes(x, _, **kwargs):
+            ax = plt.gca()
+            x_c = x.mean()
+            x_std = x.std()
+            if x.min() < 0.:
+                ax.set_xlim(x_c-x_std, x_c+x_std)
             else:
-                bins = None
-            if hue_label:
-                ds_ = ds.where(ds[hue_label], drop=True)
-                ds_[v].plot.hist(ax=ax, bins=bins)
-            ax.set_xlim(0, None)
-            ax.set_title("")
+                ax.set_xlim(0., x_std*4.)
+
+        g.map(scale_axes)
+
+        g.add_legend()
+        # fig, axes = plt.subplots(ncols=3, figsize=(12, 4))
+
+        # for n, v in enumerate(variables):
+            # ax = axes[n]
+            # if hue_label:
+                # ds_ = ds.where(ds[hue_label], drop=True)
+                # ds_[v].plot.hist(ax=ax, bins=bins)
+            # ax.set_xlim(0, None)
+            # ax.set_title("")
     sns.despine()
 
     if sharex:
