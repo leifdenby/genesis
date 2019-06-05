@@ -357,8 +357,8 @@ class ComputeObjectScales(luigi.Task):
                     )
                 )
             else:
-                append(
-                    data.ComputeObjectScale(
+                reqs.append(
+                    ComputeObjectScale(
                         base_name=self.base_name,
                         variable=v,
                         object_splitting_scalar=self.object_splitting_scalar,
@@ -389,7 +389,16 @@ class ComputeObjectScales(luigi.Task):
             self.base_name, name
         )
         p = Path("data")/self.base_name/fn
-        return XArrayTarget(str(p))
+        target = XArrayTarget(str(p))
+
+        if target.exists():
+            ds = target.open(decode_times=False)
+            variables = self.variables.split(',')
+            if any([v not in ds.data_vars for v in variables]):
+                p.unlink()
+
+        return target
+
 
 class ComputeCumulantProfiles(luigi.Task):
     pass
