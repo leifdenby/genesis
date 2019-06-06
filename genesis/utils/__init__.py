@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.constants import pi
 
 import warnings
 
@@ -43,3 +44,24 @@ def find_vertical_grid_spacing(da):
         raise Exception("Non-uniform vertical grid")
 
     return np.min(dz_all)
+
+
+def angle_mean(theta):
+    x = np.mean(np.cos(theta))
+    y = np.mean(np.sin(theta))
+
+    return np.arctan2(y, x)
+
+def wrap_angles(theta):
+    theta_mean = angle_mean(theta)
+
+    quartile = int(theta_mean / (pi/2.))
+
+    @np.vectorize
+    def _wrap(v):
+        if v > (quartile+1)*pi/2.:
+            return v - pi
+        else:
+            return v
+
+    return _wrap(theta)

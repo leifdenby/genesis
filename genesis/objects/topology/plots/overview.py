@@ -18,6 +18,8 @@ from genesis.objects import get_data
 
 from genesis.objects.topology.plots import filamentarity_planarity
 
+from ....utils import wrap_angles
+
 
 def ecd(d, **kwargs):
     y = np.sort(d)
@@ -62,15 +64,15 @@ def _add_unit_line_to_pairgrid(g):
 
             ax.plot([pmin, pmax], [pmin, pmax], linestyle='-', color='red')
 
+def _plot_dist(x, dx, **kwargs):
+    x_min = (x.min()/dx).astype(int)*dx
+    x_max = (x.max()/dx).astype(int)*dx
+    nbins = int((x_max - x_min)/dx)
+    hist_kws = dict(range=(x_min, x_max))
+    kwargs['bins'] = nbins
+    sns.distplot(x, norm_hist=True, hist_kws=hist_kws, **kwargs)
 
 def main(ds, variables, as_pairgrid=False, sharex=False):
-    # N_objects_orig = int(ds.object_id.count())
-    # ds = ds.dropna('object_id')
-    # N_objects_nonan = int(ds.object_id.count())
-    # print("{} objects out of {} remain after ones with nan for length, width"
-          # " or thickness have been remove".format(N_objects_nonan,
-          # N_objects_orig))
-
     hue_label = 'dataset'
 
     if as_pairgrid:
@@ -86,27 +88,27 @@ def main(ds, variables, as_pairgrid=False, sharex=False):
             ax.get_shared_y_axes().remove(ax)
             ax.clear()
 
-        g.map(unlink_axes)
+        def plot_var(x, _, **kwargs):
+            if ds[x.name].units == 'm':
+                _plot_dist(x, dx=25.0, **kwargs)
+            elif ds[x.name].units == 'rad':
+                x = wrap_angles(x)
+                x = np.rad2deg(x)
+                _plot_dist(x, dx=10., **kwargs)
+            else:
+                raise NotImplementedError(ds[x.name])
 
-        def plot_hist(x, _, **kwargs):
-            dx = 25.0
-            x_min = (x.min()/dx).astype(int)*dx
-            x_max = (x.max()/dx).astype(int)*dx
-            nbins = int((x_max - x_min)/dx)
-            hist_kws = dict(range=(x_min, x_max))
-            kwargs['bins'] = nbins
-            sns.distplot(x, norm_hist=True, hist_kws=hist_kws, **kwargs)
-
-        g.map(plot_hist)
+        g.map(plot_var)
 
         def scale_axes(x, _, **kwargs):
-            ax = plt.gca()
-            x_c = x.mean()
-            x_std = x.std()
-            if x.min() < 0.:
-                ax.set_xlim(x_c-x_std, x_c+x_std)
-            else:
-                ax.set_xlim(0., x_std*4.)
+            if ds[x.name].units in ['m',]:
+                ax = plt.gca()
+                x_c = x.mean()
+                x_std = x.std()
+                if x.min() < 0.:
+                    ax.set_xlim(x_c-x_std, x_c+x_std)
+                else:
+                    ax.set_xlim(0., x_std*4.)
 
         g.map(scale_axes)
 
