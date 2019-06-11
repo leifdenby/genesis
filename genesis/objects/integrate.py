@@ -17,10 +17,12 @@ import numpy as np
                   # "faster computation")
 
 from scipy import ndimage
+from scipy.constants import pi
 from tqdm import tqdm
 
 from . import integral_properties
 from . import minkowski_scales
+from ..utils import find_grid_spacing
 
 CHUNKS = 200  # forget about using dask for now, np.unique is too slow
 
@@ -31,17 +33,6 @@ def make_name(variable, operator=None):
         return "{variable}.{operator}".format
     else:
         return variable
-
-def _estimate_dx(da):
-    dx = np.max(np.diff(da.xt))
-    dy = np.max(np.diff(da.yt))
-    dz = np.max(np.diff(da.zt))
-
-    if not dx == dy == dz:
-        raise Exception("{} != {} != {}".format(dx, dy, dz))
-
-    return dx
-
 
 def _integrate_scalar(objects, da, operator):
     if 'object_ids' in da.coords:
@@ -60,7 +51,7 @@ def _integrate_scalar(objects, da, operator):
         assert objects.dims == da.dims
         assert objects.shape == da.shape
 
-    dx = _estimate_dx(da=da)
+    dx = find_grid_spacing(da)
 
     if operator == "volume_integral":
         fn = ndimage.sum
@@ -121,9 +112,14 @@ def integrate(objects, variable, operator='volume_integral'):
     elif hasattr(integral_properties, 'calc_{}'.format(variable)):
         fn_int = getattr(integral_properties, 'calc_{}'.format(variable))
         ds_out = _integrate_per_object(da_objects=objects, fn_int=fn_int)
-        ds_out.name = variable
+        try:
+            ds_out.name = variable
+        except AttributeError:
+            # we can't actually set the name of a dataset, this only works with
+            # data arrays
+            pass
     elif variable == 'volume':
-        dx = _estimate_dx(objects)
+        dx = find_grid_spacing(objects)
         da_scalar = xr.DataArray(
             np.ones_like(objects, dtype=np.float)*dx**3.0,
             coords=objects.coords, attrs=dict(units='m^3')
@@ -132,14 +128,25 @@ def integrate(objects, variable, operator='volume_integral'):
     elif variable in ['length', 'width', 'thickness']:
         ds_minkowski = minkowski_scales.main(da_objects=objects)
         ds_out = ds_minkowski[variable]
+    elif variable == 'r_equiv':
+        da_volume = integrate(objects, 'volume')
+        # V = 4/3 pi r^3 => r = (3/4 V/pi)**(1./3.)
+        da_scalar = (3./(4.*pi)*da_volume)**(1./3.)
+        da_scalar.attrs['units'] = 'm'
+        da_scalar.attrs['long_name'] = 'equivalent sphere radius'
+        da_scalar.name = 'r_equiv'
+        ds_out = da_scalar
     else:
-        fn_scalar = "{}.{}.nc".format(base_name, variable)
-        if not os.path.exists(fn_scalar):
-            raise Exception("Couldn't find scalar file `{}`".format(fn_scalar))
+        raise NotImplementedError("Don't know how to calculate `{}`"
+                                  "".format(variable))
+    # else:
+        # fn_scalar = "{}.{}.nc".format(base_name, variable)
+        # if not os.path.exists(fn_scalar):
+            # raise Exception("Couldn't find scalar file `{}`".format(fn_scalar))
 
-        da_scalar = xr.open_dataarray(
-            fn_scalar, decode_times=False, chunks=CHUNKS
-        ).squeeze()
+        # da_scalar = xr.open_dataarray(
+            # fn_scalar, decode_times=False, chunks=CHUNKS
+        # ).squeeze()
 
     if ds_out is None:
         if objects.zt.max() < da_scalar.zt.max():

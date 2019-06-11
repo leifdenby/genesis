@@ -16,6 +16,7 @@ from scipy.constants import pi
 import seaborn as sns
 
 from ..calc import fix_cumulant_name
+from ....utils import wrap_angles
 
 
 FULL_SUITE_PLOT_PARTS = dict(
@@ -79,26 +80,6 @@ def plot_full_suite(data, marker=''):
     plt.subplots_adjust(bottom=0.10)
     lgd = plt.figlegend(lines, [l.get_label() for l in lines], loc='lower center', ncol=2)
 
-
-def _angle_mean(theta):
-    x = np.mean(np.cos(theta))
-    y = np.mean(np.sin(theta))
-
-    return np.arctan2(y, x)
-
-def _wrap_angles(theta):
-    theta_mean = _angle_mean(theta)
-
-    quartile = int(theta_mean / (pi/2.))
-
-    @np.vectorize
-    def _wrap(v):
-        if v > (quartile+1)*pi/2.:
-            return v - pi
-        else:
-            return v
-
-    return _wrap(theta)
 
 
 def plot_angles(data, marker='.', linestyle='', z_max=None, cumulants=[],
@@ -183,6 +164,11 @@ def plot(data, plot_type, marker='', z_max=None, cumulants=[],
         fig, ax = plt.subplots()
 
     z_ = data.zt
+
+    if plot_type == 'angles':
+        data.principle_axis.values = np.rad2deg(wrap_angles(
+            np.deg2rad(data.principle_axis)
+        ))
 
     for i, cumulant in enumerate(cumulants):
         lines = []

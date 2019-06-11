@@ -298,7 +298,7 @@ class ComputeObjectScale(luigi.Task):
     mask_method_extra_args = luigi.Parameter(default='')
 
     variable = luigi.Parameter()
-    operator = luigi.Parameter(default=None)
+    operator = luigi.Parameter(default='')
 
     def requires(self):
         return IdentifyObjects(
@@ -341,10 +341,15 @@ class ComputeObjectScales(luigi.Task):
     variables = luigi.Parameter(default='com_angles')
 
     def requires(self):
-        variables = self.variables.split(',')
+        variables = set(self.variables.split(','))
         reqs = []
 
         MINKOWSKI_VARS = "length width thickness".split(" ")
+
+        if 'theta' in variables or 'phi' in variables:
+            variables.remove('phi')
+            variables.remove('theta')
+            variables.add('com_incline_and_orientation_angle')
 
         for v in variables:
             if v in MINKOWSKI_VARS:

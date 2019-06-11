@@ -408,7 +408,7 @@ class CumulantSlices(luigi.Task):
 
 class HorizontalMeanProfile(luigi.Task):
     base_name = luigi.Parameter()
-    field_names = luigi.Parameter(default='qv,qc,t')
+    field_names = luigi.Parameter(default='qv,qc,theta')
 
     @property
     def _field_names(self):
@@ -438,8 +438,6 @@ class HorizontalMeanProfile(luigi.Task):
             title = ax.get_title()
             ax.set_title('')
 
-            print(v_mean.longname)
-
         sns.despine()
         plt.suptitle(title)
 
@@ -455,6 +453,7 @@ class HorizontalMeanProfile(luigi.Task):
 
 class ObjectScalesComparison(luigi.Task):
     plot_definition = luigi.Parameter()
+    not_pairgrid = luigi.BoolParameter(default=False)
     file_type = luigi.Parameter(default='png')
 
     def _parse_plot_definition(self):
@@ -475,34 +474,48 @@ class ObjectScalesComparison(luigi.Task):
             ])
 
         global_kws = plot_definition['global']
-        global_kws.pop('filters', None)
+        filter_defs = global_kws.pop('filters', None)
+
+        variables = set(global_kws.pop('variables').split(','))
+        variables = list(variables) + [
+            v for (v, _, _) in self._parse_filters(filter_defs)
+        ]
 
         return dict([
             (
                 _make_dataset_label(**kws),
-                data.ComputeObjectScales(**global_kws, **kws)
+                data.ComputeObjectScales(variables=",".join(variables),
+                                         **global_kws, **kws)
             )
             for kws in plot_definition['sources']
         ])
 
-    def _apply_filters(self, ds, filter_defs):
+    def _parse_filters(self, filter_defs):
         if filter_defs is None:
-            return ds
+            return []
 
         ops = {
             '>': lambda f, v: f > v,
             '<': lambda f, v: f < v,
         }
+        filters = []
+
         for filter_s in filter_defs.split(','):
             found_op = False
             for op_str, func in ops.items():
                 if op_str in filter_s:
                     field, value = filter_s.split(op_str)
-                    ds = ds.where(func(ds[field], float(value)))
+                    filters.append((field, func, value))
                     found_op = True
 
             if not found_op:
                 raise NotImplementedError(filter_s)
+
+        return filters
+
+    def _apply_filters(self, ds, filter_defs):
+        for field, func, value in self._parse_filters(filter_defs):
+            ds = ds.where(func(ds[field], float(value)))
 
         return ds
 
@@ -542,7 +555,7 @@ class ObjectScalesComparison(luigi.Task):
             for (k,v) in global_params.items()
         ])
 
-        plt.suptitle(identifier, y=1.1)
+        plt.suptitle(identifier, y=[1.1, 1.5][self.not_pairgrid])
 
     def run(self):
         ds = self._load_data()
@@ -551,7 +564,7 @@ class ObjectScalesComparison(luigi.Task):
         global_params = plot_definition['global']
         variables = global_params.pop('variables').split(',')
         objects.topology.plots.overview(
-            ds=ds, as_pairgrid=True, variables=variables
+            ds=ds, as_pairgrid=not self.not_pairgrid, variables=variables
         )
 
         self._set_suptitle()
