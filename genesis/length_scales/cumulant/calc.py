@@ -116,18 +116,18 @@ def calc_2nd_cumulant(v1, v2=None, mask=None):
 
 
     # let's give it a useful name and description
-    longname = r"$C({},{})$".format(
-        _var_name_mapping.get(v1.name, v1.longname),
-        _var_name_mapping.get(v2.name, v2.longname),
+    long_name = r"$C({},{})$".format(
+        _var_name_mapping.get(v1.name, v1.long_name),
+        _var_name_mapping.get(v2.name, v2.long_name),
     )
-    v1_name = v1.name if v1.name is not None else v1.longname
-    v2_name = v2.name if v2.name is not None else v2.longname
+    v1_name = v1.name if v1.name is not None else v1.long_name
+    v2_name = v2.name if v2.name is not None else v2.long_name
     name = "C({},{})".format(v1_name, v2_name)
 
     if mask is not None:
-        longname = "{} masked by {}".format(longname, mask.longname)
+        long_name = "{} masked by {}".format(long_name, mask.long_name)
 
-    attrs = dict(units="{} {}".format(v1.units, v2.units), longname=longname)
+    attrs = dict(units="{} {}".format(v1.units, v2.units), long_name=long_name)
 
     return xr.DataArray(c_vv, dims=v1.dims, coords=v1.coords, attrs=attrs,
                         name=name)
@@ -582,7 +582,7 @@ def covariance_direction_plot(v1, v2, s_N=200, theta_win_N=100,
 
     ax.set_title("{} sampled along and\n perpendicular to principle axis "
                "at z={z}{z_units}\n".format(
-                   C_vv.longname, z=float(v1[z_var]), z_units=v1[z_var].units
+                   C_vv.long_name, z=float(v1[z_var]), z_units=v1[z_var].units
                ))
 
     return [line_1, line_2]

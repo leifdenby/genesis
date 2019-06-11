@@ -93,8 +93,6 @@ def extract_field_to_filename(dataset_meta, path_out, field_name, **kwargs):
 
     can_symlink = True
 
-    print(dataset_meta)
-
     for c in "xt yt zt".split(" "):
         if 'fixes' in dataset_meta:
             if 'missing_{}_coordinate'.format(c[0]) in dataset_meta['fixes']:
@@ -103,6 +101,10 @@ def extract_field_to_filename(dataset_meta, path_out, field_name, **kwargs):
                 dx = dataset_meta['dx']
                 da.coords[c] = -0.5*dx + dx*np.arange(0, len(da[c]))
                 da.coords[c].attrs['units'] = 'm'
+
+    # the CF conventions stipulate that the long name attribute should be named
+    # `long_name` not `longname`
+    da.attrs['long_name'] = da.longname
 
     if field_name_src != field_name:
         can_symlink = False

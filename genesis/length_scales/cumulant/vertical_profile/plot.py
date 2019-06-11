@@ -190,9 +190,10 @@ def plot(data, plot_type, marker='', z_max=None, cumulants=[],
         s = data.isel(cumulant=n, drop=True).squeeze()
 
         if split_subplots:
-            ax = axes[i]
-
-        print(cumulant, ax)
+            if len(cumulants) > 1:
+                ax = axes[i]
+            else:
+                ax = axes
 
         for p in data.dataset_name.values:
             d = data.sel(dataset_name=p, drop=True).sel(cumulant=cumulant, drop=True)
