@@ -25,34 +25,34 @@ def get_horz_devition(var_name):
 
     return xr.open_dataarray(fn_dv, decode_times=False, chunks=xr_chunks)
 
+def z_center_field(phi_da):
+    assert phi_da.dims[-1] == 'zm'
+
+    # average vertical velocity to cell centers
+    zt_vals = 0.5*(phi_da.zm[1:].values + phi_da.zm[:-1].values)
+    zt = xr.DataArray(zt_vals, coords=dict(zt=zt_vals),
+                      attrs=dict(units='m'),dims=('zt',))
+
+    # create new coordinates for cell-centered vertical velocity
+    coords=OrderedDict(phi_da.coords)
+    del(coords['zm'])
+    coords['zt'] = zt
+
+    phi_cc_vals = 0.5*(phi_da[...,1:].values + phi_da[...,:-1].values)
+
+    dims = list(phi_da.dims)
+    dims[dims.index('zm')] = 'zt'
+
+    phi_cc = xr.DataArray(
+        phi_cc_vals, coords=coords, dims=dims,
+        attrs=dict(units=phi_da.units, longname=phi_da.longname)
+    )
+
+    phi_cc.name = phi_da.name
+
+    return phi_cc
 
 def get_cell_centered_vertical_velocity():
-    def z_center_field(phi_da):
-        assert phi_da.dims[-1] == 'zm'
-
-        # average vertical velocity to cell centers
-        zt_vals = 0.5*(phi_da.zm[1:].values + phi_da.zm[:-1].values)
-        zt = xr.DataArray(zt_vals, coords=dict(zt=zt_vals),
-                          attrs=dict(units='m'),dims=('zt',))
-
-        # create new coordinates for cell-centered vertical velocity
-        coords=OrderedDict(phi_da.coords)
-        del(coords['zm'])
-        coords['zt'] = zt
-
-        phi_cc_vals = 0.5*(phi_da[...,1:].values + phi_da[...,:-1].values)
-
-        dims = list(phi_da.dims)
-        dims[dims.index('zm')] = 'zt'
-
-        phi_cc = xr.DataArray(
-            phi_cc_vals, coords=coords, dims=dims,
-            attrs=dict(units=phi_da.units, longname=phi_da.longname)
-        )
-
-        phi_cc.name = phi_da.name
-
-        return phi_cc
 
     fn_w_zt = FN_BASE.format("w_zt")
 
@@ -112,7 +112,6 @@ if __name__ == "__main__":
     var_name = args.var_name
     phi_flux = compute_vertical_flux(var_name=var_name)
 
-    print phi_flux
     out_filename = FN_BASE.format('{}_flux'.format(var_name))
     phi_flux.to_netcdf(out_filename)
 
