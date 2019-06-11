@@ -28,17 +28,11 @@ class ExtractCumulantScaleProfile(luigi.Task):
     width_method = length_scales.cumulant.calc.WidthEstimationMethod.MASS_WEIGHTED
 
     def requires(self):
-        def _fixname(v):
-            if v == 'w':
-                return 'w_zt'
-            else:
-                return v
-
         return [
                 data.ExtractField3D(base_name=self.base_name,
-                                    field_name=_fixname(self.v1)),
+                                    field_name=self.v1),
                 data.ExtractField3D(base_name=self.base_name,
-                                    field_name=_fixname(self.v2)),
+                                    field_name=self.v2),
         ]
 
     def run(self):
@@ -107,6 +101,8 @@ class CumulantScalesProfile(luigi.Task):
         import ipdb
         with ipdb.launch_ipdb_on_exception():
             plot_fn(data=ds, cumulants=cumulants_s, plot_type=self.plot_type)
+
+        print(self.output().path)
 
         plt.savefig(self.output().path, bbox_inches='tight')
 
@@ -347,17 +343,11 @@ class CumulantSlices(luigi.Task):
     def requires(self):
         base_names = self.base_names.split(',')
 
-        def _fixname(v):
-            if v == 'w':
-                return 'w_zt'
-            else:
-                return v
-
         return dict(
             (base_name, {
-                self.v1 : data.ExtractField3D(field_name=_fixname(self.v1),
+                self.v1 : data.ExtractField3D(field_name=self.v1,
                                               base_name=base_name),
-                self.v2 : data.ExtractField3D(field_name=_fixname(self.v2),
+                self.v2 : data.ExtractField3D(field_name=self.v2,
                                               base_name=base_name),
             })
             for base_name in base_names
@@ -379,8 +369,13 @@ class CumulantSlices(luigi.Task):
             ds.attrs['name'] = base_name
             datasets.append(ds)
 
+            print(v1.name, v1.xt)
+            print(v2.name, v2.xt)
+
         plot_fn = length_scales.cumulant.sections.plot
-        plot_fn(datasets=datasets, var_names=[self.v1, self.v2],)
+        import ipdb
+        with ipdb.launch_ipdb_on_exception():
+            plot_fn(datasets=datasets, var_names=[self.v1, self.v2],)
 
         plt.savefig(self.output().fn, bbox_inches='tight')
 

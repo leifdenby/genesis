@@ -3,9 +3,9 @@ import numpy as np
 
 from pathlib import Path
 import os
+from ...calc_flux import z_center_field
 
 FIELD_NAME_MAPPING = dict(
-    w_zt='w_zt',
     w='w_zt',
     xt='xt',
     yt='yt',
@@ -84,7 +84,34 @@ def extract_field_to_filename(dataset_meta, path_out, field_name, **kwargs):
         field_name=field_name_src, **dataset_meta
     )
 
-    os.symlink(str(path_in), str(path_out))
+    if field_name_src == 'w_zt':
+        path_in = path_in.parent/path_in.name.replace('.w_zt.', '.w.')
+        da_w_orig = xr.open_dataarray(path_in, decode_times=False)
+        da = z_center_field(da_w_orig)
+    else:
+        da = xr.open_dataarray(path_in, decode_times=False)
+
+    can_symlink = True
+
+    print(dataset_meta)
+
+    for c in "xt yt zt".split(" "):
+        if 'fixes' in dataset_meta:
+            if 'missing_{}_coordinate'.format(c[0]) in dataset_meta['fixes']:
+                can_symlink = False
+
+                dx = dataset_meta['dx']
+                da.coords[c] = -0.5*dx + dx*np.arange(0, len(da[c]))
+                da.coords[c].attrs['units'] = 'm'
+
+    if field_name_src != field_name:
+        can_symlink = False
+        da.name = field_name
+
+    if can_symlink:
+        os.symlink(str(path_in), str(path_out))
+    else:
+        da.to_netcdf(path_out)
 
     # if field_name == 'theta_v':
         # assert 'qv' in kwargs and 't' in kwargs
