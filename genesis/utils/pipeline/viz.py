@@ -592,3 +592,67 @@ class FilamentarityPlanarityComparison(ObjectScalesComparison):
         return luigi.LocalTarget(
             fn_base.replace('.object_scales.', '.filamentarity_planarity.')
         )
+
+
+class MinkowskiCharacteristicScalesFit(luigi.Task):
+    var_name = luigi.Parameter(default='length')
+    dv = luigi.Parameter(default=25.)
+    v_max = luigi.Parameter(default=400.)
+    file_type = luigi.Parameter(default='png')
+
+    base_names = luigi.Parameter()
+    mask_method = luigi.Parameter()
+    mask_method_extra_args = luigi.Parameter(default='')
+    object_splitting_scalar = luigi.Parameter()
+
+    def requires(self):
+        return dict([
+            (
+                base_name,
+                data.ComputeObjectScales(
+                    variables=self.var_name, base_name=base_name,
+                    mask_method=self.mask_method,
+                    mask_method_extra_args=self.mask_method_extra_args,
+                    object_splitting_scalar=self.object_splitting_scalar,
+                    )
+            )
+            for base_name in self.base_names.split(',')
+        ])
+
+    def run(self):
+        inputs = self.input()
+        fig, axes = plt.subplots(
+            ncols=4, nrows=len(inputs), figsize=(14, 3*len(inputs)), 
+            sharex="col", sharey='col'
+        )
+
+        for n, (base_name, input) in enumerate(inputs.items()):
+            ds = input.open()
+            da_v = ds[self.var_name]
+            da_v = da_v[da_v > 25.]
+            plot_to = axes[n]
+            length_scales.minkowski.exponential_fit.fit(
+                da_v, dv=25., debug=False, plot_to=plot_to
+            )
+
+            ax = plot_to[0]
+            desc = base_name.replace('_', ' ').split('.')[0]
+            ax.text(-0.3, 0.5, desc, transform=ax.transAxes,
+                    horizontalalignment='right')
+
+        sns.despine()
+
+        [ax.set_xlim(0, self.v_max) for ax in axes[:,:2].flatten()]
+        [ax.set_ylim(1.0e-6, None) for ax in axes[:,1].flatten()]
+        [ax.set_xlabel('') for ax in axes[0].flatten()]
+        [ax.set_title('') for ax in axes[1:].flatten()]
+        plt.tight_layout()
+        plt.savefig(self.output().fn, bbox_inches='tight')
+
+    def output(self):
+        fn = "minkowski_scales_exp_fit.{}.{}.{}".format(
+            self.var_name,
+            self.base_names.replace(',', '__'),
+            self.file_type
+        )
+        return luigi.LocalTarget(fn)

@@ -42,23 +42,28 @@ def fit(da_v, dv=None, plot_to=None, debug=False):
     scale parameter of the distribution
     """
     # remove all nans and infs
-    v_data = da_v.values
+    v_data = da_v
     v_data = v_data[~np.logical_or(np.isnan(v_data), np.isinf(v_data))]
 
     # only fit from the minimum limit, otherwise we'll be fitting from v=0
     # where aren't any objects
-    vmin_fit = v_data.min()
-    vrange_fit = (vmin_fit, np.max(v_data))
+    vmin_fit = v_data.min().values
+    vrange_fit = (vmin_fit, np.max(v_data).values)
 
     beta = _fit_exp(v_data[v_data > vmin_fit] - vmin_fit, debug=debug)
 
-    if plot_to:
+    if plot_to is not None:
         if dv is None:
             raise Exception("`dv` most be defined when creating plots")
-        fig, axes = dist_plot(v_data, dv_bin=dv,
-                              fit=('exp', np.mean(beta), vrange_fit))
+        axes = None
+        if isinstance(plot_to, np.ndarray) and isinstance(plot_to[0], plt.Axes):
+            axes = plot_to
+        log_dists = False
+        fig, axes = dist_plot(v_data, dv_bin=dv, axes=axes,
+                              fit=('exp', (np.mean(beta), np.std(beta)), vrange_fit),
+                              log_dists=log_dists)
         v_sample = vmin_fit + _sample_exp(len(v_data), vrange_fit, np.mean(beta))
-        dist_plot(v_sample, dv_bin=dv, axes=axes, alpha=0.3)
+        dist_plot(v_sample, dv_bin=dv, axes=axes, alpha=0.3, log_dists=log_dists)
         fig.legend(axes[-1].get_lines(), ['data', 'model'])
 
     return xr.DataArray.from_dict(dict(
