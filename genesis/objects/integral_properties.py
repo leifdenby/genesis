@@ -72,6 +72,7 @@ def calc_xy_proj_length(da_mask):
 
     l = np.sqrt(lx**2. + ly**2.)
     l.attrs['long_name'] = 'xy-projected length'
+    l.attrs['units'] = x_3d.units
     return l
 
 
@@ -91,4 +92,5 @@ def calc_z_proj_length(da_mask):
 
     l = z_max - z_min
     l.attrs['long_name'] = 'z-projected length'
+    l.attrs['units'] = z_3d.units
     return l

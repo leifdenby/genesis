@@ -266,7 +266,7 @@ class IdentifyObjects(luigi.Task):
             mask_name=mask_name, splitting_var=self.splitting_scalar
         )
 
-        return luigi.LocalTarget(objects.identify.OUT_FILENAME_FORMAT.format(
+        return XArrayTarget(objects.identify.OUT_FILENAME_FORMAT.format(
             base_name=self.base_name, objects_name=objects_name
         ))
 
@@ -417,6 +417,9 @@ class ComputeObjectScales(luigi.Task):
             if isinstance(ds, xr.Dataset):
                 if any([v not in ds.data_vars for v in variables]):
                     p.unlink()
+            elif ds.name != self.variables:
+                print(ds.name)
+                p.unlink()
 
         return target
 
