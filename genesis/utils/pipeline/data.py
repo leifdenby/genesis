@@ -168,9 +168,10 @@ class MakeMask(luigi.Task):
                 for v in e.missing_kwargs
             ])
 
-    def _build_method_kwargs(self):
-        kwargs = dict(base_name=self.base_name)
-        for kv in self.method_extra_args.split(","):
+    @staticmethod
+    def _build_method_kwargs(base_name, method_extra_args):
+        kwargs = dict(base_name=base_name)
+        for kv in method_extra_args.split(","):
             if kv == "":
                 continue
             k,v = kv.split("=")
@@ -190,23 +191,35 @@ class MakeMask(luigi.Task):
         os.chdir(cwd)
         mask.to_netcdf(self.output().fn)
 
-    def output(self):
-        kwargs = self._build_method_kwargs()
+    @classmethod
+    def make_mask_name(cls, base_name, method_name, method_extra_args):
+        kwargs = cls._build_method_kwargs(
+            base_name=base_name, method_extra_args=method_extra_args
+        )
 
         try:
             kwargs = make_mask.build_method_kwargs(
-                method=self.method_name, kwargs=kwargs
+                method=method_name, kwargs=kwargs
             )
         except make_mask.MissingInputException as e:
             for v in e.missing_kwargs:
                 kwargs[v] = None
         kwargs = make_mask.build_method_kwargs(
-            method=self.method_name, kwargs=kwargs
+            method=method_name, kwargs=kwargs
         )
 
         mask_name = make_mask.make_mask_name(
-            method=self.method_name, method_kwargs=kwargs
+            method=method_name, method_kwargs=kwargs
         )
+        return mask_name
+
+    def output(self):
+        mask_name = self.make_mask_name(
+            base_name=self.base_name,
+            method_name=self.method_name,
+            method_extra_args=self.method_extra_args
+        )
+
         fn = make_mask.OUT_FILENAME_FORMAT.format(
             base_name=self.base_name, mask_name=mask_name
         )
@@ -386,13 +399,14 @@ class ComputeObjectScales(luigi.Task):
         if not self.input()[0].exists():
             return luigi.LocalTarget('fakename.nc')
 
-        # XXX: ideally I'd use the mask method's filename generation method
-        # here
-        fn_scales0 = Path(self.input()[0].fn).name
-        name = fn_scales0.split('.objects.')[-1]\
-                         .replace('.minkowski_scales.nc', '')
+        mask_name = MakeMask.make_mask_name(
+            base_name=self.base_name,
+            method_name=self.mask_method,
+            method_extra_args=self.mask_method_extra_args
+        )
+
         fn = '{}.{}.object_scales.nc'.format(
-            self.base_name, name
+            self.base_name, mask_name
         )
         p = Path("data")/self.base_name/fn
         target = XArrayTarget(str(p))
@@ -400,8 +414,9 @@ class ComputeObjectScales(luigi.Task):
         if target.exists():
             ds = target.open(decode_times=False)
             variables = self.variables.split(',')
-            if any([v not in ds.data_vars for v in variables]):
-                p.unlink()
+            if isinstance(ds, xr.Dataset):
+                if any([v not in ds.data_vars for v in variables]):
+                    p.unlink()
 
         return target
 
@@ -598,11 +613,13 @@ class EstimateCharacteristicMinkowskiScales(luigi.Task):
         ds_scales.to_netcdf(self.output().fn)
 
     def output(self):
-        fn_scales0 = Path(self.input().fn).name
-        name = fn_scales0.split('.objects.')[-1]\
-                         .replace('.minkowski_scales.nc', '')
+        mask_name = MakeMask.make_mask_name(
+            base_name=self.base_name,
+            method_name=self.mask_method,
+            method_extra_args=self.mask_method_extra_args
+        )
         fn = '{}.{}.exp_fit_scales.nc'.format(
-            self.base_name, name
+            self.base_name, mask_name
         )
         p = Path("data")/self.base_name/fn
         target = XArrayTarget(str(p))
