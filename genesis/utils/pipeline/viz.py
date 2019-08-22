@@ -596,8 +596,8 @@ class FilamentarityPlanarityComparison(ObjectScalesComparison):
 
 class MinkowskiCharacteristicScalesFit(luigi.Task):
     var_name = luigi.Parameter(default='length')
-    dv = luigi.Parameter(default=25.)
-    v_max = luigi.Parameter(default=400.)
+    dv = luigi.FloatParameter(default=25.)
+    v_max = luigi.FloatParameter(default=400.)
     file_type = luigi.Parameter(default='png')
 
     base_names = luigi.Parameter()
@@ -627,8 +627,12 @@ class MinkowskiCharacteristicScalesFit(luigi.Task):
         )
 
         for n, (base_name, input) in enumerate(inputs.items()):
-            ds = input.open()
-            da_v = ds[self.var_name]
+            input = input.open()
+            if isinstance(input, xr.Dataset):
+                ds = input
+                da_v = ds[self.var_name]
+            else:
+                da_v = input
             da_v = da_v[da_v > 25.]
             plot_to = axes[n]
             length_scales.minkowski.exponential_fit.fit(
