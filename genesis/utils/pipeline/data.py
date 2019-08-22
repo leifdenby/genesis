@@ -14,6 +14,7 @@ from .. import mask_functions, make_mask
 from ... import objects
 from ...bulk_statistics import cross_correlation_with_height
 from ...utils import find_vertical_grid_spacing
+from ...length_scales.minkowski import exponential_fit
 
 import importlib
 
@@ -574,3 +575,35 @@ class ExtractCloudbaseState(luigi.Task):
         fn = "{}.{}.cloudbase.xy.nc".format(self.base_name, self.field_name)
         p = Path('data')/self.base_name/fn
         return XArrayTarget(str(p))
+
+
+class EstimateCharacteristicMinkowskiScales(luigi.Task):
+    object_splitting_scalar = luigi.Parameter()
+    base_name = luigi.Parameter()
+    mask_method = luigi.Parameter()
+    mask_method_extra_args = luigi.Parameter(default='')
+    variables = ['length', 'width', 'thickness']
+
+    def requires(self):
+        return ComputeObjectScales(
+            variables=",".join(self.variables), base_name=self.base_name,
+            mask_method=self.mask_method,
+            mask_method_extra_args=self.mask_method_extra_args,
+            object_splitting_scalar=self.object_splitting_scalar,
+        )
+
+    def run(self):
+        ds = self.input().open()
+        ds_scales = ds[self.variables].apply(exponential_fit.fit)
+        ds_scales.to_netcdf(self.output().fn)
+
+    def output(self):
+        fn_scales0 = Path(self.input().fn).name
+        name = fn_scales0.split('.objects.')[-1]\
+                         .replace('.minkowski_scales.nc', '')
+        fn = '{}.{}.exp_fit_scales.nc'.format(
+            self.base_name, name
+        )
+        p = Path("data")/self.base_name/fn
+        target = XArrayTarget(str(p))
+        return target
