@@ -266,9 +266,12 @@ class IdentifyObjects(luigi.Task):
             mask_name=mask_name, splitting_var=self.splitting_scalar
         )
 
-        return XArrayTarget(objects.identify.OUT_FILENAME_FORMAT.format(
+        fn = objects.identify.OUT_FILENAME_FORMAT.format(
             base_name=self.base_name, objects_name=objects_name
-        ))
+        )
+        p = Path("data")/self.base_name/fn
+
+        return XArrayTarget(str(p))
 
 class ComputeObjectMinkowskiScales(luigi.Task):
     object_splitting_scalar = luigi.Parameter()
