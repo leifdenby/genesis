@@ -636,7 +636,7 @@ class MinkowskiCharacteristicScalesFit(luigi.Task):
             )
 
             ax = plot_to[0]
-            desc = base_name.replace('_', ' ').split('.')[0]
+            desc = base_name.replace('_', ' ').replace('.', ' ')
             ax.text(-0.3, 0.5, desc, transform=ax.transAxes,
                     horizontalalignment='right')
 
