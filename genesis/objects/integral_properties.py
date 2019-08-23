@@ -94,3 +94,20 @@ def calc_z_proj_length(da_mask):
     l.attrs['long_name'] = 'z-projected length'
     l.attrs['units'] = z_3d.units
     return l
+
+def calc_z_max(da_mask):
+    if np.any(da_mask.isnull()):
+        m = ~da_mask.isnull()
+    else:
+        m = da_mask
+
+    if len(da_mask.x.shape) == 3:
+        x_3d = da_mask.x
+        y_3d = da_mask.y
+    else:
+        _, _, z_3d = xr.broadcast(da_mask.x, da_mask.y, da_mask.z)
+
+    z_max = z_3d.where(m).max()
+    z_max.attrs['long_name'] = 'max height'
+    z_max.attrs['units'] = z_3d.units
+    return z_max
