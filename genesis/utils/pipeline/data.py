@@ -275,7 +275,7 @@ class FilterObjects(luigi.Task):
                 else:
                     raise NotImplementedError("Filter type `{}` not recognised"
                                               "".format(f_type))
-            except IndexError:
+            except (IndexError, ValueError) as e:
                 raise Exception("Malformed filter definition: `{}`".format(
                                 s_filter))
         return filters
@@ -376,6 +376,7 @@ class ComputeObjectMinkowskiScales(luigi.Task):
     base_name = luigi.Parameter()
     mask_method = luigi.Parameter()
     mask_method_extra_args = luigi.Parameter(default='')
+    object_filters = luigi.Parameter(default=None)
 
     def requires(self):
         return IdentifyObjects(
@@ -383,6 +384,7 @@ class ComputeObjectMinkowskiScales(luigi.Task):
             splitting_scalar=self.object_splitting_scalar,
             mask_method=self.mask_method,
             mask_method_extra_args=self.mask_method_extra_args,
+            filters=self.object_filters,
         )
 
     def run(self):
@@ -411,6 +413,7 @@ class ComputeObjectScale(luigi.Task):
     base_name = luigi.Parameter()
     mask_method = luigi.Parameter()
     mask_method_extra_args = luigi.Parameter(default='')
+    object_filters = luigi.Parameter(default=None)
 
     variable = luigi.Parameter()
     operator = luigi.Parameter(default='')
@@ -421,6 +424,7 @@ class ComputeObjectScale(luigi.Task):
             splitting_scalar=self.object_splitting_scalar,
             mask_method=self.mask_method,
             mask_method_extra_args=self.mask_method_extra_args,
+            filters=self.object_filters,
         )
 
     def output(self):
@@ -454,6 +458,7 @@ class ComputeObjectScales(luigi.Task):
     mask_method = luigi.Parameter()
     mask_method_extra_args = luigi.Parameter(default='')
     variables = luigi.Parameter(default='com_angles')
+    object_filters = luigi.Parameter(default=None)
 
     def requires(self):
         variables = set(self.variables.split(','))
@@ -474,6 +479,7 @@ class ComputeObjectScales(luigi.Task):
                         object_splitting_scalar=self.object_splitting_scalar,
                         mask_method=self.mask_method,
                         mask_method_extra_args=self.mask_method_extra_args,
+                        object_filters=self.object_filters,
                     )
                 )
             else:
@@ -484,6 +490,7 @@ class ComputeObjectScales(luigi.Task):
                         object_splitting_scalar=self.object_splitting_scalar,
                         mask_method=self.mask_method,
                         mask_method_extra_args=self.mask_method_extra_args,
+                        object_filters=self.object_filters,
                     )
                 )
 
@@ -702,6 +709,7 @@ class EstimateCharacteristicMinkowskiScales(luigi.Task):
     mask_method = luigi.Parameter()
     mask_method_extra_args = luigi.Parameter(default='')
     variables = ['length', 'width', 'thickness']
+    object_filters = luigi.Parameter(default=None)
 
     def requires(self):
         return ComputeObjectScales(
@@ -709,6 +717,7 @@ class EstimateCharacteristicMinkowskiScales(luigi.Task):
             mask_method=self.mask_method,
             mask_method_extra_args=self.mask_method_extra_args,
             object_splitting_scalar=self.object_splitting_scalar,
+            object_filters=self.object_filters,
         )
 
     def run(self):

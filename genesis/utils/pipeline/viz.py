@@ -604,6 +604,7 @@ class MinkowskiCharacteristicScalesFit(luigi.Task):
     mask_method = luigi.Parameter()
     mask_method_extra_args = luigi.Parameter(default='')
     object_splitting_scalar = luigi.Parameter()
+    object_filters = luigi.Parameter(default=None)
 
     def requires(self):
         return dict([
@@ -614,6 +615,7 @@ class MinkowskiCharacteristicScalesFit(luigi.Task):
                     mask_method=self.mask_method,
                     mask_method_extra_args=self.mask_method_extra_args,
                     object_splitting_scalar=self.object_splitting_scalar,
+                    object_filters=self.object_filters,
                     )
             )
             for base_name in self.base_names.split(',')
