@@ -227,7 +227,7 @@ if __name__ == "__main__":
                                         value=value)
 
         ds.attrs['input_name'] = object_file
-        ds.attrs['mask_name'] = "{}__filtered_by_{}_{}_{}".format(
+        ds.attrs['mask_name'] = "{}.filtered_by.{}_{}_{}".format(
             objects.mask_name, args.property, op, value
         )
 

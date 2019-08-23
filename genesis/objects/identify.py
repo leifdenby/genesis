@@ -55,6 +55,8 @@ def process(mask, splitting_scalar, remove_at_edge=True):
         mask_name=mask.name, splitting_var=splitting_scalar.name
     )
     da.attrs['edge_touching_objects_removed'] = int(remove_at_edge)
+    da.attrs['mask_name'] = mask.name
+    da.attrs['splitting_scalar'] = splitting_scalar.name
 
     return da
 
