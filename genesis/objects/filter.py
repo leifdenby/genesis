@@ -113,27 +113,28 @@ def filter_objects_by_tracking(objects, base_name, dt_pad):
     return objects_filtered
 
 
-def filter_objects_by_property(objects, object_file, property, op, value):
-    base_name, objects_mask = object_file.split('.objects.')
-
-    object_properties = genesis.objects.get_data(base_name, mask_identifier=objects_mask)
-    N_objects = len(object_properties.object_id)
+def filter_objects_by_property(objects, da_property, op, value):
+    N_objects = len(da_property.object_id)
 
     op_fn = getattr(np, op.replace('_than', ''))
 
-    da_property = object_properties[property]
-
-    ids_filtered = object_properties.where(op_fn(da_property, value), drop=True).object_id
+    ids_filtered = da_property.where(op_fn(da_property, value), drop=True).object_id
 
     objects_filtered = np.zeros_like(objects)
 
     print("Picking out objects for which {} is {} {} ({}/{}~{}%)...".format(
-        property, op.replace('_', ' '), value, len(ids_filtered), N_objects, 
+        da_property.name,
+        op.replace('_', ' '), value, len(ids_filtered), N_objects,
         int(float(len(ids_filtered))/float(N_objects)*100.),
         ))
 
     for object_id in tqdm.tqdm(ids_filtered):
         objects_filtered += objects.where(objects == object_id, other=0)
+
+    objects_filtered.attrs['input_name'] = objects.name
+    objects_filtered.attrs['mask_name'] = "{}.filtered_by.{}_{}_{}".format(
+        objects.mask_name, da_property.name, op, value
+    )
 
     return objects_filtered
 
@@ -222,13 +223,14 @@ if __name__ == "__main__":
         else:
             raise NotImplementedError
 
-        ds = filter_objects_by_property(objects=objects, object_file=object_file,
-                                        property=args.property, op=op,
-                                        value=value)
+        base_name, objects_mask = object_file.split('.objects.')
+        object_properties = genesis.objects.get_data(
+            base_name, mask_identifier=objects_mask
+        )
+        da_property = object_properties[args.property]
 
-        ds.attrs['input_name'] = object_file
-        ds.attrs['mask_name'] = "{}.filtered_by.{}_{}_{}".format(
-            objects.mask_name, args.property, op, value
+        ds = filter_objects_by_property(objects=objects,
+            da_property=da_property, op=op, value=value
         )
 
         out_filename = "{}.objects.{}.{}.{}_{}_{}.nc".format(

@@ -3,6 +3,7 @@ import subprocess
 from pathlib import Path
 import re
 import warnings
+from functools import partial
 
 import ipdb
 import luigi
@@ -226,37 +227,134 @@ class MakeMask(luigi.Task):
         p = Path('data')/self.base_name/fn
         return XArrayTarget(str(p))
 
+class FilterObjects(luigi.Task):
+    base_name = luigi.Parameter()
+    mask_method = luigi.Parameter()
+    mask_method_extra_args = luigi.Parameter(default='')
+    object_splitting_scalar = luigi.Parameter()
+    filter_defs = luigi.Parameter()
+
+    def requires(self):
+        filters = self._parse_filter_defs()
+        reqs = {}
+        reqs['objects'] = IdentifyObjects(
+            base_name=self.base_name,
+            splitting_scalar=self.object_splitting_scalar,
+            mask_method=self.mask_method,
+            mask_method_extra_args=self.mask_method_extra_args,
+        )
+
+        reqs['props'] = [
+            ComputeObjectScale(
+                base_name=self.base_name,
+                variable=reqd_prop,
+                object_splitting_scalar=self.object_splitting_scalar,
+                mask_method=self.mask_method,
+                mask_method_extra_args=self.mask_method_extra_args,
+            )
+            for reqd_prop in filters['reqd_props']
+        ]
+        return reqs
+
+    def _parse_filter_defs(self):
+        filters = dict(reqd_props=[], fns=[])
+        s_filters = sorted(self.filter_defs.split(','))
+        for s_filter in s_filters:
+            try:
+                f_type, f_cond = s_filter.split(':')
+                if f_type == 'prop':
+                    s_prop_and_op, s_value = f_cond.split("=")
+                    prop_name, op_name = s_prop_and_op.split('__')
+                    op = dict(lt="less_than", gt="greater_than", eq="equals")[op_name]
+                    value = float(s_value)
+                    fn_base = objects.filter.filter_objects_by_property
+                    fn = partial(fn_base, op=op, value=value)
+
+                    filters['reqd_props'].append(prop_name)
+                    filters['fns'].append(fn)
+                else:
+                    raise NotImplementedError("Filter type `{}` not recognised"
+                                              "".format(f_type))
+            except IndexError:
+                raise Exception("Malformed filter definition: `{}`".format(
+                                s_filter))
+        return filters
+
+    def run(self):
+        input = self.input()
+        da_obj = input['objects'].open()
+
+        filters = self._parse_filter_defs()
+
+        for fn, prop in zip(filters['fns'], input['props']):
+            da_obj = fn(objects=da_obj, da_property=prop.open())
+
+        da_obj.to_netcdf(self.output().fn)
+
+    def output(self):
+        mask_name = MakeMask.make_mask_name(
+            base_name=self.base_name,
+            method_name=self.mask_method,
+            method_extra_args=self.mask_method_extra_args
+        )
+        objects_name = objects.identify.make_objects_name(
+            mask_name=mask_name,
+            splitting_var=self.object_splitting_scalar
+        )
+        s_filters = self.filter_defs.replace(',','.').replace('=', '')
+        objects_name = "{}.filtered_by.{}".format(objects_name, s_filters)
+        fn = objects.identify.OUT_FILENAME_FORMAT.format(
+            base_name=self.base_name, objects_name=objects_name
+        )
+        p = Path("data")/self.base_name/fn
+        return XArrayTarget(str(p))
 
 class IdentifyObjects(luigi.Task):
     splitting_scalar = luigi.Parameter()
     base_name = luigi.Parameter()
     mask_method = luigi.Parameter()
     mask_method_extra_args = luigi.Parameter(default='')
+    filters = luigi.Parameter(default=None)
 
     def requires(self):
-        return dict(
-            mask=MakeMask(
+        if self.filters is not None:
+            return FilterObjects(
+                object_splitting_scalar=self.splitting_scalar,
                 base_name=self.base_name,
-                method_name=self.mask_method,
-                method_extra_args=self.mask_method_extra_args
-            ),
-            scalar=ExtractField3D(
-                base_name=self.base_name,
-                field_name=self.splitting_scalar
+                mask_method=self.mask_method,
+                mask_method_extra_args=self.mask_method_extra_args,
+                filter_defs=self.filters,
             )
-        )
+        else:
+            return dict(
+                mask=MakeMask(
+                    base_name=self.base_name,
+                    method_name=self.mask_method,
+                    method_extra_args=self.mask_method_extra_args
+                ),
+                scalar=ExtractField3D(
+                    base_name=self.base_name,
+                    field_name=self.splitting_scalar
+                )
+            )
 
     def run(self):
-        da_mask = xr.open_dataarray(self.input()['mask'].fn).squeeze()
-        da_scalar = xr.open_dataarray(self.input()['scalar'].fn).squeeze()
+        if self.filters is not None:
+            pass
+        else:
+            da_mask = xr.open_dataarray(self.input()['mask'].fn).squeeze()
+            da_scalar = xr.open_dataarray(self.input()['scalar'].fn).squeeze()
 
-        object_labels = objects.identify.process(
-            mask=da_mask, splitting_scalar=da_scalar
-        )
+            object_labels = objects.identify.process(
+                mask=da_mask, splitting_scalar=da_scalar
+            )
 
-        object_labels.to_netcdf(self.output().fn)
+            object_labels.to_netcdf(self.output().fn)
 
     def output(self):
+        if self.filters is not None:
+            return self.input()
+
         if not self.input()["mask"].exists():
             return luigi.LocalTarget("fakefile.nc")
 

@@ -67,4 +67,4 @@ def make_mask_from_objects_file(filename):
     return mask
 
 from . import topology
-from . import integrate, identify
+from . import integrate, identify, filter
