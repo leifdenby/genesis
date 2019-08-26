@@ -656,9 +656,18 @@ class MinkowskiCharacteristicScalesFit(luigi.Task):
         plt.savefig(self.output().fn, bbox_inches='tight')
 
     def output(self):
-        fn = "minkowski_scales_exp_fit.{}.{}.{}".format(
+        s_filter = ''
+        if self.object_filters is not None:
+            s_filter = '.filtered_by.{}'.format(
+                (self.object_filters.replace(',','.')
+                                    .replace(':', '__')
+                                    .replace('=', '_')
+                )
+            )
+        fn = "minkowski_scales_exp_fit.{}.{}{}.{}".format(
             self.var_name,
             self.base_names.replace(',', '__'),
+            s_filter,
             self.file_type
         )
         return luigi.LocalTarget(fn)

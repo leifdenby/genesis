@@ -160,7 +160,9 @@ class MakeMask(luigi.Task):
     method_name = luigi.Parameter()
 
     def requires(self):
-        method_kwargs = self._build_method_kwargs()
+        method_kwargs = self._build_method_kwargs(
+            base_name=self.base_name, method_extra_args=self.method_extra_args
+        )
         try:
             make_mask.build_method_kwargs(method=self.method_name, kwargs=method_kwargs)
         except make_mask.MissingInputException as e:
@@ -180,7 +182,9 @@ class MakeMask(luigi.Task):
         return kwargs
 
     def run(self):
-        method_kwargs = self._build_method_kwargs()
+        method_kwargs = self._build_method_kwargs(
+            base_name=self.base_name, method_extra_args=self.method_extra_args
+        )
 
         for (v, target) in self.input().items():
             method_kwargs[v] = xr.open_dataarray(target.fn, decode_times=False)
@@ -351,17 +355,34 @@ class IdentifyObjects(luigi.Task):
 
             object_labels.to_netcdf(self.output().fn)
 
+    @staticmethod
+    def make_name(base_name, mask_method, mask_method_extra_args,
+                  object_splitting_scalar, filter_defs,):
+        mask_name = MakeMask.make_mask_name(
+            base_name=base_name,
+            method_name=mask_method,
+            method_extra_args=mask_method_extra_args
+        )
+        objects_name = objects.identify.make_objects_name(
+            mask_name=mask_name,
+            splitting_var=object_splitting_scalar
+        )
+        if filter_defs is not None:
+            s_filters = (filter_defs.replace(',','.')
+                                    .replace('=', '')
+                                    .replace(':', '__'))
+            objects_name = "{}.filtered_by.{}".format(objects_name, s_filters)
+        return objects_name
+
     def output(self):
         if self.filters is not None:
             return self.input()
 
-        if not self.input()["mask"].exists():
-            return luigi.LocalTarget("fakefile.nc")
-
-        da_mask = xr.open_dataarray(self.input()["mask"].fn, decode_times=False)
-        mask_name = da_mask.name
-        objects_name = objects.identify.make_objects_name(
-            mask_name=mask_name, splitting_var=self.splitting_scalar
+        objects_name = self.make_name(
+            base_name=self.base_name, mask_method=self.mask_method,
+            mask_method_extra_args=self.mask_method_extra_args,
+            object_splitting_scalar=self.splitting_scalar,
+            filter_defs=self.filters,
         )
 
         fn = objects.identify.OUT_FILENAME_FORMAT.format(
@@ -413,7 +434,6 @@ class ComputeObjectScale(luigi.Task):
     base_name = luigi.Parameter()
     mask_method = luigi.Parameter()
     mask_method_extra_args = luigi.Parameter(default='')
-    object_filters = luigi.Parameter(default=None)
 
     variable = luigi.Parameter()
     operator = luigi.Parameter(default='')
@@ -424,15 +444,16 @@ class ComputeObjectScale(luigi.Task):
             splitting_scalar=self.object_splitting_scalar,
             mask_method=self.mask_method,
             mask_method_extra_args=self.mask_method_extra_args,
-            filters=self.object_filters,
         )
 
     def output(self):
-        if not self.input().exists():
-            return luigi.LocalTarget("fakefile.nc")
-
-        da_objects = xr.open_dataarray(self.input().fn, decode_times=False)
-        objects_name = da_objects.name
+        objects_name = IdentifyObjects.make_name(
+            base_name=self.base_name,
+            mask_method=self.mask_method,
+            mask_method_extra_args=self.mask_method_extra_args,
+            object_splitting_scalar=self.object_splitting_scalar,
+            filter_defs=None,
+        )
 
         name = objects.integrate.make_name(variable=self.variable,
                                            operator=self.operator)
@@ -461,61 +482,80 @@ class ComputeObjectScales(luigi.Task):
     object_filters = luigi.Parameter(default=None)
 
     def requires(self):
-        variables = set(self.variables.split(','))
-        reqs = []
+        if self.object_filters is not None:
+            return FilterObjectScales(
+                object_splitting_scalar=self.object_splitting_scalar,
+                base_name=self.base_name,
+                mask_method=self.mask_method,
+                mask_method_extra_args=self.mask_method_extra_args,
+                variables=self.variables,
+                object_filters=self.object_filters
+            )
 
-        MINKOWSKI_VARS = "length width thickness".split(" ")
+        else:
+            variables = set(self.variables.split(','))
+            reqs = []
 
-        if 'theta' in variables or 'phi' in variables:
-            variables.remove('phi')
-            variables.remove('theta')
-            variables.add('com_incline_and_orientation_angle')
+            MINKOWSKI_VARS = "length width thickness".split(" ")
 
-        for v in variables:
-            if v in MINKOWSKI_VARS:
-                reqs.append(
-                    ComputeObjectMinkowskiScales(
-                        base_name=self.base_name,
-                        object_splitting_scalar=self.object_splitting_scalar,
-                        mask_method=self.mask_method,
-                        mask_method_extra_args=self.mask_method_extra_args,
-                        object_filters=self.object_filters,
+            if 'theta' in variables or 'phi' in variables:
+                variables.remove('phi')
+                variables.remove('theta')
+                variables.add('com_incline_and_orientation_angle')
+
+            for v in variables:
+                if v in MINKOWSKI_VARS:
+                    reqs.append(
+                        ComputeObjectMinkowskiScales(
+                            base_name=self.base_name,
+                            object_splitting_scalar=self.object_splitting_scalar,
+                            mask_method=self.mask_method,
+                            mask_method_extra_args=self.mask_method_extra_args,
+                            object_filters=self.object_filters,
+                        )
                     )
-                )
-            else:
-                reqs.append(
-                    ComputeObjectScale(
-                        base_name=self.base_name,
-                        variable=v,
-                        object_splitting_scalar=self.object_splitting_scalar,
-                        mask_method=self.mask_method,
-                        mask_method_extra_args=self.mask_method_extra_args,
-                        object_filters=self.object_filters,
+                else:
+                    assert self.object_filters is None
+                    reqs.append(
+                        ComputeObjectScale(
+                            base_name=self.base_name,
+                            variable=v,
+                            object_splitting_scalar=self.object_splitting_scalar,
+                            mask_method=self.mask_method,
+                            mask_method_extra_args=self.mask_method_extra_args,
+                            # object_filters=self.object_filters,
+                        )
                     )
-                )
 
-        return reqs
+            return reqs
 
     def run(self):
-        ds = xr.merge([
-            input.open(decode_times=False) for input in self.input()
-        ])
+        if self.object_filters is not None:
+            pass
+        else:
+            ds = xr.merge([
+                input.open(decode_times=False) for input in self.input()
+            ])
 
-        ds.to_netcdf(self.output().fn)
+            ds.to_netcdf(self.output().fn)
 
     def output(self):
-        if not self.input()[0].exists():
-            return luigi.LocalTarget('fakename.nc')
+        if self.object_filters is not None:
+            return self.input()
 
-        mask_name = MakeMask.make_mask_name(
+        objects_name = IdentifyObjects.make_name(
             base_name=self.base_name,
-            method_name=self.mask_method,
-            method_extra_args=self.mask_method_extra_args
+            mask_method=self.mask_method,
+            mask_method_extra_args=self.mask_method_extra_args,
+            object_splitting_scalar=self.object_splitting_scalar,
+            filter_defs=self.object_filters,
         )
 
-        fn = '{}.{}.object_scales.nc'.format(
-            self.base_name, mask_name
+        fn = objects.integrate.FN_OUT_FORMAT.format(
+            base_name=self.base_name, objects_name=objects_name,
+            name="object_scales_collection"
         )
+
         p = Path("data")/self.base_name/fn
         target = XArrayTarget(str(p))
 
@@ -531,6 +571,89 @@ class ComputeObjectScales(luigi.Task):
 
         return target
 
+class FilterObjectScales(ComputeObjectScales):
+    object_splitting_scalar = luigi.Parameter()
+    base_name = luigi.Parameter()
+    mask_method = luigi.Parameter()
+    mask_method_extra_args = luigi.Parameter(default='')
+    variables = luigi.Parameter(default='com_angles')
+    object_filters = luigi.Parameter()
+
+    def requires(self):
+        filters = self._parse_filter_defs(self.object_filters)
+        variables = self.variables.split(',')
+        variables += filters['reqd_props']
+
+        return ComputeObjectScales(
+            variables=",".join(variables), base_name=self.base_name,
+            mask_method=self.mask_method,
+            mask_method_extra_args=self.mask_method_extra_args,
+            object_splitting_scalar=self.object_splitting_scalar,
+            # no object filter, get properties for all objects
+        )
+
+    @staticmethod
+    def _parse_filter_defs(filter_defs):
+        filters = dict(reqd_props=[], fns=[])
+        s_filters = sorted(filter_defs.split(','))
+        for s_filter in s_filters:
+            try:
+                f_type, f_cond = s_filter.split(':')
+                if f_type == 'prop':
+                    s_prop_and_op, s_value = f_cond.split("=")
+                    prop_name, op_name = s_prop_and_op.split('__')
+                    op = dict(lt="less_than", gt="greater_than", eq="equals")[op_name]
+                    op_fn = getattr(np, op.replace('_than', ''))
+                    value = float(s_value)
+                    fn = lambda da: da.where(op_fn(getattr(da, prop_name), value))
+
+                    filters['reqd_props'].append(prop_name)
+                    filters['fns'].append(fn)
+                else:
+                    raise NotImplementedError("Filter type `{}` not recognised"
+                                              "".format(f_type))
+            except (IndexError, ValueError) as e:
+                raise Exception("Malformed filter definition: `{}`".format(
+                                s_filter))
+        return filters
+
+    def run(self):
+        input = self.input()
+        da_obj = input.open()
+
+        filters = self._parse_filter_defs(self.object_filters)
+        for fn in filters['fns']:
+            da_obj = fn(da_obj)
+        da_obj.to_netcdf(self.output().fn)
+
+    def output(self):
+        objects_name = IdentifyObjects.make_name(
+            base_name=self.base_name,
+            mask_method=self.mask_method,
+            mask_method_extra_args=self.mask_method_extra_args,
+            object_splitting_scalar=self.object_splitting_scalar,
+            filter_defs=self.object_filters,
+        )
+
+        fn = objects.integrate.FN_OUT_FORMAT.format(
+            base_name=self.base_name, objects_name=objects_name,
+            name="object_scales_collection"
+        )
+
+        p = Path("data")/self.base_name/fn
+        target = XArrayTarget(str(p))
+
+        if target.exists():
+            ds = target.open(decode_times=False)
+            variables = self.variables.split(',')
+            if isinstance(ds, xr.Dataset):
+                if any([v not in ds.data_vars for v in variables]):
+                    p.unlink()
+            elif ds.name != self.variables:
+                print(ds.name)
+                p.unlink()
+
+        return target
 
 class ComputeCumulantProfiles(luigi.Task):
     pass
