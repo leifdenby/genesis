@@ -109,6 +109,18 @@ def integrate(objects, variable, operator='volume_integral'):
     elif variable == 'com_angles':
         fn_int = integral_properties.calc_com_incline_and_orientation_angle
         ds_out = _integrate_per_object(da_objects=objects, fn_int=fn_int)
+    elif hasattr(integral_properties, 'calc_{}__dask'.format(variable)):
+        fn_int = getattr(integral_properties, 'calc_{}__dask'.format(variable))
+        da_objects = objects
+        if 'xt' in da_objects.dims:
+            da_objects = da_objects.rename(xt='x', yt='y', zt='z')
+        ds_out = fn_int(da_objects)
+        try:
+            ds_out.name = variable
+        except AttributeError:
+            # we can't actually set the name of a dataset, this only works with
+            # data arrays
+            pass
     elif hasattr(integral_properties, 'calc_{}'.format(variable)):
         fn_int = getattr(integral_properties, 'calc_{}'.format(variable))
         ds_out = _integrate_per_object(da_objects=objects, fn_int=fn_int)

@@ -1,6 +1,8 @@
 import numpy as np
 import xarray as xr
 
+import dask_image.ndmeasure
+
 
 def calc_com_incline_and_orientation_angle(da_mask, plot_ax=None):
     """
@@ -96,11 +98,6 @@ def calc_z_proj_length(da_mask):
     return l
 
 def calc_z_max(da_mask):
-    if np.any(da_mask.isnull()):
-        m = ~da_mask.isnull()
-    else:
-        m = da_mask
-
     if len(da_mask.x.shape) == 3:
         x_3d = da_mask.x
         y_3d = da_mask.y
@@ -108,6 +105,22 @@ def calc_z_max(da_mask):
         _, _, z_3d = xr.broadcast(da_mask.x, da_mask.y, da_mask.z)
 
     z_max = z_3d.where(m).max()
+    z_max.attrs['long_name'] = 'max height'
+    z_max.attrs['units'] = z_3d.units
+    return z_max
+
+
+def calc_z_max__dask(da_objs):
+    if len(da_objs.x.shape) == 3:
+        x_3d = da_objs.x
+        y_3d = da_objs.y
+    else:
+        _, _, z_3d = xr.broadcast(da_objs.x, da_objs.y, da_objs.z)
+
+    idx = np.unique(da_objs)[1:]
+    z_max_vals = dask_image.ndmeasure.maximum(z_3d, da_objs, idx).compute()
+
+    z_max = xr.DataArray(data=z_max_vals, coords=[idx], dims=['object_id'])
     z_max.attrs['long_name'] = 'max height'
     z_max.attrs['units'] = z_3d.units
     return z_max
