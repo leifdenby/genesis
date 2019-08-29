@@ -85,7 +85,7 @@ def fp_plot(ds, lm_range=None):
     ax.set_xlim(-0.01, ds.planarity.max())
 
 
-def main(ds):
+def main(ds, auto_scale=True):
     """
     Create a filamentarity-planarity joint plot using the `dataset` attribute
     of `ds` for the hue 
@@ -121,8 +121,9 @@ def main(ds):
         bbox_to_anchor=[0.5, -0.4], loc="lower center"
     )
 
-    g.ax_joint.set_xlim(-0.0, 0.45)
-    g.ax_joint.set_ylim(-0.0, 0.7)
+    if auto_scale:
+        g.ax_joint.set_xlim(-0.0, 0.45)
+        g.ax_joint.set_ylim(-0.0, 0.7)
 
     plot_reference(
         ax=g.ax_joint, shape='spheroid', color="black"
