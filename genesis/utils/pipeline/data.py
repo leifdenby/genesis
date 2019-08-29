@@ -16,6 +16,7 @@ from ... import objects
 from ...bulk_statistics import cross_correlation_with_height
 from ...utils import find_vertical_grid_spacing
 from ...length_scales.minkowski import exponential_fit
+from ...objects import property_filters
 from ...objects import integral_properties
 
 import importlib
@@ -586,7 +587,7 @@ class FilterObjectScales(ComputeObjectScales):
     object_filters = luigi.Parameter()
 
     def requires(self):
-        filters = self._parse_filter_defs(self.object_filters)
+        filters = property_filters.parse_defs(self.object_filters)
         variables = self.variables.split(',')
         variables += filters['reqd_props']
 
@@ -598,39 +599,15 @@ class FilterObjectScales(ComputeObjectScales):
             # no object filter, get properties for all objects
         )
 
-    @staticmethod
-    def _parse_filter_defs(filter_defs):
-        filters = dict(reqd_props=[], fns=[])
-        s_filters = sorted(filter_defs.split(','))
-        for s_filter in s_filters:
-            try:
-                f_type, f_cond = s_filter.split(':')
-                if f_type == 'prop':
-                    s_prop_and_op, s_value = f_cond.split("=")
-                    prop_name, op_name = s_prop_and_op.split('__')
-                    op = dict(lt="less_than", gt="greater_than", eq="equals")[op_name]
-                    op_fn = getattr(np, op.replace('_than', ''))
-                    value = float(s_value)
-                    fn = lambda da: da.where(op_fn(getattr(da, prop_name), value))
-
-                    filters['reqd_props'].append(prop_name)
-                    filters['fns'].append(fn)
-                else:
-                    raise NotImplementedError("Filter type `{}` not recognised"
-                                              "".format(f_type))
-            except (IndexError, ValueError) as e:
-                raise Exception("Malformed filter definition: `{}`".format(
-                                s_filter))
-        return filters
-
     def run(self):
         input = self.input()
-        da_obj = input.open()
+        ds_objs = input.open()
 
-        filters = self._parse_filter_defs(self.object_filters)
+        filters = property_filters.parse_defs(self.object_filters)
         for fn in filters['fns']:
-            da_obj = fn(da_obj)
-        da_obj.to_netcdf(self.output().fn)
+            ds_objs = fn(ds_objs)
+
+        ds_objs.to_netcdf(self.output().fn)
 
     def output(self):
         objects_name = IdentifyObjects.make_name(
