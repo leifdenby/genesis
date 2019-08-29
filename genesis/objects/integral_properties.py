@@ -157,3 +157,52 @@ def calc_z_min__dask(da_objs):
     z_min.attrs['long_name'] = 'min height'
     z_min.attrs['units'] = z_3d.units
     return z_min
+
+def calc_centroid__dask(da_objs):
+    if len(da_objs.x.shape) == 3:
+        x_3d = da_objs.x
+        y_3d = da_objs.y
+    else:
+        x_3d, y_3d, z_3d = xr.broadcast(da_objs.x, da_objs.y, da_objs.z)
+
+    idx = np.unique(da_objs)[1:]
+    x_c_vals = dask_image.ndmeasure.mean(x_3d, da_objs, idx)
+    y_c_vals = dask_image.ndmeasure.mean(y_3d, da_objs, idx)
+    z_c_vals = dask_image.ndmeasure.mean(z_3d, da_objs, idx)
+
+    x_c = xr.DataArray(data=x_c_vals, coords=[idx], dims=['object_id'])
+    x_c.attrs['long_name'] = 'centroid x-position'
+    x_c.attrs['units'] = x_3d.units
+    x_c.name = "x_c"
+
+    y_c = xr.DataArray(data=y_c_vals, coords=[idx], dims=['object_id'])
+    y_c.attrs['long_name'] = 'centroid y-position'
+    y_c.attrs['units'] = y_3d.units
+    y_c.name = "y_c"
+
+    z_c = xr.DataArray(data=z_c_vals, coords=[idx], dims=['object_id'])
+    z_c.attrs['long_name'] = 'centroid z-position'
+    z_c.attrs['units'] = z_3d.units
+    z_c.name = "z_c"
+
+    ds = xr.merge([x_c, y_c, z_c])
+
+    return ds
+
+def calc_xy_proj_length__dask(da_objs):
+    x_3d, y_3d, _ = xr.broadcast(da_objs.x, da_objs.y, da_objs.z)
+
+    idx = np.unique(da_objs)[1:]
+    x_min = dask_image.ndmeasure.minimum(x_3d, da_objs, idx)
+    x_max = dask_image.ndmeasure.maximum(x_3d, da_objs, idx)
+    y_min = dask_image.ndmeasure.minimum(y_3d, da_objs, idx)
+    y_max = dask_image.ndmeasure.maximum(y_3d, da_objs, idx)
+
+    lx = x_max - x_min
+    ly = y_max - y_min
+
+    l = np.sqrt(lx**2. + ly**2.)
+    da_l = xr.DataArray(data=l, coords=[idx], dims=['object_id'])
+    da_l.attrs['long_name'] = 'xy-projected length'
+    da_l.attrs['units'] = x_3d.units
+    return da_l
