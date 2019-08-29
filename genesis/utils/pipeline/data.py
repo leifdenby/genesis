@@ -544,6 +544,16 @@ class ComputeObjectScales(luigi.Task):
                 input.open(decode_times=False) for input in self.input()
             ])
 
+            objects_name = IdentifyObjects.make_name(
+                base_name=self.base_name,
+                mask_method=self.mask_method,
+                mask_method_extra_args=self.mask_method_extra_args,
+                object_splitting_scalar=self.object_splitting_scalar,
+                filter_defs=self.object_filters,
+            )
+            ds.attrs['base_name'] = self.base_name
+            ds.attrs['objects_name'] = objects_name
+
             ds.to_netcdf(self.output().fn)
 
     def output(self):
@@ -606,6 +616,16 @@ class FilterObjectScales(ComputeObjectScales):
         filters = property_filters.parse_defs(self.object_filters)
         for fn in filters['fns']:
             ds_objs = fn(ds_objs)
+
+        objects_name = IdentifyObjects.make_name(
+            base_name=self.base_name,
+            mask_method=self.mask_method,
+            mask_method_extra_args=self.mask_method_extra_args,
+            object_splitting_scalar=self.object_splitting_scalar,
+            filter_defs=self.object_filters,
+        )
+        ds_objs.attrs['base_name'] = self.base_name
+        ds_objs.attrs['objects_name'] = objects_name
 
         ds_objs.to_netcdf(self.output().fn)
 
