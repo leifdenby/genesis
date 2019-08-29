@@ -474,12 +474,8 @@ class ObjectScalesComparison(luigi.Task):
             ])
 
         global_kws = plot_definition['global']
-        filter_defs = global_kws.pop('filters', None)
 
         variables = set(global_kws.pop('variables').split(','))
-        variables = list(variables) + [
-            v for (v, _, _) in self._parse_filters(filter_defs)
-        ]
 
         return dict([
             (
