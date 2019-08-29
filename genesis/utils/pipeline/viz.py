@@ -667,3 +667,148 @@ class MinkowskiCharacteristicScalesFit(luigi.Task):
             self.file_type
         )
         return luigi.LocalTarget(fn)
+
+class ObjectsScaleDist(luigi.Task):
+    var_name = luigi.Parameter(default='length')
+    dv = luigi.FloatParameter(default=25.)
+    v_max = luigi.FloatParameter(default=400.)
+    file_type = luigi.Parameter(default='png')
+
+    base_names = luigi.Parameter()
+    mask_method = luigi.Parameter()
+    mask_method_extra_args = luigi.Parameter(default='')
+    object_splitting_scalar = luigi.Parameter()
+    object_filters = luigi.Parameter(default=None)
+
+    def requires(self):
+        return dict([
+            (
+                base_name,
+                data.ComputeObjectScales(
+                    variables=self.var_name, base_name=base_name,
+                    mask_method=self.mask_method,
+                    mask_method_extra_args=self.mask_method_extra_args,
+                    object_splitting_scalar=self.object_splitting_scalar,
+                    object_filters=self.object_filters,
+                    )
+            )
+            for base_name in self.base_names.split(',')
+        ])
+
+    @staticmethod
+    def _calc_fixed_bin_args(v, dv):
+        vmin = np.floor(v.min()/dv)*dv
+        vmax = np.ceil(v.max()/dv)*dv
+        nbins = int((vmax-vmin)/dv)
+        return dict(range=(vmin, vmax), bins=nbins)
+
+    def run(self):
+        inputs = self.input()
+        fig, ax = plt.subplots()
+
+        for n, (base_name, input) in enumerate(inputs.items()):
+            input = input.open()
+            if isinstance(input, xr.Dataset):
+                ds = input
+                da_v = ds[self.var_name]
+            else:
+                da_v = input
+
+            desc = base_name.replace('_', ' ').replace('.', ' ')
+            da_v.plot.hist(ax=ax, alpha=0.4, label=desc,
+                           **self._calc_fixed_bin_args(
+                               v=da_v.values, dv=self.dv)
+                          )
+
+        sns.despine()
+        plt.legend()
+        if self.v_max is not None:
+            ax.set_xlim(0., self.v_max)
+
+        plt.tight_layout()
+        plt.savefig(self.output().fn, bbox_inches='tight')
+
+    def output(self):
+        s_filter = ''
+        if self.object_filters is not None:
+            s_filter = '.filtered_by.{}'.format(
+                (self.object_filters.replace(',','.')
+                                    .replace(':', '__')
+                                    .replace('=', '_')
+                )
+            )
+        fn = "objects_scale_dist.{}.{}{}.{}".format(
+            self.var_name,
+            self.base_names.replace(',', '__'),
+            s_filter,
+            self.file_type
+        )
+        return luigi.LocalTarget(fn)
+
+class ObjectsScalesJointDist(luigi.Task):
+    var1 = luigi.Parameter()
+    var2 = luigi.Parameter()
+    file_type = luigi.Parameter(default='png')
+
+    base_names = luigi.Parameter()
+    mask_method = luigi.Parameter()
+    mask_method_extra_args = luigi.Parameter(default='')
+    object_splitting_scalar = luigi.Parameter()
+    object_filters = luigi.Parameter(default=None)
+
+    def requires(self):
+        return dict([
+            (
+                base_name,
+                data.ComputeObjectScales(
+                    variables="{},{}".format(self.var1, self.var2),
+                    base_name=base_name,
+                    mask_method=self.mask_method,
+                    mask_method_extra_args=self.mask_method_extra_args,
+                    object_splitting_scalar=self.object_splitting_scalar,
+                    object_filters=self.object_filters,
+                    )
+            )
+            for base_name in self.base_names.split(',')
+        ])
+
+    @staticmethod
+    def _calc_fixed_bin_args(v, dv):
+        vmin = np.floor(v.min()/dv)*dv
+        vmax = np.ceil(v.max()/dv)*dv
+        nbins = int((vmax-vmin)/dv)
+        return dict(range=(vmin, vmax), bins=nbins)
+
+    def run(self):
+        inputs = self.input()
+
+        for n, (base_name, input) in enumerate(inputs.items()):
+            ds = input.open()
+            da_v1 = ds[self.var1]
+            da_v2 = ds[self.var2]
+
+            desc = base_name.replace('_', ' ').replace('.', ' ')
+            sns.jointplot(x=da_v1, y=da_v2, label=desc, s=10)
+
+        plt.legend()
+
+        plt.tight_layout()
+        plt.savefig(self.output().fn, bbox_inches='tight')
+
+    def output(self):
+        s_filter = ''
+        if self.object_filters is not None:
+            s_filter = '.filtered_by.{}'.format(
+                (self.object_filters.replace(',','.')
+                                    .replace(':', '__')
+                                    .replace('=', '_')
+                )
+            )
+        fn = "objects_scales_joint_dist.{}__{}.{}{}.{}".format(
+            self.var1,
+            self.var2,
+            self.base_names.replace(',', '__'),
+            s_filter,
+            self.file_type
+        )
+        return luigi.LocalTarget(fn)
