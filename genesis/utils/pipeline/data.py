@@ -16,6 +16,7 @@ from ... import objects
 from ...bulk_statistics import cross_correlation_with_height
 from ...utils import find_vertical_grid_spacing
 from ...length_scales.minkowski import exponential_fit
+from ...objects import integral_properties
 
 import importlib
 
@@ -496,15 +497,20 @@ class ComputeObjectScales(luigi.Task):
             variables = set(self.variables.split(','))
             reqs = []
 
-            MINKOWSKI_VARS = "length width thickness".split(" ")
-
-            if 'theta' in variables or 'phi' in variables:
-                variables.remove('phi')
-                variables.remove('theta')
-                variables.add('com_incline_and_orientation_angle')
-
+            # some methods provide more than one variable so we map them to the
+            # correct method here
+            variables_mapped = []
             for v in variables:
-                if v in MINKOWSKI_VARS:
+                v_mapped = integral_properties.VAR_MAPPINGS.get(v)
+                if v_mapped is not None:
+                    variables_mapped.append(v_mapped)
+                else:
+                    variables_mapped.append(v)
+            # we only want to call each method once
+            variables_mapped = set(variables_mapped)
+
+            for v in variables_mapped:
+                if v == 'minkowski':
                     reqs.append(
                         ComputeObjectMinkowskiScales(
                             base_name=self.base_name,
