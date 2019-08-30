@@ -216,3 +216,15 @@ def calc_xy_proj_length__dask(da_objs):
     da_l.attrs['long_name'] = 'xy-projected length'
     da_l.attrs['units'] = x_3d.units
     return da_l
+
+def calc_vertical_flux__dask(da_objs, w, scalar):
+    flux_per_cell = w*scalar
+
+    idx = np.unique(da_objs)[1:]
+    qflux_per_obj
+    obj_flux = dask_image.ndmeasure.sum(flux_per_cell, da_objs, idx).compute()
+
+    obj_flux = xr.DataArray(data=obj_flux_vals, coords=[idx], dims=['object_id'])
+    obj_flux.attrs['long_name'] = 'min height'
+    obj_flux.attrs['units'] = "{} {}".format(scalar.units, w.units)
+    return obj_flux
