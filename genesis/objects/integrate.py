@@ -101,7 +101,14 @@ def _integrate_per_object(da_objects, fn_int):
 
     return xr.concat(ds_per_object, dim='object_id')
 
-def integrate(objects, variable, operator='volume_integral'):
+def get_integrate_requirements(variable):
+    if variable.endswith('_vertical_flux'):
+        var_name = variable[:len('_vertical_flux')]
+        return dict(w='w', scalar=var_name)
+    else:
+        return []
+
+def integrate(objects, variable, operator='volume_integral', **kwargs):
     ds_out = None
 
     if variable in objects.coords:

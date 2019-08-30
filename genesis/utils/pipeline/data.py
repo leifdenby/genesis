@@ -441,12 +441,23 @@ class ComputeObjectScale(luigi.Task):
     operator = luigi.Parameter(default='')
 
     def requires(self):
-        return IdentifyObjects(
+        reqs = {}
+
+        reqs['objects'] = IdentifyObjects(
             base_name=self.base_name,
             splitting_scalar=self.object_splitting_scalar,
             mask_method=self.mask_method,
             mask_method_extra_args=self.mask_method_extra_args,
         )
+
+        required_fields = integrate.get_integration_requirements(
+            variable=self.variable
+        )
+
+        for k, v in required_fields.items():
+            reqs[k] = ExtractField3D(base_name=self.base_name, field_name=v)
+
+        return reqs
 
     def output(self):
         objects_name = IdentifyObjects.make_name(
@@ -468,12 +479,14 @@ class ComputeObjectScale(luigi.Task):
         return XArrayTarget(str(p))
 
     def run(self):
-        da_objects = xr.open_dataarray(self.input().fn)
+        inputs = self.input()
+        da_objects = xr.open_dataarray(inputs.pop('objects').fn)
+        kwargs = dict((k, v.open()) for (k, v) in inputs.items())
 
         ds = objects.integrate.integrate(objects=da_objects,
-                                         variable=self.variable)
+                                         variable=self.variable,
+                                         **kwargs)
         ds.to_netcdf(self.output().fn)
-
 
 class ComputeObjectScales(luigi.Task):
     object_splitting_scalar = luigi.Parameter()
