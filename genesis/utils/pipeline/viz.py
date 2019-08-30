@@ -593,7 +593,7 @@ class FilamentarityPlanarityComparison(ObjectScalesComparison):
 class MinkowskiCharacteristicScalesFit(luigi.Task):
     var_name = luigi.Parameter(default='length')
     dv = luigi.FloatParameter(default=25.)
-    v_max = luigi.FloatParameter(default=400.)
+    v_max = luigi.FloatParameter(default=None)
     file_type = luigi.Parameter(default='png')
 
     base_names = luigi.Parameter()
@@ -788,7 +788,11 @@ class ObjectsScalesJointDist(luigi.Task):
             da_v2 = ds[self.var2]
 
             desc = base_name.replace('_', ' ').replace('.', ' ')
-            sns.jointplot(x=da_v1, y=da_v2, label=desc, s=10)
+            g = sns.jointplot(x=da_v1, y=da_v2, label=desc, s=10)
+
+            ax = g.ax_joint
+            ax.set_xlabel(xr.plot.utils.label_from_attrs(da_v1))
+            ax.set_ylabel(xr.plot.utils.label_from_attrs(da_v2))
 
         plt.legend()
 
