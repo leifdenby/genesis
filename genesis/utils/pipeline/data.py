@@ -497,7 +497,23 @@ class ComputeObjectScales(luigi.Task):
     object_filters = luigi.Parameter(default=None)
 
     def requires(self):
-        if self.object_filters is not None:
+        if "+" in self.base_name:
+            # # "+" can be used a shorthand to concat objects together from
+            # # different datasets
+            base_names = self.base_name.split("+")
+            reqs = dict([
+                (base_name, ComputeObjectScales(
+                                base_name=base_name,
+                                mask_method=self.mask_method,
+                                mask_method_extra_args=self.mask_method_extra_args,
+                                variables=self.variables,
+                                object_splitting_scalar=self.object_splitting_scalar,
+                                object_filters=self.object_filters,
+                            ))
+                for base_name in base_names
+            ])
+            return reqs
+        elif self.object_filters is not None:
             return FilterObjectScales(
                 object_splitting_scalar=self.object_splitting_scalar,
                 base_name=self.base_name,
@@ -506,7 +522,6 @@ class ComputeObjectScales(luigi.Task):
                 variables=self.variables,
                 object_filters=self.object_filters
             )
-
         else:
             variables = set(self.variables.split(','))
             reqs = []
@@ -553,9 +568,16 @@ class ComputeObjectScales(luigi.Task):
         if self.object_filters is not None:
             pass
         else:
-            ds = xr.merge([
-                input.open(decode_times=False) for input in self.input()
-            ])
+            if "+" in self.base_name:
+                ds = xr.concat([
+                    fh.open(decode_times=False)
+                    for (base_name, fh) in self.input().items()
+                ], dim="object_id")
+                Path(self.output().fn).parent.mkdir(parents=True, exist_ok=True)
+            else:
+                ds = xr.merge([
+                    input.open(decode_times=False) for input in self.input()
+                ])
 
             objects_name = IdentifyObjects.make_name(
                 base_name=self.base_name,
@@ -570,7 +592,7 @@ class ComputeObjectScales(luigi.Task):
             ds.to_netcdf(self.output().fn)
 
     def output(self):
-        if self.object_filters is not None:
+        if not "+" in self.base_name and self.object_filters is not None:
             return self.input()
 
         objects_name = IdentifyObjects.make_name(
