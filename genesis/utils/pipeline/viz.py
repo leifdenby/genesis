@@ -122,8 +122,6 @@ class CumulantScalesProfile(luigi.Task):
         with ipdb.launch_ipdb_on_exception():
             plot_fn(data=ds, cumulants=cumulants_s, plot_type=self.plot_type)
 
-        print(self.output().path)
-
         plt.savefig(self.output().path, bbox_inches='tight')
 
     def output(self):
@@ -388,9 +386,6 @@ class CumulantSlices(luigi.Task):
             ds = ds.sel(zt=slice(0.0, self.z_max))
             ds.attrs['name'] = base_name
             datasets.append(ds)
-
-            print(v1.name, v1.xt)
-            print(v2.name, v2.xt)
 
         plot_fn = length_scales.cumulant.sections.plot
         import ipdb
