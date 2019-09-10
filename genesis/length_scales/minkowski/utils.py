@@ -21,10 +21,15 @@ def rank(v, ax):
     ax.set_title('rank')
 
 def fixed_bin_hist(v, dv, ax, **kwargs):
-    vmin = np.floor(v.min()/dv)*dv
-    vmax = np.ceil(v.max()/dv)*dv
-    nbins = int((vmax-vmin)/dv)
-    ax.hist(v, range=(vmin, vmax), bins=nbins, **kwargs)
+    if dv is None:
+        nbins = None
+        vrange = None
+    else:
+        vmin = np.floor(v.min()/dv)*dv
+        vmax = np.ceil(v.max()/dv)*dv
+        nbins = int((vmax-vmin)/dv)
+        vrange = (vmin, v_max)
+    ax.hist(v, range=vrange, bins=nbins, **kwargs)
 
 def dist_plot(v, dv_bin, fit=None, axes=None, log_dists=True, **kwargs):
     da_v = None
@@ -79,11 +84,12 @@ def dist_plot(v, dv_bin, fit=None, axes=None, log_dists=True, **kwargs):
         [ax.set_yscale('log') for ax in axes[:2]]
 
     if da_v is not None:
+        xr_lab = xr.plot.utils.label_from_attrs
         labels = [
-            ('{} [{}]'.format(da_v.name, da_v.units), 'num objects [1]'),
-            ('{} [{}]'.format(da_v.name, da_v.units), 'density [1/{}]'.format(da_v.units)),
-            ('{} [{}]'.format(da_v.name, da_v.units), 'fraction of objects'),
-            ('object num', '{} [{}]'.format(da_v.name, da_v.units)),
+            (xr_lab(da_v), 'num objects [1]'),
+            (xr_lab(da_v), 'density [1/{}]'.format(da_v.units)),
+            (xr_lab(da_v), 'fraction of objects'),
+            ('object num', xr_lab(da_v)),
         ]
 
         for ax, (xl, yl) in zip(axes, labels):

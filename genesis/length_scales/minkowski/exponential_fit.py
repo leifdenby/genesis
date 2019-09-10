@@ -53,8 +53,6 @@ def fit(da_v, dv=None, plot_to=None, debug=False):
     beta = _fit_exp(v_data[v_data > vmin_fit] - vmin_fit, debug=debug)
 
     if plot_to is not None:
-        if dv is None:
-            raise Exception("`dv` most be defined when creating plots")
         axes = None
         if isinstance(plot_to, np.ndarray) and isinstance(plot_to[0], plt.Axes):
             axes = plot_to
@@ -63,7 +61,7 @@ def fit(da_v, dv=None, plot_to=None, debug=False):
                               fit=('exp', (np.mean(beta), np.std(beta)), vrange_fit),
                               log_dists=log_dists)
         v_sample = vmin_fit + _sample_exp(len(v_data), vrange_fit, np.mean(beta))
-        dist_plot(v_sample, dv_bin=dv, axes=axes, alpha=0.3, log_dists=log_dists)
+        dist_plot(v_sample, dv_bin=dv, axes=axes, alpha=0.6, log_dists=log_dists)
         fig.legend(axes[-1].get_lines(), ['data', 'model'])
 
     return xr.DataArray.from_dict(dict(
