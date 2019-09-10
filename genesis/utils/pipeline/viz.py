@@ -588,7 +588,7 @@ class FilamentarityPlanarityComparison(ObjectScalesComparison):
 
 class MinkowskiCharacteristicScalesFit(luigi.Task):
     var_name = luigi.Parameter(default='length')
-    dv = luigi.FloatParameter(default=25.)
+    dv = luigi.FloatParameter(default=None)
     v_max = luigi.FloatParameter(default=None)
     file_type = luigi.Parameter(default='png')
 
@@ -620,6 +620,9 @@ class MinkowskiCharacteristicScalesFit(luigi.Task):
             sharex="col", sharey='col'
         )
 
+        if len(axes.shape) == 1:
+            axes = np.array([axes,])
+
         for n, (base_name, input) in enumerate(inputs.items()):
             input = input.open()
             if isinstance(input, xr.Dataset):
@@ -627,10 +630,14 @@ class MinkowskiCharacteristicScalesFit(luigi.Task):
                 da_v = ds[self.var_name]
             else:
                 da_v = input
-            da_v = da_v[da_v > 25.]
+            if self.dv is not None:
+                da_v = da_v[da_v > self.dv]
+            else:
+                da_v = da_v[da_v > 0.0]
+
             plot_to = axes[n]
             length_scales.minkowski.exponential_fit.fit(
-                da_v, dv=25., debug=False, plot_to=plot_to
+                da_v, dv=self.dv, debug=False, plot_to=plot_to
             )
 
             ax = plot_to[0]
@@ -640,10 +647,14 @@ class MinkowskiCharacteristicScalesFit(luigi.Task):
 
         sns.despine()
 
-        [ax.set_xlim(0, self.v_max) for ax in axes[:,:2].flatten()]
-        [ax.set_ylim(1.0e-6, None) for ax in axes[:,1].flatten()]
-        [ax.set_xlabel('') for ax in axes[0].flatten()]
+        if self.v_max:
+            [ax.set_xlim(0, self.v_max) for ax in axes[:,:2].flatten()]
+        if da_v.units == 'm':
+            [ax.set_ylim(1.0e-6, None) for ax in axes[:,1].flatten()]
+        if axes.shape[0] > 1:
+            [ax.set_xlabel('') for ax in axes[0].flatten()]
         [ax.set_title('') for ax in axes[1:].flatten()]
+        plt.suptitle("{}\n{}".format(self.base_names, self.object_filters), y=1.1)
         plt.tight_layout()
         plt.savefig(self.output().fn, bbox_inches='tight')
 
@@ -716,6 +727,10 @@ class ObjectsScaleDist(luigi.Task):
             if self.dv is not None:
                 kws.update(self._calc_fixed_bin_args(v=da_v.values, dv=self.dv))
             da_v.plot.hist(ax=ax, alpha=0.4, label=desc, **kws)
+
+        s_filters = objects.property_filters.latex_format(self.object_filters)
+        print(s_filters)
+        plt.suptitle("{}\n{}".format(self.base_names,s_filters), y=1.1)
 
         sns.despine()
         plt.legend()

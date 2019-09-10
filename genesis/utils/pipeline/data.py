@@ -15,10 +15,14 @@ import yaml
 from .. import mask_functions, make_mask
 from ... import objects
 from ...bulk_statistics import cross_correlation_with_height
-from ...utils import find_vertical_grid_spacing
+from ...utils import find_vertical_grid_spacing, calc_flux
 from ...length_scales.minkowski import exponential_fit
 from ...objects import property_filters
 from ...objects import integral_properties
+
+if 'USE_SCHEDULER' in os.environ:
+    from dask.distributed import Client
+    client = Client()
 
 import importlib
 
@@ -51,7 +55,7 @@ class XArrayTarget(luigi.target.FileSystemTarget):
         self.path = path
 
     def open(self, *args, **kwargs):
-        ds = xr.open_dataset(self.path, *args, **kwargs)
+        ds = xr.open_dataset(self.path, engine='h5netcdf', *args, **kwargs)
 
         if len(ds.data_vars) == 1:
             name = list(ds.data_vars)[0]
@@ -66,7 +70,8 @@ class XArrayTarget(luigi.target.FileSystemTarget):
         return self.path
 
 COMPOSITE_FIELD_METHODS = dict(
-    p_stddivs=mask_functions.calc_scalar_perturbation_in_std_div,
+    p_stddivs=(mask_functions.calc_scalar_perturbation_in_std_div, []),
+    flux=(calc_flux.compute_vertical_flux, ['w',]),
 )
 
 class ExtractField3D(luigi.Task):
@@ -100,13 +105,17 @@ class ExtractField3D(luigi.Task):
                 reqs[req_field] = ExtractField3D(base_name=self.base_name,
                                                  field_name=req_field)
 
-        for (postfix, func) in COMPOSITE_FIELD_METHODS.items():
+        for (postfix, (func, extra_fields)) in COMPOSITE_FIELD_METHODS.items():
             if self.field_name.endswith(postfix):
                 req_field = self.field_name.replace('_{}'.format(postfix), '')
                 # XXX: the p_stddivs method takes a `da` arg for now because it
                 # is general purpose
                 reqs['da'] = ExtractField3D(base_name=self.base_name,
                                                  field_name=req_field)
+
+                for v in extra_fields:
+                    reqs[v] = ExtractField3D(base_name=self.base_name,
+                                             field_name=v)
 
         return reqs
 
@@ -122,13 +131,14 @@ class ExtractField3D(luigi.Task):
             p_out.parent.mkdir(parents=True, exist_ok=True)
 
             is_composite = False
-            for (postfix, func) in COMPOSITE_FIELD_METHODS.items():
+            for (postfix, (func, _)) in COMPOSITE_FIELD_METHODS.items():
                 if self.field_name.endswith(postfix):
                     das_input = dict([
                         (k, input.open(decode_times=False))
                         for (k, input) in self.input().items()
                     ])
-                    da = func(**das_input)
+                    with ipdb.launch_ipdb_on_exception():
+                        da = func(**das_input)
                     # XXX: remove infs for now
                     da = da.where(~np.isinf(da))
                     da.to_netcdf(self.output().fn)
@@ -271,7 +281,8 @@ class FilterObjects(luigi.Task):
                 f_type, f_cond = s_filter.split(':')
                 if f_type == 'prop':
                     s_prop_and_op, s_value = f_cond.split("=")
-                    prop_name, op_name = s_prop_and_op.split('__')
+                    i = s_prop_and_op.rfind('__')
+                    prop_name, op_name = s_prop_and_op[:i], s_prop_and_op[i+2:]
                     op = dict(lt="less_than", gt="greater_than", eq="equals")[op_name]
                     value = float(s_value)
                     fn_base = objects.filter.filter_objects_by_property
@@ -439,7 +450,6 @@ class ComputeObjectScale(luigi.Task):
     mask_method_extra_args = luigi.Parameter(default='')
 
     variable = luigi.Parameter()
-    operator = luigi.Parameter(default='')
 
     def requires(self):
         reqs = {}
@@ -455,10 +465,20 @@ class ComputeObjectScale(luigi.Task):
             variable=self.variable
         )
 
+        if '__' in self.variable:
+            v, _ = self._get_var_and_op()
+            required_fields[v] = v
+
         for k, v in required_fields.items():
             reqs[k] = ExtractField3D(base_name=self.base_name, field_name=v)
 
         return reqs
+
+    def _get_var_and_op(self):
+        if '__' in self.variable:
+            return self.variable.split('__')
+        else:
+            return self.variable, None
 
     def output(self):
         objects_name = IdentifyObjects.make_name(
@@ -469,8 +489,9 @@ class ComputeObjectScale(luigi.Task):
             filter_defs=None,
         )
 
-        name = objects.integrate.make_name(variable=self.variable,
-                                           operator=self.operator)
+        variable, operator = self._get_var_and_op()
+        name = objects.integrate.make_name(variable=variable,
+                                           operator=operator)
 
         fn = objects.integrate.FN_OUT_FORMAT.format(
             base_name=self.base_name, objects_name=objects_name,
@@ -484,8 +505,10 @@ class ComputeObjectScale(luigi.Task):
         da_objects = xr.open_dataarray(inputs.pop('objects').fn)
         kwargs = dict((k, v.open()) for (k, v) in inputs.items())
 
+        variable, operator = self._get_var_and_op()
         ds = objects.integrate.integrate(objects=da_objects,
-                                         variable=self.variable,
+                                         variable=variable,
+                                         operator=operator,
                                          **kwargs)
         ds.to_netcdf(self.output().fn)
 
@@ -624,6 +647,11 @@ class ComputeObjectScales(luigi.Task):
             base_name=self.base_name, objects_name=objects_name,
             name="object_scales.{}".format(scales_identifier),
         )
+
+        # XXX: filenames are max allowed to be 255 characters on linux, this is
+        # a hack to generate a unique filename we can use
+        if len(fn) > 255:
+            fn = "{}.nc".format(hashlib.md5(fn.encode('utf-8')).hexdigest())
 
         p = Path("data")/self.base_name/fn
         target = XArrayTarget(str(p))
