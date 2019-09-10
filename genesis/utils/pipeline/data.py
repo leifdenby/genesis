@@ -602,6 +602,9 @@ class ComputeObjectScales(luigi.Task):
             ds.attrs['base_name'] = self.base_name
             ds.attrs['objects_name'] = objects_name
 
+            # ensure only requested variables are in output file
+            ds = ds[self.variables.split(',')]
+
             ds.to_netcdf(self.output().fn)
 
     def output(self):
