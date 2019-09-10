@@ -4,6 +4,7 @@ from pathlib import Path
 import re
 import warnings
 from functools import partial
+import hashlib
 
 import ipdb
 import luigi
@@ -615,9 +616,10 @@ class ComputeObjectScales(luigi.Task):
             filter_defs=self.object_filters,
         )
 
+        scales_identifier = hashlib.md5(self.variables.encode('utf-8')).hexdigest()
         fn = objects.integrate.FN_OUT_FORMAT.format(
             base_name=self.base_name, objects_name=objects_name,
-            name="object_scales_collection"
+            name="object_scales.{}".format(scales_identifier),
         )
 
         p = Path("data")/self.base_name/fn
@@ -627,11 +629,11 @@ class ComputeObjectScales(luigi.Task):
             ds = target.open(decode_times=False)
             variables = self.variables.split(',')
             if isinstance(ds, xr.Dataset):
-                if any([v not in ds.data_vars for v in variables]):
-                    p.unlink()
-            elif ds.name != self.variables:
-                print(ds.name)
-                p.unlink()
+                if not set(ds.data_vars) == set(variables):
+                    import ipdb
+                    ipdb.set_trace()
+            else:
+                assert ds.name == self.variables
 
         return target
 
