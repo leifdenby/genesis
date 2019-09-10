@@ -4,9 +4,11 @@ import xarray as xr
 import dask_image.ndmeasure
 
 VAR_MAPPINGS = dict(
-    length="minkowski",
-    width="minkowski",
-    thickness="minkowski",
+    length_m="minkowski",
+    width_m="minkowski",
+    thickness_m="minkowski",
+    num_cells="minkowski",
+    volume="minkowski",
     theta="com_incline_and_orientation_angle",
     phi="com_incline_and_orientation_angle",
     x_c="centroid",

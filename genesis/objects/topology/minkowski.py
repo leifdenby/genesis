@@ -34,9 +34,9 @@ def calc_scales(object_labels, dx):
 
     ds = xr.Dataset(coords=dict(object_id=object_ids))
 
-    mf_variables = "length width thickness genus".split(" ")
+    mf_variables = "length_m width_m thickness_m genus_m".split(" ")
     for n, v in enumerate(mf_variables):
-        units = 'm' if v != "genus" else "1"
+        units = 'm' if v != "genus_m" else "1"
         ds[v] = xr.DataArray(data=mf[n,:], coords=dict(object_id=object_ids,),
                              dims=('object_id',), attrs=dict(units=units))
 
