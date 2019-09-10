@@ -19,6 +19,7 @@ import numpy as np
 from scipy import ndimage
 from scipy.constants import pi
 from tqdm import tqdm
+import dask_image.ndmeasure
 
 from . import integral_properties
 from . import minkowski_scales
@@ -54,11 +55,13 @@ def _integrate_scalar(objects, da, operator):
     dx = find_grid_spacing(da)
 
     if operator == "volume_integral":
-        fn = ndimage.sum
+        # fn = ndimage.sum
+        fn = dask_image.ndmeasure.sum
         s = dx**3.0
         operator_units = 'm^3'
     else:
-        fn = getattr(ndimage, operator)
+        # fn = getattr(ndimage, operator)
+        fn = getattr(dask_image.ndmeasure, operator)
         s = 1.0
         operator_units = ''
 
@@ -70,12 +73,15 @@ def _integrate_scalar(objects, da, operator):
 
     longname = "per-object {} of {}".format(operator.replace('_', ' '), da.name)
     units = ("{} {}".format(da.units, operator_units)).strip()
-    da = xr.DataArray(vals, coords=dict(object_id=object_ids),
+    da_integrated = xr.DataArray(vals, coords=dict(object_id=object_ids),
                       dims=('object_id',),
                       attrs=dict(longname=longname, units=units),
                       name='{}__{}'.format(da.name, operator))
 
-    return da
+    if da.name == 'volume':
+        da_integrated.name = "volume"
+
+    return da_integrated
 
 
 def _integrate_per_object(da_objects, fn_int):
@@ -101,12 +107,12 @@ def _integrate_per_object(da_objects, fn_int):
 
     return xr.concat(ds_per_object, dim='object_id')
 
-def get_integrate_requirements(variable):
+def get_integration_requirements(variable):
     if variable.endswith('_vertical_flux'):
         var_name = variable[:len('_vertical_flux')]
         return dict(w='w', scalar=var_name)
     else:
-        return []
+        return {}
 
 def integrate(objects, variable, operator='volume_integral', **kwargs):
     ds_out = None
@@ -137,14 +143,16 @@ def integrate(objects, variable, operator='volume_integral', **kwargs):
             # we can't actually set the name of a dataset, this only works with
             # data arrays
             pass
-    elif variable == 'volume':
-        dx = find_grid_spacing(objects)
-        da_scalar = xr.DataArray(
-            np.ones_like(objects, dtype=np.float)*dx**3.0,
-            coords=objects.coords, attrs=dict(units='m^3')
-        )
-        da_scalar.name = 'volume'
-    elif variable in ['length', 'width', 'thickness']:
+    # XXX: volume is actually calculated by the minkowski routines which have
+    # been verified against those below (keeping in case I forget)
+    # elif variable == 'volume':
+        # dx = find_grid_spacing(objects)
+        # da_scalar = xr.DataArray(
+            # np.ones_like(objects, dtype=np.float),
+            # coords=objects.coords, attrs=dict(units='1')
+        # )
+        # da_scalar.name = 'volume'
+    elif variable in ['length_m', 'width_m', 'thickness_m', 'volume', 'num_cells']:
         ds_minkowski = minkowski_scales.main(da_objects=objects)
         ds_out = ds_minkowski[variable]
     elif variable == 'r_equiv':
