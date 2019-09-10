@@ -16,6 +16,7 @@ import yaml
 from ...bulk_statistics import cross_correlation_with_height
 from ... import length_scales
 from ... import objects
+from .. import plot_types
 
 from . import data
 
@@ -670,8 +671,8 @@ class MinkowskiCharacteristicScalesFit(luigi.Task):
 
 class ObjectsScaleDist(luigi.Task):
     var_name = luigi.Parameter(default='length')
-    dv = luigi.FloatParameter(default=25.)
-    v_max = luigi.FloatParameter(default=400.)
+    dv = luigi.FloatParameter(default=None)
+    v_max = luigi.FloatParameter(default=None)
     file_type = luigi.Parameter(default='png')
 
     base_names = luigi.Parameter()
@@ -714,11 +715,12 @@ class ObjectsScaleDist(luigi.Task):
             else:
                 da_v = input
 
+            da_v = da_v[~np.isinf(da_v)]
             desc = base_name.replace('_', ' ').replace('.', ' ')
-            da_v.plot.hist(ax=ax, alpha=0.4, label=desc,
-                           **self._calc_fixed_bin_args(
-                               v=da_v.values, dv=self.dv)
-                          )
+            kws = dict()
+            if self.dv is not None:
+                kws.update(self._calc_fixed_bin_args(v=da_v.values, dv=self.dv))
+            da_v.plot.hist(ax=ax, alpha=0.4, label=desc, **kws)
 
         sns.despine()
         plt.legend()
@@ -746,9 +748,15 @@ class ObjectsScaleDist(luigi.Task):
         return luigi.LocalTarget(fn)
 
 class ObjectsScalesJointDist(luigi.Task):
-    var1 = luigi.Parameter()
-    var2 = luigi.Parameter()
+    x = luigi.Parameter()
+    y = luigi.Parameter()
     file_type = luigi.Parameter(default='png')
+
+    xmax = luigi.FloatParameter(default=None)
+    ymax = luigi.FloatParameter(default=None)
+    plot_type = luigi.Parameter(default='scatter')
+    plot_aspect = luigi.FloatParameter(default=None)
+    plot_annotations = luigi.Parameter(default=None)
 
     base_names = luigi.Parameter()
     mask_method = luigi.Parameter()
@@ -761,7 +769,7 @@ class ObjectsScalesJointDist(luigi.Task):
             (
                 base_name,
                 data.ComputeObjectScales(
-                    variables="{},{}".format(self.var1, self.var2),
+                    variables="{},{}".format(self.x, self.y),
                     base_name=base_name,
                     mask_method=self.mask_method,
                     mask_method_extra_args=self.mask_method_extra_args,
@@ -782,22 +790,111 @@ class ObjectsScalesJointDist(luigi.Task):
     def run(self):
         inputs = self.input()
 
-        for n, (base_name, input) in enumerate(inputs.items()):
-            ds = input.open()
-            da_v1 = ds[self.var1]
-            da_v2 = ds[self.var2]
+        kws = {}
+        if self.xmax is not None:
+            kws['xlim'] = (0, self.xmax)
+        if self.ymax is not None:
+            kws['ylim'] = (0, self.ymax)
 
-            desc = base_name.replace('_', ' ').replace('.', ' ')
-            g = sns.jointplot(x=da_v1, y=da_v2, label=desc, s=10)
+        if self.plot_type == 'jointplot':
+            def _lab(label, ds_):
+                ds_['dataset'] = label
+                return ds_
+            dss = [
+                _lab(name, input.open()) for (name, input) in inputs.items()
+            ]
+            ds = xr.concat(dss, dim='dataset')
 
+            g = plot_types.multi_jointplot(x=self.x, y=self.y, z='dataset', ds=ds, **kws)
             ax = g.ax_joint
+            plt.suptitle("{}\n{}".format(self.base_names, self.object_filters), y=1.1)
+            if self.plot_aspect is not None:
+                raise Exception("Can't set aspect ratio on jointplot, set limits instead")
+        elif self.plot_type in ['scatter', 'scatter_hist']:
+            ax = None
+            alpha = 1.0/len(inputs)
+            for n, (base_name, input) in enumerate(inputs.items()):
+                ds = input.open()
+                da_v1 = ds[self.x]
+                da_v2 = ds[self.y]
+
+                desc = base_name.replace('_', ' ').replace('.', ' ')
+                desc += " ({} objects)".format(len(da_v1))
+                if self.plot_type == 'scatter':
+                    if ax is None:
+                        ax = plt.gca()
+                    ax.scatter(x=da_v1.values, y=da_v2.values, alpha=alpha,
+                               label=desc, s=5.)
+                else:
+                    ax = plot_types.make_marker_plot(x=da_v1.values,
+                                                     y=da_v2.values,
+                                                     alpha=alpha)
+
             ax.set_xlabel(xr.plot.utils.label_from_attrs(da_v1))
             ax.set_ylabel(xr.plot.utils.label_from_attrs(da_v2))
+            sns.despine()
+            ax.legend()
+            if self.plot_aspect is not None:
+                ax.set_aspect(self.plot_aspect)
 
-        plt.legend()
+            plt.title("{}\n{}".format(self.base_names, self.object_filters))
+            if self.xmax is not None:
+                ax.set_xlim(None, self.xmax)
+            if self.ymax is not None:
+                ymin = [0.0, None][np.nanmin(da_v1) < 0.0]
+                ax.set_ylim(ymin, self.ymax)
+        else:
+            raise NotImplementedError(self.plot_type)
+
+        # for n, (base_name, input) in enumerate(inputs.items()):
+            # ds = input.open()
+            # da_v1 = ds[self.x]
+            # da_v2 = ds[self.y]
+
+            # desc = base_name.replace('_', ' ').replace('.', ' ')
+            # if hue_label:
+                # ds_ = ds.where(ds[hue_label], drop=True)
+                # ds_[v].plot.hist(ax=ax, bins=bins)
+            # g = sns.jointplot(x=self.x, y=self.y, , s=10)
+
+            # ax = g.ax_joint
+            # ax.set_xlabel(xr.plot.utils.label_from_attrs(da_v1))
+            # ax.set_ylabel(xr.plot.utils.label_from_attrs(da_v2))
+
+        if self.plot_annotations is not None:
+            for annotation in self.plot_annotations.split(','):
+                if (annotation == "plume_vs_thermal"
+                    and self.x == 'z_proj_length'
+                    and self.y == "z_min"):
+                    z_b = 200.
+                    z_cb = 600.
+                    x_ = np.linspace(z_cb-z_b, self.xmax, 100)
+
+                    ax.plot(x_, z_cb-x_, marker='', color='grey',
+                            linestyle='--', alpha=0.6)
+                    t_kws = dict(transform=ax.transData,
+                            color='grey', horizontalalignment='center')
+                    ax.text(356., 100., "thermals", **t_kws)
+                    ax.text(650., 100., "plumes", **t_kws)
+                if annotation == "unit_line":
+                    x_ = np.linspace(
+                        max(ax.get_xlim()[0], ax.get_ylim()[0]),
+                        min(ax.get_xlim()[-1], ax.get_ylim()[-1]),
+                        100
+                    )
+                    ax.plot(x_, x_, linestyle='--', alpha=0.6, color='grey')
+                else:
+                    raise NotImplementedError(annotation, self.x, self.y)
 
         plt.tight_layout()
-        plt.savefig(self.output().fn, bbox_inches='tight')
+        try:
+            plt.savefig(self.output().fn, bbox_inches='tight')
+        except IOError:
+            import hues
+            import uuid
+            fn = "plot.{}.{}".format(str(uuid.uuid4()), self.file_type)
+            hues.warn("filename became to long, saved to `{}`".format(fn))
+            plt.savefig(fn, bbox_inches='tight')
 
     def output(self):
         s_filter = ''
@@ -808,10 +905,19 @@ class ObjectsScalesJointDist(luigi.Task):
                                     .replace('=', '_')
                 )
             )
+
+        objects_name = data.IdentifyObjects.make_name(
+            base_name=self.base_names,
+            mask_method=self.mask_method,
+            mask_method_extra_args=self.mask_method_extra_args,
+            object_splitting_scalar=self.object_splitting_scalar,
+            filter_defs=self.object_filters,
+        )
+
         fn = "objects_scales_joint_dist.{}__{}.{}{}.{}".format(
-            self.var1,
-            self.var2,
-            self.base_names.replace(',', '__'),
+            self.x,
+            self.y,
+            objects_name.replace(',', '__'),
             s_filter,
             self.file_type
         )
