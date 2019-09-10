@@ -21,9 +21,7 @@ def _filter_by_percentile(ds, var_name, frac=90., part="upper"):
         else:
             return ds.where(ds[var_name] > vlim, drop=True)
 
-def _property_filter(f_cond):
-    s_prop_and_op, s_value = f_cond.split("=")
-    prop_name, op_name = s_prop_and_op.split('__')
+def _make_filter_fn(prop_name, op_name, s_value):
 
     if op_name in ["upper_percentile", "lower_percentile"]:
         value = float(s_value)
@@ -36,23 +34,93 @@ def _property_filter(f_cond):
         value = float(s_value)
         fn = lambda da: da.where(op_fn(getattr(da, prop_name), value))
 
-    return prop_name, fn
+    return fn
 
-def parse_defs(filter_defs):
-    filters = dict(reqd_props=[], fns=[])
+def _defs_iterator(filter_defs):
     s_filters = filter_defs.split(',')
-
     for s_filter in s_filters:
         try:
             f_type, f_cond = s_filter.split(':')
+            s_prop_and_op, s_value = f_cond.split("=")
+
             if f_type == 'prop':
-                prop_name, fn = _property_filter(f_cond)
-                filters['reqd_props'].append(prop_name)
-                filters['fns'].append(fn)
+                i = s_prop_and_op.rfind('__')
+                prop_name, op_name = s_prop_and_op[:i], s_prop_and_op[i+2:]
+                yield f_type, (prop_name, op_name, s_value)
             else:
                 raise NotImplementedError("Filter type `{}` not recognised"
                                           "".format(f_type))
         except (IndexError, ValueError) as e:
             raise Exception("Malformed filter definition: `{}`".format(
                             s_filter))
+
+def parse_defs(filter_defs):
+    filters = dict(reqd_props=[], fns=[])
+
+    for (f_type, f_def) in _defs_iterator(filter_defs):
+        if f_type == 'prop':
+            prop_name, op_name, s_value = f_def
+            fn = _make_filter_fn(prop_name, op_name, s_value)
+            filters['reqd_props'].append(prop_name)
+            filters['fns'].append(fn)
+        else:
+            raise NotImplementedError
+
     return filters
+
+PROP_NAME_MAPPING = dict(
+    num_cells="N_c",
+    z_max="z_{max}",
+    z_min="z_{min}",
+    qv_flux="w'q'"
+)
+
+def _get_prop_name_in_latex(s):
+    latex = PROP_NAME_MAPPING.get(s)
+    if latex is None:
+        if '__' in s:
+            prop, op = s.split('__')
+            if op == 'volume_integral':
+                latex = r"\int_V {}".format(_get_prop_name_in_latex(prop))
+            else:
+                raise NotImplementedError
+        else:
+            latex = s
+    return latex
+
+
+OP_NAME_MAPPING=dict(
+    lt="<",eq="=",gt=">"
+)
+
+def _format_op_for_latex(prop_latex, op_name, s_value):
+    op_latex = OP_NAME_MAPPING.get(op_name)
+    if op_latex is not None:
+        # TODO: implement passing in units
+        s = r"${prop}{op}{val}$".format(
+            prop=prop_latex,
+            op=OP_NAME_MAPPING.get(op_name, op_name),
+            val=s_value
+        )
+    elif op_name.endswith('_percentile'):
+        part, _ = op_name.split('_')
+        s = r"{part} {val}% of ${prop}$ dist.".format(
+            prop=prop_latex, part=part, val=s_value
+        )
+    else:
+        raise NotImplementedError(op_name)
+
+    return s
+
+def latex_format(filter_defs):
+    s_latex = []
+    s_filters = filter_defs.split(',')
+
+    for (f_type, f_def) in _defs_iterator(filter_defs):
+        if f_type == 'prop':
+            prop_name, op_name, s_value = f_def
+            prop_latex=_get_prop_name_in_latex(prop_name)
+            s_latex.append(_format_op_for_latex(prop_latex, op_name, s_value))
+        else:
+            raise NotImplementedError
+    return " and ".join(s_latex)

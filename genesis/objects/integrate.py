@@ -31,7 +31,7 @@ FN_OUT_FORMAT = "{base_name}.objects.{objects_name}.integral.{name}.nc"
 
 def make_name(variable, operator=None):
     if operator:
-        return "{variable}.{operator}".format
+        return "{variable}.{operator}".format(**locals())
     else:
         return variable
 
@@ -114,7 +114,7 @@ def get_integration_requirements(variable):
     else:
         return {}
 
-def integrate(objects, variable, operator='volume_integral', **kwargs):
+def integrate(objects, variable, operator, **kwargs):
     ds_out = None
 
     if variable in objects.coords:
@@ -163,6 +163,10 @@ def integrate(objects, variable, operator='volume_integral', **kwargs):
         da_scalar.attrs['long_name'] = 'equivalent sphere radius'
         da_scalar.name = 'r_equiv'
         ds_out = da_scalar
+    elif variable in kwargs and operator == 'volume_integral':
+        ds_out = _integrate_scalar(objects=objects.squeeze(),
+                                   da=kwargs[variable].squeeze(),
+                                   operator=operator)
     else:
         raise NotImplementedError("Don't know how to calculate `{}`"
                                   "".format(variable))
