@@ -6,12 +6,13 @@ import matplotlib.pyplot as plt
 import xarray as xr
 
 def cdf(v, ax=None):
-    y = 1.0/(np.arange(len(v))+1.)
-    x = np.sort(v)[::-1]
+    N = len(v)
+    y = np.arange(1, N+1)/N
+    x = np.sort(v)#[::-1]
     if ax is None:
         ax = plt.gca()
     ax.plot(x, y, marker='.')
-    ax.set_title('cdf')
+    ax.set_title('ecdf')
 
 def rank(v, ax):
     y = np.sort(v)
