@@ -450,7 +450,7 @@ class ComputeObjectScale(luigi.Task):
             mask_method_extra_args=self.mask_method_extra_args,
         )
 
-        required_fields = integrate.get_integration_requirements(
+        required_fields = objects.integrate.get_integration_requirements(
             variable=self.variable
         )
 
@@ -565,14 +565,26 @@ class ComputeObjectScales(luigi.Task):
             return reqs
 
     def run(self):
-        if self.object_filters is not None:
+        if not "+" in self.base_name and self.object_filters is not None:
             pass
         else:
             if "+" in self.base_name:
-                ds = xr.concat([
-                    fh.open(decode_times=False)
+                def _strip_coord(ds_):
+                    """
+                    remove the values of the `object_id` coordinate so that
+                    we can concate along it without having duplicates. We keep
+                    a copy of the original object id values
+                    """
+                    obj_id = ds_['object_id']
+                    del(ds_['object_id'])
+                    ds_['org_object_id'] = ('object_id'), obj_id.values
+                    return ds_
+                dss = [
+                    _strip_coord(fh.open(decode_times=False))
                     for (base_name, fh) in self.input().items()
-                ], dim="object_id")
+                ]
+                ds = xr.concat(dss, dim="object_id")
+                ds['object_id'] = np.arange(ds.object_id.max()+1)
                 Path(self.output().fn).parent.mkdir(parents=True, exist_ok=True)
             else:
                 ds = xr.merge([
