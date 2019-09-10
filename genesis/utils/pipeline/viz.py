@@ -654,7 +654,8 @@ class MinkowskiCharacteristicScalesFit(luigi.Task):
         if axes.shape[0] > 1:
             [ax.set_xlabel('') for ax in axes[0].flatten()]
         [ax.set_title('') for ax in axes[1:].flatten()]
-        plt.suptitle("{}\n{}".format(self.base_names, self.object_filters), y=1.1)
+        s_filters = objects.property_filters.latex_format(self.object_filters)
+        plt.suptitle("{}\n{}".format(self.base_names,s_filters), y=1.1)
         plt.tight_layout()
         plt.savefig(self.output().fn, bbox_inches='tight')
 
@@ -680,6 +681,7 @@ class ObjectsScaleDist(luigi.Task):
     dv = luigi.FloatParameter(default=None)
     v_max = luigi.FloatParameter(default=None)
     file_type = luigi.Parameter(default='png')
+    cumsum_markers = luigi.Parameter(default=None)
 
     base_names = luigi.Parameter()
     mask_method = luigi.Parameter()
@@ -711,8 +713,11 @@ class ObjectsScaleDist(luigi.Task):
 
     def run(self):
         inputs = self.input()
-        fig, ax = plt.subplots()
+        fig, ax = plt.subplots(figsize=(6, 6))
 
+        ax_twin = ax.twinx()
+
+        bins = None
         for n, (base_name, input) in enumerate(inputs.items()):
             input = input.open()
             if isinstance(input, xr.Dataset):
@@ -721,24 +726,40 @@ class ObjectsScaleDist(luigi.Task):
             else:
                 da_v = input
 
-            da_v = da_v[~np.isinf(da_v)]
+            da_v = da_v[np.logical_and(~np.isnan(da_v),~np.isinf(da_v))]
             desc = base_name.replace('_', ' ').replace('.', ' ')
             kws = dict()
             if self.dv is not None:
                 kws.update(self._calc_fixed_bin_args(v=da_v.values, dv=self.dv))
-            da_v.plot.hist(ax=ax, alpha=0.4, label=desc, **kws)
+            if bins is not None:
+                kws['bins'] = bins
+            _, bins, pl_hist = da_v.plot.hist(ax=ax, alpha=0.4, label=desc, **kws)
+
+            # cumulative dist. plot
+            x_ = np.sort(da_v)
+            y_ = np.cumsum(x_)
+            c = pl_hist[0].get_facecolor()
+            ax_twin.plot(x_, y_, color=c, marker='.', linestyle='', markeredgecolor="None")
+
+            if self.cumsum_markers is not None:
+                markers = [float(v) for v in self.cumsum_markers.split(',')]
+                for m in markers:
+                    i = np.nanargmin(np.abs(m*y_[-1]-y_))
+                    x_m = x_[i]
+                    ax_twin.axvline(x_m, color=c, linestyle=':')
 
         s_filters = objects.property_filters.latex_format(self.object_filters)
-        print(s_filters)
         plt.suptitle("{}\n{}".format(self.base_names,s_filters), y=1.1)
+        ax.set_ylabel('num objects')
+        ax_twin.set_ylabel('sum of {}'.format(xr.plot.utils.label_from_attrs(da_v)))
 
-        sns.despine()
-        plt.legend()
+        sns.despine(right=False)
+        lgd = ax.legend(loc='lower center', bbox_to_anchor=(0.5, -0.4))
         if self.v_max is not None:
             ax.set_xlim(0., self.v_max)
 
         plt.tight_layout()
-        plt.savefig(self.output().fn, bbox_inches='tight')
+        plt.savefig(self.output().fn, bbox_inches='tight', bbox_extra_artists=(lgd,))
 
     def output(self):
         s_filter = ''
@@ -817,7 +838,8 @@ class ObjectsScalesJointDist(luigi.Task):
 
             g = plot_types.multi_jointplot(x=self.x, y=self.y, z='dataset', ds=ds, **kws)
             ax = g.ax_joint
-            plt.suptitle("{}\n{}".format(self.base_names, self.object_filters), y=1.1)
+            s_filters = objects.property_filters.latex_format(self.object_filters)
+            plt.suptitle("{}\n{}".format(self.base_names,s_filters), y=1.1)
             if self.plot_aspect is not None:
                 raise Exception("Can't set aspect ratio on jointplot, set limits instead")
         elif self.plot_type in ['scatter', 'scatter_hist']:
