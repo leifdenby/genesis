@@ -755,6 +755,8 @@ class ExtractCrossSection2D(luigi.Task):
         p_out = Path(self.output().fn)
         p_in = Path(meta['path'])/"cross_sections"/"runtime_slices"/p_out.name
 
+        assert p_in.exists()
+
         p_out.parent.mkdir(exist_ok=True, parents=True)
 
         os.symlink(str(p_in), str(p_out))
