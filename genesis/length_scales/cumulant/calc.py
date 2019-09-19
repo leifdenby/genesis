@@ -370,6 +370,11 @@ class WidthEstimationMethod(Enum):
 
 def _find_width_through_mass_weighting(data, theta, max_width=5000.,
                                        center_only=True):
+    """
+    Integrates the central cumulant over distance to calculate a weighted
+    length-scale. If `center_only` is true only the part that has the same sign
+    as correlation at the origin (0,0) is included.
+    """
     assert data.x.units == 'm'
     sample_fn = _get_line_sample_func(data, theta)
 
