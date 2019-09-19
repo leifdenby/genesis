@@ -642,6 +642,7 @@ class MinkowskiCharacteristicScalesFit(luigi.Task):
 
             ax = plot_to[0]
             desc = base_name.replace('_', ' ').replace('.', ' ')
+            desc += "\n({} objects)".format(len(da_v.object_id))
             ax.text(-0.3, 0.5, desc, transform=ax.transAxes,
                     horizontalalignment='right')
 
