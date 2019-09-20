@@ -121,13 +121,16 @@ def get_height_variation_of_characteristic_scales(v1_3d, z_max,
             v2 = _extract_horizontal(v2_3d, z=z)
             v2 = v2.rename(dict(xt='x', yt='y'))
 
-        if 'zt' in mask.coords:
-            mask_2d = mask.sel(zt=v1.zt)
-        else:
-            mask_2d = mask
+        if mask is not None:
+            if 'zt' in mask.coords:
+                mask_2d = mask.sel(zt=v1.zt)
+            else:
+                mask_2d = mask
 
-        mask_2d = mask_2d.rename(dict(xt='x', yt='y'))
-        mask_2d.attrs.update(mask.attrs)
+            mask_2d = mask_2d.rename(dict(xt='x', yt='y'))
+            mask_2d.attrs.update(mask.attrs)
+        else:
+            mask_2d = None
 
         scales = cumulant_analysis.charactistic_scales(v1=v1, v2=v2, mask=mask_2d,
                                                        sample_angle=sample_angle,

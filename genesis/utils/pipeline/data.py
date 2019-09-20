@@ -19,6 +19,7 @@ from ...utils import find_vertical_grid_spacing, calc_flux
 from ...length_scales.minkowski import exponential_fit
 from ...objects import property_filters
 from ...objects import integral_properties
+from ... import length_scales
 
 if 'USE_SCHEDULER' in os.environ:
     from dask.distributed import Client
@@ -55,7 +56,8 @@ class XArrayTarget(luigi.target.FileSystemTarget):
         self.path = path
 
     def open(self, *args, **kwargs):
-        ds = xr.open_dataset(self.path, engine='h5netcdf', *args, **kwargs)
+        # ds = xr.open_dataset(self.path, engine='h5netcdf', *args, **kwargs)
+        ds = xr.open_dataset(self.path, *args, **kwargs)
 
         if len(ds.data_vars) == 1:
             name = list(ds.data_vars)[0]
@@ -145,11 +147,14 @@ class ExtractField3D(luigi.Task):
                     is_composite = True
 
             if not is_composite:
+                opened_inputs = dict([
+                    (k, input.open()) for (k, input) in self.input().items()
+                ])
                 data_loader = self._get_data_loader_module(meta=meta)
                 data_loader.extract_field_to_filename(
                     dataset_meta=meta, path_out=p_out,
                     field_name=self.field_name,
-                    **self.input()
+                    **opened_inputs
                 )
         else:
             raise NotImplementedError(fn_out.fn)
@@ -750,14 +755,14 @@ class ExtractCumulantScaleProfile(luigi.Task):
     def requires(self):
         reqs = {}
         reqs['fields'] = [
-                data.ExtractField3D(base_name=self.base_name,
+                ExtractField3D(base_name=self.base_name,
                                     field_name=self.v1),
-                data.ExtractField3D(base_name=self.base_name,
+                ExtractField3D(base_name=self.base_name,
                                     field_name=self.v2),
         ]
 
         if self.mask is not None:
-            reqs['mask'] = data.MakeMask(method_name=self.mask,
+            reqs['mask'] = MakeMask(method_name=self.mask,
                                          method_extra_args=self.mask_args,
                                          base_name=self.base_name
                                          )
@@ -789,7 +794,7 @@ class ExtractCumulantScaleProfile(luigi.Task):
             base_name=self.base_name, v1=self.v1, v2=self.v2,
             mask=self.mask or "no_mask"
         )
-        return data.XArrayTarget(fn)
+        return XArrayTarget(fn)
 
 class ExtractCrossSection2D(luigi.Task):
     base_name = luigi.Parameter()

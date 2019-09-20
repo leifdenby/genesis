@@ -46,6 +46,10 @@ def fix_cumulant_name(name):
         'd_t': r"\theta_l'",
         'cvrxp': r"\phi",
         'w_zt': r"w",
+        'theta_l': r"\theta_l",
+        'qv': r"q_v",
+        'qc': r"q_c",
+        'theta_l_v': r"\theta_{l,v}",
     }
 
     v1, v2, extra = RE_CUMULANT_NAME.match(name).groups()
@@ -322,7 +326,10 @@ def _get_line_sample_func(data, theta):
     x = data.coords['x']
     y = data.coords['y']
 
-    d_max = data.values.max()
+    # the interpolation method works best for data in the -1:1 range
+    d_scale = max(data.values.max(), -data.values.min())
+    if d_scale == 0.0:
+        d_scale = 1.0
 
     maps = [x, y]
     if data.dims == ('x', 'y'):
@@ -332,7 +339,7 @@ def _get_line_sample_func(data, theta):
         lo = np.array([y[0], x[0]])
         hi = np.array([y[-1], x[-1]])
 
-    interp_f = intergrid.Intergrid(data.values/d_max,
+    interp_f = intergrid.Intergrid(data.values/d_scale,
                                    lo=lo, hi=hi, maps=maps, verbose=0)
 
     def sample(mu):
@@ -345,7 +352,7 @@ def _get_line_sample_func(data, theta):
             p = np.array([x_, y_]).T
         else:
             p = np.array([y_, x_]).T
-        return (x_, y_), interp_f(p)*d_max
+        return (x_, y_), interp_f(p)*d_scale
 
     return sample
 
@@ -378,22 +385,8 @@ def _find_width_through_mass_weighting(data, theta, max_width=5000.,
     assert data.x.units == 'm'
     sample_fn = _get_line_sample_func(data, theta)
 
-    d_max = data.max().values
-    # use corner of domain as reference
-    d_at_inf = 0.0
-    # d_at_inf = data[0,0].values
-
     if center_only:
         data = _extract_cumulant_center(data)
-
-    def sample_fn_normed(mu):
-        """
-        Normalize with value at infinity so that we find the width of the
-        distribution above this value at "infinity"
-        """
-        pts_xy, d_val = sample_fn(mu)
-
-        return pts_xy, (d_val - d_at_inf)/(d_max - d_at_inf)
 
     def mass_weighted_edge(dir):
         # we only integrate positive "mass" contributions, including negative
@@ -402,9 +395,9 @@ def _find_width_through_mass_weighting(data, theta, max_width=5000.,
         # if the correlation is negative we still want to be able to calculate
         # a width, the distance over which the correlation is negative. And so
         # we multiply by the sign at the origin to flip the function
-        s = np.sign(sample_fn_normed(0.0)[1])
+        s = np.sign(sample_fn(0.0)[1])
         def fn(mu):
-            val = sample_fn_normed(mu)[1]
+            val = sample_fn(mu)[1]
             return np.maximum(0, s*val)
 
         fn_inertia = lambda mu: fn(mu)*np.abs(mu)
@@ -420,7 +413,7 @@ def _find_width_through_mass_weighting(data, theta, max_width=5000.,
         # limit so that we avoid getting contributions if the correlation
         # becomes positive again
         x_ = np.linspace(kw['a'], kw['b'], 100)
-        vals_ = s*sample_fn_normed(x_)[1]
+        vals_ = s*sample_fn(x_)[1]
         if np.all(np.isnan(vals_)):
             raise Exception("No valid datapoints found")
         elif np.min(vals_) < 0.0:
