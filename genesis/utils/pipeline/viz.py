@@ -16,7 +16,7 @@ import yaml
 from ...bulk_statistics import cross_correlation_with_height
 from ... import length_scales
 from ... import objects
-from .. import plot_types
+from .. import plot_types, cm_nilearn
 
 from . import data
 
@@ -393,6 +393,52 @@ class HorizontalMeanProfile(luigi.Task):
         )
         return luigi.LocalTarget(fn)
 
+class CrossSection(luigi.Task):
+    base_names = luigi.Parameter()
+    var_name = luigi.Parameter()
+    z = luigi.Parameter()
+
+    def requires(self):
+        return dict([
+            (base_name, data.ExtractField3D(base_name=base_name,
+                                            field_name=self.var_name))
+            for base_name in self.base_names.split(',')
+        ])
+
+    def run(self):
+        da_ = []
+        for base_name, input in self.input().items():
+            da_bn = input.open()
+            da_bn['base_name'] = base_name
+            da_.append(da_bn)
+
+        da = xr.concat(da_, dim='base_name')
+
+        da.coords['xt'] /= 1000.
+        da.coords['yt'] /= 1000.
+        da.coords['xt'].attrs['units'] = 'km'
+        da.coords['yt'].attrs['units'] = 'km'
+        da.coords['xt'].attrs['long_name'] = 'horz. dist.'
+        da.coords['yt'].attrs['long_name'] = 'horz. dist.'
+
+        z = [float(v) for v in self.z.split(',')]
+        da_sliced = da.sel(zt=z, method='nearest')
+        da_sliced.attrs.update(da_[0].attrs)
+
+        kws = {}
+        if len(self.base_names.split(',')) > 1:
+            kws['col'] = 'base_name'
+        if len(z) > 1:
+            kws['row'] = 'zt'
+        if self.var_name.startswith('d_'):
+            kws['center'] = 0.0
+        da_sliced.plot(rasterized=True, robust=True, **kws)
+
+        plt.savefig(self.output().fn, bbox_inches='tight')
+
+    def output(self):
+        fn = "{}.{}.png".format(self.base_names.replace(',', '__'), self.var_name)
+        return luigi.LocalTarget(fn)
 
 class ObjectScalesComparison(luigi.Task):
     plot_definition = luigi.Parameter()
@@ -856,7 +902,7 @@ class ObjectsScalesJointDist(luigi.Task):
                             color='grey', horizontalalignment='center')
                     ax.text(356., 100., "thermals", **t_kws)
                     ax.text(650., 100., "plumes", **t_kws)
-                if annotation == "unit_line":
+                elif annotation == "unit_line":
                     x_ = np.linspace(
                         max(ax.get_xlim()[0], ax.get_ylim()[0]),
                         min(ax.get_xlim()[-1], ax.get_ylim()[-1]),
