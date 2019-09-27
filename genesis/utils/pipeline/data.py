@@ -818,7 +818,8 @@ class ExtractCumulantScaleProfile(luigi.Task):
             base_name=self.base_name, v1=self.v1, v2=self.v2,
             mask=self.mask or "no_mask"
         )
-        return XArrayTarget(fn)
+        p = Path('data')/self.base_name/fn
+        return XArrayTarget(str(p))
 
 class ExtractCrossSection2D(luigi.Task):
     base_name = luigi.Parameter()
