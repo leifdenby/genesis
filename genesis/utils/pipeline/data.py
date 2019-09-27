@@ -42,11 +42,21 @@ def _get_dataset_meta_info(base_name):
     except IOError:
         raise Exception("please define your data sources in datasources.yaml")
 
-    if datasources is None or not base_name in datasources:
+    datasource = None
+    if datasources is not None:
+        if base_name in datasources:
+            datasource = datasources[base_name]
+        elif re.search(r"\.tn\d+$", base_name):
+            base_name, timestep = base_name.split('.tn')
+            datasource = datasources[base_name]
+            datasource["timestep"] = int(timestep)
+
+    if datasource is None:
         raise Exception("Please make a definition for `{}` in "
                         "datasources.yaml".format(base_name))
 
-    return datasources[base_name]
+    return datasource
+
 
 class XArrayTarget(luigi.target.FileSystemTarget):
     fs = luigi.local_target.LocalFileSystem()
@@ -74,6 +84,7 @@ class XArrayTarget(luigi.target.FileSystemTarget):
 COMPOSITE_FIELD_METHODS = dict(
     p_stddivs=(mask_functions.calc_scalar_perturbation_in_std_div, []),
     flux=(calc_flux.compute_vertical_flux, ['w',]),
+    _prefix__d=(calc_flux.get_horz_devition, []),
 )
 
 class ExtractField3D(luigi.Task):
@@ -107,14 +118,20 @@ class ExtractField3D(luigi.Task):
                 reqs[req_field] = ExtractField3D(base_name=self.base_name,
                                                  field_name=req_field)
 
-        for (postfix, (func, extra_fields)) in COMPOSITE_FIELD_METHODS.items():
-            if self.field_name.endswith(postfix):
-                req_field = self.field_name.replace('_{}'.format(postfix), '')
-                # XXX: the p_stddivs method takes a `da` arg for now because it
-                # is general purpose
+        for (affix, (func, extra_fields)) in COMPOSITE_FIELD_METHODS.items():
+            req_field = None
+            if affix.startswith('_prefix__'):
+                prefix = affix.replace('_prefix__', '')
+                if self.field_name.startswith(prefix):
+                    req_field = self.field_name.replace('{}_'.format(prefix), '')
+            else:
+                postfix = affix
+                if self.field_name.endswith(postfix):
+                    req_field = self.field_name.replace('_{}'.format(postfix), '')
+
+            if req_field is not None:
                 reqs['da'] = ExtractField3D(base_name=self.base_name,
                                                  field_name=req_field)
-
                 for v in extra_fields:
                     reqs[v] = ExtractField3D(base_name=self.base_name,
                                              field_name=v)
@@ -133,8 +150,15 @@ class ExtractField3D(luigi.Task):
             p_out.parent.mkdir(parents=True, exist_ok=True)
 
             is_composite = False
-            for (postfix, (func, _)) in COMPOSITE_FIELD_METHODS.items():
-                if self.field_name.endswith(postfix):
+            for (affix, (func, _)) in COMPOSITE_FIELD_METHODS.items():
+                if affix.startswith('_prefix__'):
+                    prefix = affix.replace('_prefix__', '')
+                    is_composite = self.field_name.startswith(prefix)
+                else:
+                    postfix = affix
+                    is_composite = self.field_name.endswith(postfix)
+
+                if is_composite:
                     das_input = dict([
                         (k, input.open(decode_times=False))
                         for (k, input) in self.input().items()
@@ -144,7 +168,7 @@ class ExtractField3D(luigi.Task):
                     # XXX: remove infs for now
                     da = da.where(~np.isinf(da))
                     da.to_netcdf(self.output().fn)
-                    is_composite = True
+                    break
 
             if not is_composite:
                 opened_inputs = dict([
