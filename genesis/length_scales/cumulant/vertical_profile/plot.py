@@ -184,22 +184,27 @@ def plot(data, plot_type, marker='', z_max=None, cumulants=[],
         for p in data.dataset_name.values:
             d = data.sel(dataset_name=p, drop=True).sel(cumulant=cumulant, drop=True)
 
-            line, = d.width_principle.plot(ax=ax, y='zt', marker=marker,
-                                   label="{} principle".format(str(p)), **kwargs)
+            if plot_type == 'angles':
+                line, = d.principle_axis.plot(ax=ax, y='zt', marker=marker,
+                                              label='{} principle orientation'.format(str(p)),
+                                              **kwargs)
+            elif plot_type == 'scales':
+                line, = d.width_principle.plot(ax=ax, y='zt', marker=marker,
+                                       label="{} principle".format(str(p)), **kwargs)
 
-            line2, = d.width_perpendicular.plot(ax=ax, y='zt', marker=marker,
-                                       label="{} perpendicular".format(str(p)),
-                                       color=line.get_color(), linestyle='--',
-                                       **kwargs)
-
+                line2, = d.width_perpendicular.plot(ax=ax, y='zt', marker=marker,
+                                           label="{} perpendicular".format(str(p)),
+                                           color=line.get_color(), linestyle='--',
+                                           **kwargs)
+                lines.append(line2)
+                ax.fill_betweenx(
+                    y=line.get_ydata(), x1=line.get_xdata(),
+                    x2=line2.get_xdata(), color=line.get_color(),
+                    alpha=fill_between_alpha,
+                )
+            else:
+                raise NotImplementedError(plot_type)
             lines.append(line)
-            lines.append(line2)
-
-            ax.fill_betweenx(
-                y=line.get_ydata(), x1=line.get_xdata(),
-                x2=line2.get_xdata(), color=line.get_color(),
-                alpha=fill_between_alpha,
-            )
 
         ax.set_title(fix_cumulant_name(cumulant))
         ax.set_xlabel("characterisc width [m]")

@@ -39,11 +39,6 @@ def fix_cumulant_name(name):
         'q': 'q_t',
         't': r"\theta_l",
         'l': 'q_l',
-        'q_flux': r"w'q_t'",
-        't_flux': r"w'\theta_l'",
-        'l_flux': r"w'q_l'",
-        'd_q': r"q_t'",
-        'd_t': r"\theta_l'",
         'cvrxp': r"\phi",
         'w_zt': r"w",
         'theta_l': r"\theta_l",
@@ -51,13 +46,35 @@ def fix_cumulant_name(name):
         'qc': r"q_c",
         'theta_l_v': r"\theta_{l,v}",
     }
+    def s_map(s):
+        suffix = ''
+        prefix = ''
+        if s.endswith('_flux'):
+            prefix = "w"
+            suffix = "'"
+            var_name = s.replace('_flux', '')
+        elif s.startswith('d_'):
+            suffix = "'"
+            var_name = s[2:]
+        else:
+            var_name = s
+
+        return "{}{}{}".format(
+            prefix, name_mapping.get(var_name, var_name),suffix
+        )
+
 
     v1, v2, extra = RE_CUMULANT_NAME.match(name).groups()
 
     extra = extra.strip()
 
-    v1_latex = name_mapping.get(v1, v1)
-    v2_latex = name_mapping.get(v2, v2)
+    v1_latex = s_map(v1)
+    v2_latex = s_map(v2)
+
+    if v1_latex.count('_') > 1:
+        raise Exception('Please create latex name mapping for `{}`'.format(v1_latex))
+    if v2_latex.count('_') > 1:
+        raise Exception('Please create latex name mapping for `{}`'.format(v2_latex))
 
     if len(extra) > 0:
         return r"$C({},{})$".format(v1_latex, v2_latex) + '\n' + extra
