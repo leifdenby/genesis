@@ -60,23 +60,31 @@ def _get_uclales_field_description(field_name):
     return field_description
 
 def _scale_field(da):
+    modified = False
     if da.units == 'km':
         da.values *= 1000.
         da.attrs['units'] = 'm'
-    elif 'q' in da.name and da.units == 'kg/kg':
+        modified = True
+    elif da.name.startswith('q'):
+        assert da.max() < 1.0 and da.units == 'g/kg'
+        # XXX: there is a bug in UCLALES where the units reported (g/kg) are
+        # actually wrong (they are kg/kg), this messes up the density
+        # calculation later if we don't fix it
         da.values *= 1000.
-        da.attrs['units'] = 'g/kg'
-
-    return da
+        modified = True
+    return da, modified
 
 def _cleanup_units(units):
     return UNITS_FORMAT.get(units, units)
 
-def _calculate_theta_v(theta, qv):
-    assert qv.units == 'g/kg'
-    assert theta.units == 'K'
-
-    return theta*(1.0 + 0.61*qv/1000.)
+def _fix_long_name(da):
+    modified = False
+    # the CF conventions stipulate that the long name attribute should be named
+    # `long_name` not `longname`
+    if 'longname' in da.attrs and not 'long_name' in da.attrs:
+        da.attrs['long_name'] = da.longname
+        modified = True
+    return da, modified
 
 def extract_field_to_filename(dataset_meta, path_out, field_name, **kwargs):
     field_name_src = _get_uclales_field(field_name)
@@ -91,12 +99,21 @@ def extract_field_to_filename(dataset_meta, path_out, field_name, **kwargs):
     if field_name_src == 'w_zt':
         path_in = path_in.parent/path_in.name.replace('.w_zt.', '.w.')
         da_w_orig = xr.open_dataarray(path_in, decode_times=False)
+        da_w_orig, _ = _fix_long_name(da_w_orig)
         da = z_center_field(da_w_orig)
-    if field_name == 'theta_l_v':
+        can_symlink = False
+    elif field_name == 'theta_l_v':
         da = _calc_theta_l_v(**kwargs)
         can_symlink = False
     else:
         da = xr.open_dataarray(path_in, decode_times=False)
+
+    da, modified = _scale_field(da)
+    if modified:
+        can_symlink = False
+    da, modified = _fix_long_name(da)
+    if modified:
+        can_symlink = False
 
     for c in "xt yt zt".split(" "):
         if 'fixes' in dataset_meta:
@@ -106,12 +123,6 @@ def extract_field_to_filename(dataset_meta, path_out, field_name, **kwargs):
                 dx = dataset_meta['dx']
                 da.coords[c] = -0.5*dx + dx*np.arange(0, len(da[c]))
                 da.coords[c].attrs['units'] = 'm'
-
-    # the CF conventions stipulate that the long name attribute should be named
-    # `long_name` not `longname`
-    if 'longname' in da.attrs and not 'long_name' in da.attrs:
-        da.attrs['long_name'] = da.longname
-        can_symlink = False
 
     if field_name_src != field_name:
         can_symlink = False
@@ -124,10 +135,14 @@ def extract_field_to_filename(dataset_meta, path_out, field_name, **kwargs):
 
 
 def _calc_theta_l_v(theta_l, qv, qc, qr):
+    assert qv.units.lower() == 'g/kg' and qv.max() > 1.0
+    assert theta_l.units == 'K'
+
     # qc here refers to q "cloud", the total condensate is qc+qr (here
     # forgetting about ice...)
     eps = 0.608
-    theta_l_v = theta_l*(1.0 + eps*qv - (qc+qr))
+    theta_l_v = theta_l*(1.0 + 1.0e-3*(eps*qv - (qc+qr)))
+
     theta_l_v.attrs['units'] = 'K'
     theta_l_v.attrs['long_name'] = 'virtual liquid potential temperature'
     theta_l_v.name = "theta_l_v"
