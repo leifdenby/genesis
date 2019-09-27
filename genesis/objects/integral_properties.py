@@ -127,7 +127,10 @@ def calc_z_max__dask(da_objs):
         x_3d = da_objs.x
         y_3d = da_objs.y
     else:
-        _, _, z_3d = xr.broadcast(da_objs.x, da_objs.y, da_objs.z)
+        _, _, z_3d = xr.broadcast(da_objs.z, da_objs.y, da_objs.x)
+
+    assert z_3d.shape == da_objs.shape
+    assert z_3d.dims == da_objs.dims
 
     idx = np.unique(da_objs)[1:]
     z_max_vals = dask_image.ndmeasure.maximum(z_3d, da_objs, idx).compute()
@@ -142,7 +145,10 @@ def calc_z_proj_length__dask(da_objs):
         x_3d = da_objs.x
         y_3d = da_objs.y
     else:
-        _, _, z_3d = xr.broadcast(da_objs.x, da_objs.y, da_objs.z)
+        _, _, z_3d = xr.broadcast(da_objs.z, da_objs.y, da_objs.x)
+
+    assert z_3d.shape == da_objs.shape
+    assert z_3d.dims == da_objs.dims
 
     idx = np.unique(da_objs)[1:]
     z_max_vals = dask_image.ndmeasure.maximum(z_3d, da_objs, idx).compute()
@@ -160,10 +166,13 @@ def calc_z_min__dask(da_objs):
         x_3d = da_objs.x
         y_3d = da_objs.y
     else:
-        _, _, z_3d = xr.broadcast(da_objs.x, da_objs.y, da_objs.z)
+        _, _, z_3d = xr.broadcast(da_objs.z, da_objs.y, da_objs.x)
 
     idx = np.unique(da_objs)[1:]
     z_min_vals = dask_image.ndmeasure.minimum(z_3d, da_objs, idx).compute()
+
+    assert z_3d.shape == da_objs.shape
+    assert z_3d.dims == da_objs.dims
 
     z_min = xr.DataArray(data=z_min_vals, coords=[idx], dims=['object_id'])
     z_min.attrs['long_name'] = 'min height'
@@ -175,7 +184,10 @@ def calc_centroid__dask(da_objs):
         x_3d = da_objs.x
         y_3d = da_objs.y
     else:
-        x_3d, y_3d, z_3d = xr.broadcast(da_objs.x, da_objs.y, da_objs.z)
+        x_3d, y_3d, z_3d = xr.broadcast(da_objs.z, da_objs.y, da_objs.x)
+
+    assert z_3d.shape == da_objs.shape
+    assert z_3d.dims == da_objs.dims
 
     idx = np.unique(da_objs)[1:]
     x_c_vals = dask_image.ndmeasure.mean(x_3d, da_objs, idx)

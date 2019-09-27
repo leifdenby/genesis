@@ -49,8 +49,10 @@ def _integrate_scalar(objects, da, operator):
         # special case for allowing integration of coordinates
         da = xr.broadcast(objects, da)[1]
     else:
-        assert objects.dims == da.dims
-        assert objects.shape == da.shape
+        import ipdb
+        with ipdb.launch_ipdb_on_exception():
+            assert objects.dims == da.dims
+            assert objects.shape == da.shape
 
     dx = find_grid_spacing(da)
 
