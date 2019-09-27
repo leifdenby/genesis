@@ -674,7 +674,8 @@ def charactistic_scales(v1, v2=None, l_theta_win=1000., mask=None,
     dataset = xr.Dataset(dict(
         principle_axis=theta_deg,
         width_principle=width_principle_axis,
-        width_perpendicular=width_perpendicular
+        width_perpendicular=width_perpendicular,
+        is_covariant=C_vv[Nx//2,Ny//2]>0
     ))
     dataset['cumulant'] = C_vv.name
 

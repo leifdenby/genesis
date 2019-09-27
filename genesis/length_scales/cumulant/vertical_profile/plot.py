@@ -143,8 +143,8 @@ def plot_angles(data, marker='.', linestyle='', z_max=None, cumulants=[],
 
     return axes
 
-def plot(data, plot_type, marker='', z_max=None, cumulants=[],
-         split_subplots=True, with_legend=True, fill_between_alpha=0.2, **kwargs):
+def plot(data, plot_type, z_max=None, cumulants=[], split_subplots=True,
+         with_legend=True, fill_between_alpha=0.2, **kwargs):
 
     if not plot_type in ["angles", "scales"]:
         raise Exception
@@ -183,16 +183,21 @@ def plot(data, plot_type, marker='', z_max=None, cumulants=[],
 
         for p in data.dataset_name.values:
             d = data.sel(dataset_name=p, drop=True).sel(cumulant=cumulant, drop=True)
+            d_ = d.where(~d.is_covariant, drop=True)
 
             if plot_type == 'angles':
-                line, = d.principle_axis.plot(ax=ax, y='zt', marker=marker,
+                line, = d.principle_axis.plot(ax=ax, y='zt',
                                               label='{} principle orientation'.format(str(p)),
                                               **kwargs)
+                if d_.zt.count() > 0:
+                    d_ = d.where(~d.is_covariant, drop=True)
+                    d_.principle_axis.plot(ax=ax, y='zt', color=line.get_color(),
+                                           marker='x', linestyle='')
             elif plot_type == 'scales':
-                line, = d.width_principle.plot(ax=ax, y='zt', marker=marker,
+                line, = d.width_principle.plot(ax=ax, y='zt',
                                        label="{} principle".format(str(p)), **kwargs)
 
-                line2, = d.width_perpendicular.plot(ax=ax, y='zt', marker=marker,
+                line2, = d.width_perpendicular.plot(ax=ax, y='zt',
                                            label="{} perpendicular".format(str(p)),
                                            color=line.get_color(), linestyle='--',
                                            **kwargs)
@@ -202,9 +207,17 @@ def plot(data, plot_type, marker='', z_max=None, cumulants=[],
                     x2=line2.get_xdata(), color=line.get_color(),
                     alpha=fill_between_alpha,
                 )
+                if d_.zt.count() > 0:
+                    d_ = d.where(d.is_covariant, drop=True)
+                    d_.width_principle.plot(ax=ax, y='zt', color=line.get_color(),
+                                            marker='x', linestyle='')
+                    d_.width_perpendicular.plot(ax=ax, y='zt',
+                                                color=line.get_color(),
+                                                marker='x', linestyle='')
             else:
                 raise NotImplementedError(plot_type)
             lines.append(line)
+
 
         ax.set_title(fix_cumulant_name(cumulant))
         ax.set_xlabel("characterisc width [m]")
