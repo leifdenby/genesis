@@ -13,7 +13,7 @@ def get_horz_devition(da):
     dv = da - da.mean(dim=(da.dims[1], da.dims[2]), dtype=np.float64)
     dv = dv[:,:,:,1:] # remove sub-surface values
     dv.attrs['units'] = da.units
-    dv.attrs['longname'] = "{} horz deviation".format(da.longname)
+    dv.attrs['long_name'] = "{} horz deviation".format(da.long_name)
     dv.name = 'd_{}'.format(dv.name)
     return dv
 
@@ -49,7 +49,7 @@ def center_staggered_field(phi_da):
 
     phi_cc = xr.DataArray(
         phi_cc_vals, coords=coords, dims=dims,
-        attrs=dict(units=phi_da.units, longname=phi_da.longname)
+        attrs=dict(units=phi_da.units, long_name=phi_da.long_name)
     )
 
     phi_cc.name = phi_da.name
@@ -75,17 +75,17 @@ def compute_vertical_flux(da, w):
     # old routines using new array
     # phi_flux = dphi*w
     # phi_flux.attrs['units'] = "{} {}".format(w.units, dphi.units)
-    # dphi_longname = dphi.longname.replace('horz deviation', '').strip()
-    # phi_flux.attrs['longname'] = "{} vertical flux".format(dphi_longname)
+    # dphi_long_name = dphi.long_name.replace('horz deviation', '').strip()
+    # phi_flux.attrs['long_name'] = "{} vertical flux".format(dphi_long_name)
 
-    dphi_longname = dphi.longname.replace('horz deviation', '').strip()
+    dphi_long_name = dphi.long_name.replace('horz deviation', '').strip()
 
     # to inplace update to conserve memory
     phi_flux = dphi
     phi_flux *= w
 
     phi_flux.attrs['units'] = "{} {}".format(w.units, dphi.units)
-    phi_flux.attrs['longname'] = "{} vertical flux".format(dphi_longname)
+    phi_flux.attrs['long_name'] = "{} vertical flux".format(dphi_long_name)
     phi_flux.name = '{}_flux'.format(da.name)
 
     return phi_flux
