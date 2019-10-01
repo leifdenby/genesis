@@ -155,10 +155,12 @@ def plot(data, plot_type, z_max=None, cumulants=[], split_subplots=True,
     if z_max is not None:
         data = data.copy().where(data.zt < z_max, drop=True)
 
+    Nd = data.dataset_name.count()
+
         
     if split_subplots:
         fig, axes = plt.subplots(ncols=len(cumulants), 
-                                 figsize=(2.5*len(cumulants), 4),
+                                 figsize=(2.5*len(cumulants), 4.),
                                  sharex=True, sharey=True)
     else:
         fig, ax = plt.subplots()
@@ -182,8 +184,8 @@ def plot(data, plot_type, z_max=None, cumulants=[], split_subplots=True,
                 ax = axes
 
         for p in data.dataset_name.values:
-            d = data.sel(dataset_name=p, drop=True).sel(cumulant=cumulant, drop=True)
-            d_ = d.where(~d.is_covariant, drop=True)
+            d = data.sel(dataset_name=p, drop=True).sel(cumulant=cumulant, drop=True).dropna(dim='zt')
+            d_ = d.where(d.is_covariant==0, drop=True)
 
             if plot_type == 'angles':
                 line, = d.principle_axis.plot(ax=ax, y='zt',
@@ -192,7 +194,8 @@ def plot(data, plot_type, z_max=None, cumulants=[], split_subplots=True,
                 if d_.zt.count() > 0:
                     d_ = d.where(~d.is_covariant, drop=True)
                     d_.principle_axis.plot(ax=ax, y='zt', color=line.get_color(),
-                                           marker='x', linestyle='')
+                                           marker='_', linestyle='')
+                ax.set_xlabel("principle axis [deg]")
             elif plot_type == 'scales':
                 line, = d.width_principle.plot(ax=ax, y='zt',
                                        label="{} principle".format(str(p)), **kwargs)
@@ -210,24 +213,24 @@ def plot(data, plot_type, z_max=None, cumulants=[], split_subplots=True,
                 if d_.zt.count() > 0:
                     d_ = d.where(d.is_covariant, drop=True)
                     d_.width_principle.plot(ax=ax, y='zt', color=line.get_color(),
-                                            marker='x', linestyle='')
+                                            marker='_', linestyle='')
                     d_.width_perpendicular.plot(ax=ax, y='zt',
                                                 color=line.get_color(),
-                                                marker='x', linestyle='')
+                                                marker='_', linestyle='')
+                ax.set_xlabel("characterisc width [m]")
             else:
                 raise NotImplementedError(plot_type)
             lines.append(line)
 
 
         ax.set_title(fix_cumulant_name(cumulant))
-        ax.set_xlabel("characterisc width [m]")
         ax.set_ylabel(['height [m]',''][i>0])
         sns.despine()
 
     plt.tight_layout()
     if with_legend:
-        plt.subplots_adjust(bottom=0.24)
         lgd = plt.figlegend(lines, [l.get_label() for l in lines], loc='lower center', ncol=2)
+        fig.text(0.5, 0.1-data.dataset_name.count()*0.1, ' ', transform=fig.transFigure)
 
     return axes
 
