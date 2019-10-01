@@ -660,11 +660,14 @@ class MinkowskiCharacteristicScalesFit(luigi.Task):
         return luigi.LocalTarget(fn)
 
 class ObjectsScaleDist(luigi.Task):
-    var_name = luigi.Parameter(default='length')
+    var_name = luigi.Parameter()
     dv = luigi.FloatParameter(default=None)
     v_max = luigi.FloatParameter(default=None)
     file_type = luigi.Parameter(default='png')
+    show_cumsum = luigi.BoolParameter(default=False)
     cumsum_markers = luigi.Parameter(default=None)
+    as_density = luigi.Parameter(default=False)
+    figsize = luigi.Parameter(default='6,6')
 
     base_names = luigi.Parameter()
     mask_method = luigi.Parameter()
@@ -673,19 +676,22 @@ class ObjectsScaleDist(luigi.Task):
     object_filters = luigi.Parameter(default=None)
 
     def requires(self):
-        return dict([
-            (
-                base_name,
-                data.ComputeObjectScales(
-                    variables=self.var_name, base_name=base_name,
-                    mask_method=self.mask_method,
-                    mask_method_extra_args=self.mask_method_extra_args,
-                    object_splitting_scalar=self.object_splitting_scalar,
-                    object_filters=self.object_filters,
-                    )
-            )
-            for base_name in self.base_names.split(',')
-        ])
+        reqs = {}
+        for var_name in self.var_name.split(','):
+            reqs[var_name] = dict([
+                (
+                    base_name,
+                    data.ComputeObjectScales(
+                        variables=self.var_name, base_name=base_name,
+                        mask_method=self.mask_method,
+                        mask_method_extra_args=self.mask_method_extra_args,
+                        object_splitting_scalar=self.object_splitting_scalar,
+                        object_filters=self.object_filters,
+                        )
+                )
+                for base_name in self.base_names.split(',')
+            ])
+        return reqs
 
     @staticmethod
     def _calc_fixed_bin_args(v, dv):
@@ -694,50 +700,85 @@ class ObjectsScaleDist(luigi.Task):
         nbins = int((vmax-vmin)/dv)
         return dict(range=(vmin, vmax), bins=nbins)
 
+    def get_base_name_labels(self):
+        return {}
+
     def run(self):
-        inputs = self.input()
-        fig, ax = plt.subplots(figsize=(6, 6))
+        figsize = [float(v) for v in self.figsize.split(',')]
+        N_vars = len(self.var_name.split(','))
+        N_basenames = len(self.base_names.split(','))
+        fig, axes = plt.subplots(figsize=(figsize[0]*N_vars, figsize[0]), ncols=N_vars,
+                                 sharey=True)
+        if N_vars == 1:
+            axes = [axes,]
 
-        ax_twin = ax.twinx()
+        d_units = []
+        for n, (var_name, inputs) in enumerate(self.input().items()):
+            ax = axes[n]
 
-        bins = None
-        for n, (base_name, input) in enumerate(inputs.items()):
-            input = input.open()
-            if isinstance(input, xr.Dataset):
-                ds = input
-                da_v = ds[self.var_name]
+            if self.show_cumsum:
+                ax_twin = ax.twinx()
+
+            bins = None
+            for n, (base_name, input) in enumerate(inputs.items()):
+                input = input.open()
+                if isinstance(input, xr.Dataset):
+                    ds = input
+                    da_v = ds[var_name]
+                else:
+                    da_v = input
+
+                da_v = da_v[np.logical_and(~np.isnan(da_v),~np.isinf(da_v))]
+                desc = self.get_base_name_labels().get(base_name)
+                if desc is None:
+                    desc = base_name.replace('_', ' ').replace('.', ' ')
+                desc += " ({} objects)".format(int(da_v.object_id.count()))
+                kws = dict(density=self.as_density)
+                if self.dv is not None:
+                    kws.update(self._calc_fixed_bin_args(v=da_v.values, dv=self.dv))
+                if bins is not None:
+                    kws['bins'] = bins
+                _, bins, pl_hist = da_v.plot.hist(ax=ax, alpha=0.4, label=desc, **kws)
+
+                if self.show_cumsum:
+                    # cumulative dist. plot
+                    x_ = np.sort(da_v)
+                    y_ = np.cumsum(x_)
+                    c = pl_hist[0].get_facecolor()
+                    ax_twin.plot(x_, y_, color=c, marker='.', linestyle='', markeredgecolor="None")
+
+                    if self.cumsum_markers is not None:
+                        markers = [float(v) for v in self.cumsum_markers.split(',')]
+                        for m in markers:
+                            i = np.nanargmin(np.abs(m*y_[-1]-y_))
+                            x_m = x_[i]
+                            ax_twin.axvline(x_m, color=c, linestyle=':')
+
+            ax.set_title('')
+            if self.as_density:
+                ax.set_ylabel('object density [1/{}]'.format(da_v.units))
             else:
-                da_v = input
+                ax.set_ylabel('num objects')
+            if self.show_cumsum:
+                ax_twin.set_ylabel('sum of {}'.format(xr.plot.utils.label_from_attrs(da_v)))
 
-            da_v = da_v[np.logical_and(~np.isnan(da_v),~np.isinf(da_v))]
-            desc = base_name.replace('_', ' ').replace('.', ' ')
-            kws = dict()
-            if self.dv is not None:
-                kws.update(self._calc_fixed_bin_args(v=da_v.values, dv=self.dv))
-            if bins is not None:
-                kws['bins'] = bins
-            _, bins, pl_hist = da_v.plot.hist(ax=ax, alpha=0.4, label=desc, **kws)
+            d_units.append(da_v.units)
 
-            # cumulative dist. plot
-            x_ = np.sort(da_v)
-            y_ = np.cumsum(x_)
-            c = pl_hist[0].get_facecolor()
-            ax_twin.plot(x_, y_, color=c, marker='.', linestyle='', markeredgecolor="None")
-
-            if self.cumsum_markers is not None:
-                markers = [float(v) for v in self.cumsum_markers.split(',')]
-                for m in markers:
-                    i = np.nanargmin(np.abs(m*y_[-1]-y_))
-                    x_m = x_[i]
-                    ax_twin.axvline(x_m, color=c, linestyle=':')
+        if all([d_units[0] == u for u in d_units[1:]]):
+            ax1 = axes[0]
+            [ax1.get_shared_x_axes().join(ax1, ax) for ax in axes[1:]]
+            ax1.autoscale()
+            [ax.set_ylabel('') for ax in axes[1:]]
 
         s_filters = objects.property_filters.latex_format(self.object_filters)
         plt.suptitle("{}\n{}".format(self.base_names,s_filters), y=1.1)
-        ax.set_ylabel('num objects')
-        ax_twin.set_ylabel('sum of {}'.format(xr.plot.utils.label_from_attrs(da_v)))
 
-        sns.despine(right=False)
-        lgd = ax.legend(loc='lower center', bbox_to_anchor=(0.5, -0.4))
+        sns.despine(right=not self.show_cumsum)
+        ax_lgd = axes[len(axes)//2]
+        lgd = ax_lgd.legend(
+            loc='upper center', bbox_to_anchor=(0.5, -0.15-0.1*N_basenames),
+        )
+
         if self.v_max is not None:
             ax.set_xlim(0., self.v_max)
 
@@ -754,7 +795,7 @@ class ObjectsScaleDist(luigi.Task):
                 )
             )
         fn = "objects_scale_dist.{}.{}{}.{}".format(
-            self.var_name,
+            self.var_name.replace(',', '__'),
             self.base_names.replace(',', '__'),
             s_filter,
             self.file_type
