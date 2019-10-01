@@ -145,7 +145,7 @@ def calc_z_proj_length__dask(da_objs):
         x_3d = da_objs.x
         y_3d = da_objs.y
     else:
-        _, _, z_3d = xr.broadcast(da_objs.z, da_objs.y, da_objs.x)
+        _, _, z_3d = xr.broadcast(*[da_objs[d] for d in da_objs.dims])
 
     assert z_3d.shape == da_objs.shape
     assert z_3d.dims == da_objs.dims
@@ -166,7 +166,7 @@ def calc_z_min__dask(da_objs):
         x_3d = da_objs.x
         y_3d = da_objs.y
     else:
-        _, _, z_3d = xr.broadcast(da_objs.z, da_objs.y, da_objs.x)
+        _, _, z_3d = xr.broadcast(*[da_objs[d] for d in da_objs.dims])
 
     idx = np.unique(da_objs)[1:]
     z_min_vals = dask_image.ndmeasure.minimum(z_3d, da_objs, idx).compute()
