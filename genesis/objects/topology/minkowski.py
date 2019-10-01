@@ -37,8 +37,14 @@ def calc_scales(object_labels, dx):
     mf_variables = "length_m width_m thickness_m genus_m".split(" ")
     for n, v in enumerate(mf_variables):
         units = 'm' if v != "genus_m" else "1"
-        ds[v] = xr.DataArray(data=mf[n,:], coords=dict(object_id=object_ids,),
-                             dims=('object_id',), attrs=dict(units=units))
+        ds[v] = xr.DataArray(data=mf[n,:],
+            coords=dict(object_id=object_ids,),
+            dims=('object_id',),
+            attrs=dict(
+                units=units,
+                long_name="Minkowski {}".format(v.replace('_m', ''))
+            )
+        )
 
     ds['planarity'] = xr.DataArray(data=planarity,
                                    coords=dict(object_id=object_ids,),
