@@ -34,13 +34,29 @@ try:
 except ImportError:
     HAS_CLOUD_TRACKING = False
 
+DATA_SOURCES = None
+WORKDIR = Path("data")
+
+def add_datasource(name, attrs):
+    global DATA_SOURCES
+    if DATA_SOURCES is None:
+        DATA_SOURCES = {}
+    DATA_SOURCES[name] = attrs
+
+def set_workdir(path):
+    global WORKDIR
+    WORKDIR = path
+
 def _get_dataset_meta_info(base_name):
-    try:
-        with open('datasources.yaml') as fh:
-            loader = getattr(yaml, 'FullLoader', yaml.Loader)
-            datasources = yaml.load(fh, Loader=loader)
-    except IOError:
-        raise Exception("please define your data sources in datasources.yaml")
+    if DATA_SOURCES is not None:
+        datasources = DATA_SOURCES
+    else:
+        try:
+            with open('datasources.yaml') as fh:
+                loader = getattr(yaml, 'FullLoader', yaml.Loader)
+                datasources = yaml.load(fh, Loader=loader)
+        except IOError:
+            raise Exception("please define your data sources in datasources.yaml")
 
     datasource = None
     if datasources is not None:
@@ -191,7 +207,7 @@ class ExtractField3D(luigi.Task):
             field_name=self.field_name
         )
 
-        p = Path("data")/self.base_name/fn
+        p = WORKDIR/self.base_name/fn
 
         return XArrayTarget(str(p))
 
@@ -232,7 +248,7 @@ class MakeMask(luigi.Task):
             method_kwargs[v] = xr.open_dataarray(target.fn, decode_times=False)
 
         cwd = os.getcwd()
-        p_data = Path('data')/self.base_name
+        p_data = WORKDIR/self.base_name
         os.chdir(p_data)
         mask = make_mask.main(method=self.method_name, method_kwargs=method_kwargs)
         os.chdir(cwd)
@@ -270,7 +286,7 @@ class MakeMask(luigi.Task):
         fn = make_mask.OUT_FILENAME_FORMAT.format(
             base_name=self.base_name, mask_name=mask_name
         )
-        p = Path('data')/self.base_name/fn
+        p = WORKDIR/self.base_name/fn
         return XArrayTarget(str(p))
 
 class FilterObjects(luigi.Task):
@@ -353,7 +369,7 @@ class FilterObjects(luigi.Task):
         fn = objects.identify.OUT_FILENAME_FORMAT.format(
             base_name=self.base_name, objects_name=objects_name
         )
-        p = Path("data")/self.base_name/fn
+        p = WORKDIR/self.base_name/fn
         return XArrayTarget(str(p))
 
 class IdentifyObjects(luigi.Task):
@@ -431,7 +447,7 @@ class IdentifyObjects(luigi.Task):
         fn = objects.identify.OUT_FILENAME_FORMAT.format(
             base_name=self.base_name, objects_name=objects_name
         )
-        p = Path("data")/self.base_name/fn
+        p = WORKDIR/self.base_name/fn
 
         return XArrayTarget(str(p))
 
@@ -469,7 +485,7 @@ class ComputeObjectMinkowskiScales(luigi.Task):
             base_name=self.base_name, objects_name=objects_name
         )
 
-        p = Path("data")/self.base_name/fn
+        p = WORKDIR/self.base_name/fn
         return XArrayTarget(str(p))
 
 class ComputeObjectScale(luigi.Task):
@@ -526,7 +542,7 @@ class ComputeObjectScale(luigi.Task):
             base_name=self.base_name, objects_name=objects_name,
             name=name
         )
-        p = Path("data")/self.base_name/fn
+        p = WORKDIR/self.base_name/fn
         return XArrayTarget(str(p))
 
     def run(self):
@@ -682,7 +698,7 @@ class ComputeObjectScales(luigi.Task):
         if len(fn) > 255:
             fn = "{}.nc".format(hashlib.md5(fn.encode('utf-8')).hexdigest())
 
-        p = Path("data")/self.base_name/fn
+        p = WORKDIR/self.base_name/fn
         target = XArrayTarget(str(p))
 
         if target.exists():
@@ -752,7 +768,7 @@ class FilterObjectScales(ComputeObjectScales):
             name="object_scales_collection"
         )
 
-        p = Path("data")/self.base_name/fn
+        p = WORKDIR/self.base_name/fn
         target = XArrayTarget(str(p))
 
         if target.exists():
@@ -818,7 +834,7 @@ class ExtractCumulantScaleProfile(luigi.Task):
             base_name=self.base_name, v1=self.v1, v2=self.v2,
             mask=self.mask or "no_mask"
         )
-        p = Path('data')/self.base_name/fn
+        p = WORKDIR/self.base_name/fn
         return XArrayTarget(str(p))
 
 class ExtractCrossSection2D(luigi.Task):
@@ -848,7 +864,7 @@ class ExtractCrossSection2D(luigi.Task):
             field_name=self.field_name
         )
 
-        p = Path("data")/self.base_name/"cross_sections"/"runtime_slices"/fn
+        p = WORKDIR/self.base_name/"cross_sections"/"runtime_slices"/fn
 
         return luigi.LocalTarget(str(p))
 
@@ -986,7 +1002,7 @@ class ExtractCloudbaseState(luigi.Task):
 
     def output(self):
         fn = "{}.{}.cloudbase.xy.nc".format(self.base_name, self.field_name)
-        p = Path('data')/self.base_name/fn
+        p = WORKDIR/self.base_name/fn
         return XArrayTarget(str(p))
 
 
@@ -1021,6 +1037,6 @@ class EstimateCharacteristicMinkowskiScales(luigi.Task):
         fn = '{}.{}.exp_fit_scales.nc'.format(
             self.base_name, mask_name
         )
-        p = Path("data")/self.base_name/fn
+        p = WORKDIR/self.base_name/fn
         target = XArrayTarget(str(p))
         return target
