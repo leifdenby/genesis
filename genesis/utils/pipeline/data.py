@@ -837,6 +837,52 @@ class ExtractCumulantScaleProfile(luigi.Task):
         p = WORKDIR/self.base_name/fn
         return XArrayTarget(str(p))
 
+
+class ExtractCumulantScaleProfiles(luigi.Task):
+    base_names = luigi.Parameter()
+    cumulants = luigi.Parameter()
+
+    mask = luigi.Parameter(default=None)
+    mask_args = luigi.Parameter(default='')
+
+    def _parse_cumulant_arg(self):
+        cums = [c.split(':') for c in self.cumulants.split(',')]
+        return [c for (n,c) in enumerate(cums) if cums.index(c) == n]
+
+    def requires(self):
+        reqs = {}
+
+        for base_name in self.base_names.split(','):
+            reqs[base_name] = [
+                ExtractCumulantScaleProfile(
+                    base_name=base_name, v1=c[0], v2=c[1],
+                    mask=self.mask, mask_args=self.mask_args,
+                )
+                for c in self._parse_cumulant_arg()
+            ]
+
+        return reqs
+
+    def run(self):
+        datasets = []
+        for base_name in self.base_names.split(','):
+            ds_ = xr.concat([
+                input.open(decode_times=False)
+                for input in self.input()[base_name]
+            ], dim='cumulant')
+            ds_['dataset_name'] = base_name
+            datasets.append(ds_)
+
+        ds = xr.concat(datasets, dim='dataset_name')
+        ds.to_netcdf(self.output().fn)
+
+    def output(self):
+        unique_props = (self.base_names + self.cumulants)
+        unique_identifier = hashlib.md5(unique_props.encode('utf-8')).hexdigest()
+        fn = "cumulant_profile.{}.nc".format(unique_identifier)
+        p = WORKDIR/fn
+        return XArrayTarget(str(p))
+
 class ExtractCrossSection2D(luigi.Task):
     base_name = luigi.Parameter()
     field_name = luigi.Parameter()

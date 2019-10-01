@@ -35,30 +35,15 @@ class CumulantScalesProfile(luigi.Task):
         return [c for (n,c) in enumerate(cums) if cums.index(c) == n]
 
     def requires(self):
-        reqs = {}
-
-        for base_name in self.base_names.split(','):
-            reqs[base_name] = [
-                data.ExtractCumulantScaleProfile(
-                    base_name=base_name, v1=c[0], v2=c[1],
-                    mask=self.mask, mask_args=self.mask_args,
-                )
-                for c in self._parse_cumulant_arg()
-            ]
-
-        return reqs
+        return data.ExtractCumulantScaleProfiles(
+            base_names=self.base_names,
+            cumulants=self.cumulants,
+            mask=self.mask,
+            mask_args=self.mask_args,
+        )
 
     def run(self):
-        datasets = []
-        for base_name in self.base_names.split(','):
-            ds_ = xr.concat([
-                input.open(decode_times=False)
-                for input in self.input()[base_name]
-            ], dim='cumulant')
-            ds_['dataset_name'] = base_name
-            datasets.append(ds_)
-
-        ds = xr.concat(datasets, dim='dataset_name')
+        ds = self.input().open()
 
         cumulants = self._parse_cumulant_arg()
         cumulants_s = ["C({},{})".format(c[0],c[1]) for c in cumulants]
@@ -318,7 +303,7 @@ class CumulantSlices(luigi.Task):
             for base_name in base_names
         )
 
-    def run(self):
+    def makeplot(self):
         base_names = self.base_names.split(',')
 
         datasets = []
@@ -337,8 +322,12 @@ class CumulantSlices(luigi.Task):
         plot_fn = length_scales.cumulant.sections.plot
         import ipdb
         with ipdb.launch_ipdb_on_exception():
-            plot_fn(datasets=datasets, var_names=[self.v1, self.v2],)
+            ax = plot_fn(datasets=datasets, var_names=[self.v1, self.v2],)
 
+        return ax
+
+    def run(self):
+        self.makeplot()
         plt.savefig(self.output().fn, bbox_inches='tight')
 
     def output(self):
@@ -812,7 +801,7 @@ class ObjectsScalesJointDist(luigi.Task):
         nbins = int((vmax-vmin)/dv)
         return dict(range=(vmin, vmax), bins=nbins)
 
-    def run(self):
+    def make_plot(self):
         inputs = self.input()
 
         kws = {}
@@ -894,7 +883,11 @@ class ObjectsScalesJointDist(luigi.Task):
                     and self.y == "z_min"):
                     z_b = 200.
                     z_cb = 600.
-                    x_ = np.linspace(z_cb-z_b, self.xmax, 100)
+                    if self.xmax is None:
+                        xmax = ax.get_xlim()[1]
+                    else:
+                        xmax = self.xmax
+                    x_ = np.linspace(z_cb-z_b, xmax, 100)
 
                     ax.plot(x_, z_cb-x_, marker='', color='grey',
                             linestyle='--', alpha=0.6)
@@ -913,6 +906,12 @@ class ObjectsScalesJointDist(luigi.Task):
                     raise NotImplementedError(annotation, self.x, self.y)
 
         plt.tight_layout()
+
+        return ax
+
+    def run(self):
+        ax = self.make_plot()
+
         try:
             plt.savefig(self.output().fn, bbox_inches='tight')
         except IOError:
