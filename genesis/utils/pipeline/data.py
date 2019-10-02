@@ -16,7 +16,6 @@ from .. import mask_functions, make_mask
 from ... import objects
 from ...bulk_statistics import cross_correlation_with_height
 from ...utils import find_vertical_grid_spacing, calc_flux
-from ...length_scales.minkowski import exponential_fit
 from ...objects import property_filters
 from ...objects import integral_properties
 from ... import length_scales
@@ -1052,13 +1051,14 @@ class ExtractCloudbaseState(luigi.Task):
         return XArrayTarget(str(p))
 
 
-class EstimateCharacteristicMinkowskiScales(luigi.Task):
+class EstimateCharacteristicScales(luigi.Task):
     object_splitting_scalar = luigi.Parameter()
     base_name = luigi.Parameter()
     mask_method = luigi.Parameter()
     mask_method_extra_args = luigi.Parameter(default='')
     variables = ['length', 'width', 'thickness']
     object_filters = luigi.Parameter(default=None)
+    fit_type = luigi.Parameter(default='exponential')
 
     def requires(self):
         return ComputeObjectScales(
@@ -1071,7 +1071,9 @@ class EstimateCharacteristicMinkowskiScales(luigi.Task):
 
     def run(self):
         ds = self.input().open()
-        ds_scales = ds[self.variables].apply(exponential_fit.fit)
+        assert self.fit_type == 'exponential'
+        fn = length_scales.model_fitting.exponential_fit.fit
+        ds_scales = ds[self.variables].apply(fit)
         ds_scales.to_netcdf(self.output().fn)
 
     def output(self):

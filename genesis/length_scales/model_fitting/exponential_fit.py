@@ -36,7 +36,7 @@ def _fit_exp(v_data, debug=False):
         print(np.mean(beta), np.std(beta))
     return beta
 
-def fit(da_v, dv=None, plot_to=None, debug=False):
+def fit(da_v, dv=None, plot_to=None, debug=False, plot_components='default'):
     """
     Fit an exponential model to da_v, returns the mean and std div of beta the
     scale parameter of the distribution
@@ -59,10 +59,11 @@ def fit(da_v, dv=None, plot_to=None, debug=False):
         log_dists = False
         fig, axes = dist_plot(v_data, dv_bin=dv, axes=axes,
                               fit=('exp', (np.mean(beta), np.std(beta)), vrange_fit),
-                              log_dists=log_dists)
+                              log_dists=log_dists, components=plot_components)
         v_sample = vmin_fit + _sample_exp(len(v_data), vrange_fit, np.mean(beta))
-        dist_plot(v_sample, dv_bin=dv, axes=axes, alpha=0.6, log_dists=log_dists)
-        fig.legend(axes[-1].get_lines(), ['data', 'model'])
+        dist_plot(v_sample, dv_bin=dv, axes=axes, alpha=0.6, log_dists=log_dists,
+                  components=plot_components)
+        fig.legend(axes[-1].get_lines(), ['data', 'model'], loc="lower left")
 
     return xr.DataArray.from_dict(dict(
         dims='part',

@@ -1,2 +1,2 @@
 from . import cumulant
-from . import minkowski
+from . import model_fitting

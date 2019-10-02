@@ -567,12 +567,13 @@ class FilamentarityPlanarityComparison(ObjectScalesComparison):
             fn_base.replace('.object_scales.', '.filamentarity_planarity.')
         )
 
-
-class MinkowskiCharacteristicScalesFit(luigi.Task):
+class ObjectScalesFit(luigi.Task):
     var_name = luigi.Parameter(default='length')
     dv = luigi.FloatParameter(default=None)
     v_max = luigi.FloatParameter(default=None)
     file_type = luigi.Parameter(default='png')
+    plot_components = luigi.Parameter(default='default')
+    plot_size = luigi.Parameter(default='3,3')
 
     base_names = luigi.Parameter()
     mask_method = luigi.Parameter()
@@ -595,10 +596,19 @@ class MinkowskiCharacteristicScalesFit(luigi.Task):
             for base_name in self.base_names.split(',')
         ])
 
+    def get_base_name_labels(self):
+        return {}
+
+    def get_suptitle(self):
+        s_filters = objects.property_filters.latex_format(self.object_filters)
+        return "{}\n{}".format(self.base_names,s_filters)
+
     def run(self):
         inputs = self.input()
+        Nc = len(self.plot_components.split(','))
+        sx, sy = [float(v) for v in self.plot_size.split(',')]
         fig, axes = plt.subplots(
-            ncols=4, nrows=len(inputs), figsize=(14, 3*len(inputs)), 
+            ncols=Nc, nrows=len(inputs), figsize=(sx*Nc, sy*len(inputs)), 
             sharex="col", sharey='col'
         )
 
@@ -618,14 +628,17 @@ class MinkowskiCharacteristicScalesFit(luigi.Task):
                 da_v = da_v[da_v > 0.0]
 
             plot_to = axes[n]
-            length_scales.minkowski.exponential_fit.fit(
-                da_v, dv=self.dv, debug=False, plot_to=plot_to
+            length_scales.model_fitting.exponential_fit.fit(
+                da_v, dv=self.dv, debug=False, plot_to=plot_to,
+                plot_components=self.plot_components.split(',')
             )
 
             ax = plot_to[0]
-            desc = base_name.replace('_', ' ').replace('.', ' ')
+            desc = self.get_base_name_labels().get(base_name)
+            if desc is None:
+                desc = base_name.replace('_', ' ').replace('.', ' ')
             desc += "\n({} objects)".format(len(da_v.object_id))
-            ax.text(-0.3, 0.5, desc, transform=ax.transAxes,
+            ax.text(-0.5, 0.5, desc, transform=ax.transAxes,
                     horizontalalignment='right')
 
         sns.despine()
@@ -637,8 +650,7 @@ class MinkowskiCharacteristicScalesFit(luigi.Task):
         if axes.shape[0] > 1:
             [ax.set_xlabel('') for ax in axes[0].flatten()]
         [ax.set_title('') for ax in axes[1:].flatten()]
-        s_filters = objects.property_filters.latex_format(self.object_filters)
-        plt.suptitle("{}\n{}".format(self.base_names,s_filters), y=1.1)
+        plt.suptitle(self.get_suptitle(), y=1.1)
         plt.tight_layout()
         plt.savefig(self.output().fn, bbox_inches='tight')
 
@@ -651,7 +663,7 @@ class MinkowskiCharacteristicScalesFit(luigi.Task):
                                     .replace('=', '_')
                 )
             )
-        fn = "minkowski_scales_exp_fit.{}.{}{}.{}".format(
+        fn = "object_scales_exp_fit.{}.{}{}.{}".format(
             self.var_name,
             self.base_names.replace(',', '__'),
             s_filter,
