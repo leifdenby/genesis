@@ -158,7 +158,7 @@ def integrate(objects, variable, operator, **kwargs):
         ds_minkowski = minkowski_scales.main(da_objects=objects)
         ds_out = ds_minkowski[variable]
     elif variable == 'r_equiv':
-        da_volume = integrate(objects, 'volume')
+        da_volume = integrate(objects, 'volume', operator='sum')
         # V = 4/3 pi r^3 => r = (3/4 V/pi)**(1./3.)
         da_scalar = (3./(4.*pi)*da_volume)**(1./3.)
         da_scalar.attrs['units'] = 'm'
