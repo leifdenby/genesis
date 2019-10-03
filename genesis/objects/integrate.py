@@ -217,15 +217,15 @@ if __name__ == "__main__":
         fn_objects, decode_times=False, chunks=CHUNKS
     ).squeeze()
 
+    name = make_name(variable=args.scalar_field, operator=op,)
+    out_filename = FN_OUT_FORMAT.format(
+        base_name=base_name.replace('/', '__'),
+        objects_name=objects.name,
+        name=name
+    )
+
     ds_out = integrate(objects=objects, variable=args.scalar_field,
                        operator=args.operator)
-
-    out_filename = make_output_filename(
-        base_name=base_name.replace('/', '__'),
-        mask_identifier=objects_mask,
-        variable=scalar_field,
-        operator=op,
-    )
 
     import ipdb
     with ipdb.launch_ipdb_on_exception():

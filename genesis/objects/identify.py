@@ -15,12 +15,14 @@ OUT_FILENAME_FORMAT = "{base_name}.objects.{objects_name}.nc"
 def make_objects_name(mask_name, splitting_var):
     return "{mask_name}.split_on.{splitting_var}".format(**locals())
 
-def label_objects(mask, splitting_scalar, remove_at_edge=True):
-    def _remove_at_edge(object_labels):
-        mask_edge = np.zeros_like(mask)
-        mask_edge[:,:,1] = True  # has to be k==1 because object identification codes treats actual edges as ghost cells
-        mask_edge[:,:,-2] = True
-        cloud_identification.remove_intersecting(object_labels, mask_edge)
+def label_objects(mask, splitting_scalar, remove_at_edge=False):
+    if remove_at_edge:
+        raise NotImplementedError
+        def _remove_at_edge(object_labels):
+            mask_edge = np.zeros_like(mask)
+            mask_edge[:,:,1] = True  # has to be k==1 because object identification codes treats actual edges as ghost cells
+            mask_edge[:,:,-2] = True
+            cloud_identification.remove_intersecting(object_labels, mask_edge)
 
     if mask.shape != splitting_scalar.shape:
         raise Exception("Incompatible shapes of splitting scalar ({}) and "
@@ -34,19 +36,18 @@ def label_objects(mask, splitting_scalar, remove_at_edge=True):
         splitting_scalar.values, mask=mask.values
     )
 
-    if remove_at_edge:
-        _remove_at_edge(object_labels)
+    # if remove_at_edge:
+        # _remove_at_edge(object_labels)
 
     return object_labels
 
-def process(mask, splitting_scalar, remove_at_edge=True):
+def process(mask, splitting_scalar):
     dx = find_grid_spacing(mask)
 
     if splitting_scalar is not None:
         mask = mask.sel(zt=splitting_scalar.zt).squeeze()
 
-    object_labels = label_objects(mask=mask, splitting_scalar=splitting_scalar,
-                                  remove_at_edge=remove_at_edge)
+    object_labels = label_objects(mask=mask, splitting_scalar=splitting_scalar)
 
     da = xr.DataArray(data=object_labels, coords=mask.coords, dims=mask.dims,
                       name="object_labels")
@@ -54,7 +55,6 @@ def process(mask, splitting_scalar, remove_at_edge=True):
     da.name = make_objects_name(
         mask_name=mask.name, splitting_var=splitting_scalar.name
     )
-    da.attrs['edge_touching_objects_removed'] = int(remove_at_edge)
     da.attrs['mask_name'] = mask.name
     da.attrs['splitting_scalar'] = splitting_scalar.name
 
