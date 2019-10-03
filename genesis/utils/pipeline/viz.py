@@ -863,7 +863,10 @@ class ObjectsScalesJointDist(luigi.Task):
         if self.ymax is not None:
             kws['ylim'] = (0, self.ymax)
 
-        if self.plot_type == 'jointplot':
+        if self.plot_type.startswith('jointplot'):
+            if '_' in self.plot_type:
+                kws['joint_type'] = self.plot_type.split('_')[-1]
+
             def _lab(label, ds_):
                 ds_['dataset'] = label
                 return ds_

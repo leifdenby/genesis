@@ -172,7 +172,7 @@ def make_marker_plot(x, y, scale=100., ax=None, marker='o', **kwargs):
     return ax
 
 
-def multi_jointplot(x, y, z, ds, **kwargs):
+def multi_jointplot(x, y, z, ds, joint_type='pointhist', **kwargs):
     """
     like seaborn jointplot but making it possible to plot for multiple (up to
     four) datasets
@@ -200,20 +200,26 @@ def multi_jointplot(x, y, z, ds, **kwargs):
     g = sns.JointGrid(x=x, y=y, data=ds.sel(**{z: z_values}), **kwargs)
     for c, cmap, z_ in zip(colors, cmaps, z_values):
         ds_ = ds.sel(**{z:z_}).dropna(dim='object_id')
-        def point_hist():
-            bin_counts, pts = np.histogramdd([ds_[x], ds_[y]],
-                bins=(bins_x, bins_y), range=(xlim,ylim)
-            )
-            x_e, y_e = pts
-            s = 1500./np.sum(bin_counts)
-            center = lambda x_: 0.5*(x_[1:] + x_[:-1])
-            x_c, y_c = np.meshgrid(center(pts[0]), center(pts[1]), indexing='ij')
-            assert bin_counts.shape == x_c.shape
-            g.ax_joint.scatter(x_c, y_c, s=s*bin_counts, marker='o', color=c,
-                               alpha=0.6)
-        point_hist()
-        # _ = g.ax_joint.scatter(ds_[x], ds_[y], color=c, alpha=0.5, marker='.')
-        # sns.kdeplot(ds_[x], ds_[y], cmap=cmap, ax=g.ax_joint, n_levels=5)
+        if joint_type == 'pointhist':
+            def point_hist():
+                bin_counts, pts = np.histogramdd([ds_[x], ds_[y]],
+                    bins=(bins_x, bins_y), range=(xlim,ylim)
+                )
+                x_e, y_e = pts
+                s = 1500./np.sum(bin_counts)
+                center = lambda x_: 0.5*(x_[1:] + x_[:-1])
+                x_c, y_c = np.meshgrid(center(pts[0]), center(pts[1]), indexing='ij')
+                assert bin_counts.shape == x_c.shape
+                g.ax_joint.scatter(x_c, y_c, s=s*bin_counts, marker='o', color=c,
+                                   alpha=0.6)
+            point_hist()
+        elif joint_type == 'scatter':
+            _ = g.ax_joint.scatter(ds_[x], ds_[y], color=c, alpha=0.5, marker='.')
+        elif joint_type == 'kde':
+            _ = g.ax_joint.scatter(ds_[x], ds_[y], color=c, alpha=0.5, marker='.')
+            sns.kdeplot(ds_[x], ds_[y], cmap=cmap, ax=g.ax_joint, n_levels=5)
+        else:
+            raise NotImplementedError(joint_type)
         _ = g.ax_marg_x.hist(ds_[x], alpha=.6, color=c, range=xlim, density=True, bins=bins_x)
         _ = g.ax_marg_y.hist(ds_[y], alpha=.6, color=c, orientation="horizontal", range=ylim, density=True, bins=bins_y)
 
