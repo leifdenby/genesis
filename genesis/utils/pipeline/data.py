@@ -22,7 +22,7 @@ from ... import length_scales
 
 if 'USE_SCHEDULER' in os.environ:
     from dask.distributed import Client
-    client = Client()
+    client = Client(threads_per_worker=1)
 
 import importlib
 
