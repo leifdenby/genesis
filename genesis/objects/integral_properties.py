@@ -55,14 +55,20 @@ def calc_com_incline_and_orientation_angle(da_mask, plot_ax=None):
         dl_mean = np.sqrt(dx_mean**2. + dy_mean**2.)
         dz_mean = np.nanmean(np.gradient(x_c.z))
 
-        theta = np.arctan2(dz_mean, dl_mean)
+        theta = np.arctan2(dl_mean, dz_mean)
         phi = np.arctan2(dy_mean, dx_mean)
     except ValueError:
         phi = theta = np.nan
 
+    phi = np.rad2deg(phi)
+    theta = np.rad2deg(theta)
+
+    if phi < 0:
+        phi += 180.
+
     return xr.merge([
-        xr.DataArray(phi, name='phi', attrs=dict(long_name='xy-plane angle', units='rad')),
-        xr.DataArray(theta, name='theta', attrs=dict(long_name='z-axis slope angle', units='rad')),
+        xr.DataArray(phi, name='phi', attrs=dict(long_name='xy-plane angle', units='deg')),
+        xr.DataArray(theta, name='theta', attrs=dict(long_name='z-axis slope angle', units='deg')),
     ])
 
 
