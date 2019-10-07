@@ -72,7 +72,9 @@ PROP_NAME_MAPPING = dict(
     num_cells="N_c",
     z_max="z_{max}",
     z_min="z_{min}",
-    qv_flux="w'q'"
+    qv_flux="w'q'",
+    cvrxp_p_stddivs="\sigma(\phi)",
+    qc='q_c',
 )
 
 def _get_prop_name_in_latex(s):
