@@ -82,8 +82,12 @@ def _get_prop_name_in_latex(s):
             prop, op = s.split('__')
             if op == 'volume_integral':
                 latex = r"\int_V {}".format(_get_prop_name_in_latex(prop))
+            elif op == 'maximum_pos_z':
+                latex = r"z(MAX_{{{}}})".format(_get_prop_name_in_latex(prop))
+            elif op == 'maximum':
+                latex = r"{}^{{max}}".format(_get_prop_name_in_latex(prop))
             else:
-                raise NotImplementedError
+                raise NotImplementedError(prop, op)
         else:
             latex = s
     return latex
@@ -124,5 +128,5 @@ def latex_format(filter_defs):
             prop_latex=_get_prop_name_in_latex(prop_name)
             s_latex.append(_format_op_for_latex(prop_latex, op_name, s_value))
         else:
-            raise NotImplementedError
+            raise NotImplementedError(f_type, f_def)
     return " and ".join(s_latex)

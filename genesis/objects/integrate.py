@@ -56,25 +56,36 @@ def _integrate_scalar(objects, da, operator):
 
     dx = find_grid_spacing(da)
 
+    s = None
     if operator == "volume_integral":
         # fn = ndimage.sum
         fn = dask_image.ndmeasure.sum
         s = dx**3.0
         operator_units = 'm^3'
+    elif operator == "maximum_pos_z":
+        fn = dask_image.ndmeasure.maximum_position
+        operator_units = 'm'
     else:
         # fn = getattr(ndimage, operator)
         fn = getattr(dask_image.ndmeasure, operator)
-        s = 1.0
         operator_units = ''
 
     vals = fn(da, labels=objects.values, index=object_ids)
     if hasattr(vals, 'compute'):
         vals = vals.compute()
 
-    vals *= s
+    if s is not None:
+        vals *= s
 
-    longname = "per-object {} of {}".format(operator.replace('_', ' '), da.name)
-    units = ("{} {}".format(da.units, operator_units)).strip()
+    if operator == "maximum_pos_z":
+        longname = "per-object z-pos of maximum {} value".format(da.name)
+        units = "m"
+        z_idxs = vals[:,da.dims.index('zt')]
+        vals = da.zt[z_idxs]
+    else:
+        longname = "per-object {} of {}".format(operator.replace('_', ' '), da.name)
+        units = ("{} {}".format(da.units, operator_units)).strip()
+
     da_integrated = xr.DataArray(vals, coords=dict(object_id=object_ids),
                       dims=('object_id',),
                       attrs=dict(longname=longname, units=units),
@@ -165,10 +176,19 @@ def integrate(objects, variable, operator, **kwargs):
         da_scalar.attrs['long_name'] = 'equivalent sphere radius'
         da_scalar.name = 'r_equiv'
         ds_out = da_scalar
-    elif variable in kwargs and operator == 'volume_integral':
-        ds_out = _integrate_scalar(objects=objects.squeeze(),
-                                   da=kwargs[variable].squeeze(),
-                                   operator=operator)
+    elif variable in kwargs and operator in ['volume_integral', 'maximum', 'maximum_pos_z']:
+        da_scalar = kwargs[variable].squeeze()
+        if not objects.zt.equals(da_scalar.zt):
+            warnings.warn("Objects span smaller range than scalar field to "
+                          "reducing domain of scalar field")
+            da_scalar = da_scalar.sel(zt=objects.zt)
+
+        # ds_out = _integrate_scalar(objects=objects.squeeze(),
+                                   # da=da_scalar,
+                                   # operator=operator)
+        import ipdb
+        with ipdb.launch_ipdb_on_exception():
+            ds_out = _integrate_scalar(objects=objects, da=da_scalar, operator=operator)
     else:
         raise NotImplementedError("Don't know how to calculate `{}`"
                                   "".format(variable))
