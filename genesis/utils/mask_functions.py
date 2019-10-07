@@ -246,6 +246,8 @@ def calc_scalar_perturbation_in_std_div(da):
 
     da_stddivs = da_p_horz/da_stddiv
     da_stddivs.name = '{}_p_stddivs'.format(da.name)
+    da_stddivs.attrs['units'] = '1'
+    da_stddivs.attrs['long_name'] = 'num std. div. perturbation from horz. mean'
     return da_stddivs
 
 
