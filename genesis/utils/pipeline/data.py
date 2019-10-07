@@ -11,6 +11,7 @@ import luigi
 import xarray as xr
 import numpy as np
 import yaml
+import hues
 
 from .. import mask_functions, make_mask
 from ... import objects
@@ -669,8 +670,10 @@ class ComputeObjectScales(luigi.Task):
             ds.attrs['base_name'] = self.base_name
             ds.attrs['objects_name'] = objects_name
 
-            # ensure only requested variables are in output file
-            ds = ds[self.variables.split(',')]
+            if isinstance(ds, xr.Dataset):
+                ds = ds[self.variables.split(',')]
+            else:
+                assert ds.name == self.variables
 
             ds.to_netcdf(self.output().fn)
 
