@@ -641,7 +641,13 @@ class ObjectScalesFit(luigi.Task):
 
     def run(self):
         inputs = self.input()
-        Nc = len(self.plot_components.split(','))
+        if self.plot_components == 'default':
+            plot_components = 'default'
+            Nc = 4
+        else:
+            plot_components = self.plot_components.split(',')
+            Nc = len(plot_components)
+
         sx, sy = [float(v) for v in self.plot_size.split(',')]
         fig, axes = plt.subplots(
             ncols=Nc, nrows=len(inputs), figsize=(sx*Nc, sy*len(inputs)), 
@@ -666,7 +672,7 @@ class ObjectScalesFit(luigi.Task):
             plot_to = axes[n]
             length_scales.model_fitting.exponential_fit.fit(
                 da_v, dv=self.dv, debug=False, plot_to=plot_to,
-                plot_components=self.plot_components.split(',')
+                plot_components=plot_components
             )
 
             ax = plot_to[0]
@@ -751,6 +757,9 @@ class ObjectsScaleDist(luigi.Task):
     def get_base_name_labels(self):
         return {}
 
+    def get_title(self):
+        return ''
+
     def run(self):
         figsize = [float(v) for v in self.figsize.split(',')]
         N_vars = len(self.var_name.split(','))
@@ -794,6 +803,7 @@ class ObjectsScaleDist(luigi.Task):
                     y_ = np.cumsum(x_)
                     c = pl_hist[0].get_facecolor()
                     ax_twin.plot(x_, y_, color=c, marker='.', linestyle='', markeredgecolor="None")
+                    ax_twin.axhline(y=y_[-1], color=c, linestyle='--', alpha=0.3)
 
                     if self.cumsum_markers is not None:
                         markers = [float(v) for v in self.cumsum_markers.split(',')]
@@ -802,7 +812,7 @@ class ObjectsScaleDist(luigi.Task):
                             x_m = x_[i]
                             ax_twin.axvline(x_m, color=c, linestyle=':')
 
-            ax.set_title('')
+            ax.set_title(self.get_title())
             if self.as_density:
                 ax.set_ylabel('object density [1/{}]'.format(da_v.units))
             else:
@@ -860,6 +870,7 @@ class ObjectsScalesJointDist(luigi.Task):
     plot_type = luigi.Parameter(default='scatter')
     plot_aspect = luigi.FloatParameter(default=None)
     plot_annotations = luigi.Parameter(default=None)
+    scaling = luigi.Parameter(default=None)
 
     base_names = luigi.Parameter()
     mask_method = luigi.Parameter()
@@ -920,7 +931,10 @@ class ObjectsScalesJointDist(luigi.Task):
         elif self.plot_type in ['scatter', 'scatter_hist']:
             ax = None
             alpha = 1.0/len(inputs)
+            if ax is None:
+                fig, ax = plt.subplots()
             for n, (base_name, input) in enumerate(inputs.items()):
+                print(base_name)
                 ds = input.open()
                 da_v1 = ds[self.x]
                 da_v2 = ds[self.y]
@@ -928,8 +942,6 @@ class ObjectsScalesJointDist(luigi.Task):
                 desc = base_name.replace('_', ' ').replace('.', ' ')
                 desc += " ({} objects)".format(len(da_v1))
                 if self.plot_type == 'scatter':
-                    if ax is None:
-                        ax = plt.gca()
                     ax.scatter(x=da_v1.values, y=da_v2.values, alpha=alpha,
                                label=desc, s=5.)
                 else:
@@ -946,9 +958,13 @@ class ObjectsScalesJointDist(luigi.Task):
 
             plt.title("{}\n{}".format(self.base_names, self.object_filters))
             if self.xmax is not None:
-                ax.set_xlim(None, self.xmax)
+                ax.set_xlim(np.nanmin(da_v1), self.xmax)
+            else:
+                xmax = np.nanmax(da_v1)
+                xmin = np.nanmin(da_v1)
+                ax.set_xlim(xmin, xmax)
             if self.ymax is not None:
-                ymin = [0.0, None][np.nanmin(da_v1) < 0.0]
+                ymin = [0.0, None][np.nanmin(da_v2) < 0.0]
                 ax.set_ylim(ymin, self.ymax)
         else:
             raise NotImplementedError(self.plot_type)
@@ -996,6 +1012,14 @@ class ObjectsScalesJointDist(luigi.Task):
                     ax.plot(x_, x_, linestyle='--', alpha=0.6, color='grey')
                 else:
                     raise NotImplementedError(annotation, self.x, self.y)
+
+        if self.scaling is None:
+            pass
+        elif self.scaling == "loglog":
+            ax.set_yscale('log')
+            ax.set_xscale('log')
+        else:
+            raise NotImplementedError(self.scaling)
 
         plt.tight_layout()
 
