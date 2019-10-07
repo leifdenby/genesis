@@ -341,28 +341,52 @@ class CumulantSlices(luigi.Task):
 class HorizontalMeanProfile(luigi.Task):
     base_name = luigi.Parameter()
     field_names = luigi.Parameter(default='qv,qc,theta')
+    mask_method = luigi.Parameter(default=None)
+    mask_method_extra_args = luigi.Parameter(default='')
+    mask_only = luigi.BoolParameter()
 
     @property
     def _field_names(self):
         return self.field_names.split(',')
 
     def requires(self):
-        return [
+        reqs = dict(
+            fields=[
             data.ExtractField3D(field_name=v, base_name=self.base_name)
             for v in self._field_names
-        ]
+            ]
+        )
+
+        if self.mask_method is not None:
+            reqs['mask'] = data.MakeMask(
+                    base_name=self.base_name,
+                    method_name=self.mask_method,
+                    method_extra_args=self.mask_method_extra_args
+                )
+        return reqs
 
     def run(self):
         ds = xr.merge([
-            input.open() for input in self.input()
+            input.open() for input in self.input()['fields']
         ])
 
         fig, axes = plt.subplots(ncols=len(self._field_names), sharey=True)
         sns.set(style='ticks')
 
+        mask = None
+        if self.mask_method is not None:
+            mask = self.input()['mask'].open()
+
         title = None
         for v, ax in zip(self._field_names, axes):
-            v_mean = ds[v].mean(dim=('xt', 'yt'), dtype=np.float64,
+            da = ds[v]
+            if mask is not None:
+                if self.mask_only:
+                    other = np.nan
+                else:
+                    other = 0.0
+                da = da.where(mask, other=other)
+            v_mean = da.mean(dim=('xt', 'yt'), dtype=np.float64,
                                 keep_attrs=True)
             v_mean.plot(ax=ax, y='zt')
             ax.set_ylim(0, None)
@@ -376,9 +400,21 @@ class HorizontalMeanProfile(luigi.Task):
         plt.savefig(self.output().fn)
 
     def output(self):
-        fn = "{base_name}.{variables}.mean_profile.pdf".format(
+        if self.mask_method is not None:
+            mask_name = data.MakeMask.make_mask_name(
+                base_name=self.base_name,
+                method_name=self.mask_method,
+                method_extra_args=self.mask_method_extra_args
+            )
+            if self.mask_only:
+                mask_name += "_only"
+        else:
+            mask_name = "nomask"
+
+        fn = "{base_name}.{variables}.{mask_name}.mean_profile.png".format(
             base_name=self.base_name,
-            variables="__".join(self._field_names)
+            variables="__".join(self._field_names),
+            mask_name=mask_name,
         )
         return luigi.LocalTarget(fn)
 
