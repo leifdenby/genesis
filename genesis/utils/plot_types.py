@@ -236,3 +236,14 @@ def multi_jointplot(x, y, z, ds, joint_type='pointhist', **kwargs):
     )
 
     return g
+
+def fixed_bin_hist(v, dv, ax, **kwargs):
+    if dv is None:
+        nbins = None
+        vrange = None
+    else:
+        vmin = np.floor(v.min()/dv)*dv
+        vmax = np.ceil(v.max()/dv)*dv
+        nbins = int((vmax-vmin)/dv)
+        vrange = (vmin, vmax)
+    ax.hist(v, range=vrange, bins=nbins, **kwargs)
