@@ -21,6 +21,8 @@ from ...objects import property_filters
 from ...objects import integral_properties
 from ... import length_scales
 
+import dask_image
+
 if 'USE_SCHEDULER' in os.environ:
     from dask.distributed import Client
     client = Client(threads_per_worker=1)
@@ -1091,3 +1093,80 @@ class EstimateCharacteristicScales(luigi.Task):
         p = WORKDIR/self.base_name/fn
         target = XArrayTarget(str(p))
         return target
+
+class ComputePerObjectProfiles(luigi.Task):
+    base_name = luigi.Parameter()
+    mask_method = luigi.Parameter()
+    mask_method_extra_args = luigi.Parameter(default='')
+    object_splitting_scalar = luigi.Parameter()
+
+    field_name = luigi.Parameter()
+    op = luigi.Parameter()
+    z_max = luigi.FloatParameter(default=None)
+
+    def requires(self):
+        return dict(
+            field=ExtractField3D(
+                base_name=self.base_name,
+                field_name=self.field_name,
+                ),
+            objects=IdentifyObjects(
+                base_name=self.base_name,
+                mask_method=self.mask_method,
+                mask_method_extra_args=self.mask_method_extra_args,
+                splitting_scalar=self.object_splitting_scalar,
+                )
+            )
+
+    def run(self):
+        input = self.input()
+        da = input['field'].open().squeeze()
+        da_objects = input['objects'].open()
+
+        object_ids = np.unique(da_objects.chunk(None).values)
+        if object_ids[0] == 0:
+            object_ids = object_ids[1:]
+
+        kwargs = dict(scalar=da.name, objects=da_objects.name,
+                      object_ids=object_ids, op=self.op)
+
+        ds = xr.merge([da, da_objects])
+
+        if self.z_max is not None:
+            ds = ds.sel(zt=slice(None, self.z_max))
+
+        da_by_height = ds.groupby('zt').apply(self._apply_on_slice, kwargs=kwargs)
+
+        da_by_height.to_netcdf(self.output().fn)
+
+    @staticmethod
+    def _apply_on_slice(ds, kwargs):
+        da_ = ds[kwargs['scalar']].compute()
+        da_objects_ = ds[kwargs['objects']].compute()
+        object_ids = kwargs['object_ids']
+        fn = getattr(dask_image.ndmeasure, kwargs['op'])
+        v = fn(da_, labels=da_objects_, index=object_ids).compute()
+        da = xr.DataArray(data=v, dims=['object_id',],
+                            coords=dict(object_id=object_ids))
+        da.name = "{}__{}".format(da_.name, kwargs['op'])
+        da.attrs['units'] = da_.units
+        da.attrs['long_name'] = '{} of {} per object'.format(
+            kwargs['op'], da_.long_name,
+        )
+        return da
+
+    def output(self):
+        mask_name = MakeMask.make_mask_name(
+            base_name=self.base_name,
+            method_name=self.mask_method,
+            method_extra_args=self.mask_method_extra_args
+        )
+        fn = "{base_name}.{mask_name}.{field_name}__{op}.by_z_per_object{ex}.nc".format(
+            base_name=self.base_name, mask_name=mask_name,
+            field_name=self.field_name, op=self.op,
+            ex=self.z_max is None and "" or "_to_z" + str(self.z_max)
+        )
+        p = WORKDIR/self.base_name/fn
+        target = XArrayTarget(str(p))
+        return target
+

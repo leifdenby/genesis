@@ -1063,3 +1063,86 @@ class ObjectsScalesJointDist(luigi.Task):
             self.file_type
         )
         return luigi.LocalTarget(fn)
+
+class ObjectScaleVsHeightComposition(luigi.Task):
+    x = luigi.Parameter()
+    field_name = luigi.Parameter()
+
+    base_name = luigi.Parameter()
+    mask_method = luigi.Parameter()
+    mask_method_extra_args = luigi.Parameter(default='')
+    object_splitting_scalar = luigi.Parameter()
+
+    # object_filters = luigi.Parameter(default=None)
+
+    dx = luigi.FloatParameter(default=None)
+    z_max = luigi.FloatParameter(default=None)
+    filetype = luigi.Parameter(default='png')
+    x_max = luigi.FloatParameter(default=None)
+
+    def requires(self):
+        return dict(
+            decomp_profile=data.ComputePerObjectProfiles(
+                base_name=self.base_name,
+                mask_method=self.mask_method,
+                mask_method_extra_args=self.mask_method_extra_args,
+                object_splitting_scalar=self.object_splitting_scalar,
+                field_name=self.field_name,
+                op='sum',
+                z_max=self.z_max,
+            ),
+            da_3d=data.ExtractField3D(
+                base_name=self.base_name,
+                field_name=self.field_name,
+            ),
+            scales=data.ComputeObjectScales(
+                base_name=self.base_name,
+                mask_method=self.mask_method,
+                mask_method_extra_args=self.mask_method_extra_args,
+                object_splitting_scalar=self.object_splitting_scalar,
+                variables=self.x,
+            )
+        )
+
+    def run(self):
+        input = self.input()
+        da_field = input['decomp_profile'].open()
+        da_3d = input['da_3d'].open()
+        ds_scales = input['scales'].open()
+        nx, ny = da_3d.xt.count(), da_3d.yt.count()
+
+        ds = xr.merge([da_field, ds_scales])
+
+        if self.z_max is not None:
+            ds = ds.sel(zt=slice(None, self.z_max))
+
+        ds = ds.where(np.logical_and(
+            ~np.isinf(ds[self.x]),
+            ~np.isnan(ds[self.x]),
+        ), drop=True)
+
+        ax = objects.flux_contribution.plot(
+            ds=ds, x=self.x, v=self.field_name + '__sum',
+            nx=nx, ny=ny, dx=self.dx,
+        )
+
+        if self.x_max is not None:
+            ax.set_xlim(None, self.x_max)
+
+        plt.suptitle(self.base_name, y=1.0)
+
+        plt.savefig(self.output().fn, bbox_inches='tight')
+
+
+    def output(self):
+        mask_name = data.MakeMask.make_mask_name(
+            base_name=self.base_name,
+            method_name=self.mask_method,
+            method_extra_args=self.mask_method_extra_args
+        )
+        fn = "{base_name}.{mask_name}.{field_name}__by__{x}.{filetype}".format(
+            base_name=self.base_name, mask_name=mask_name,
+            field_name=self.field_name, x=self.x, filetype=self.filetype
+        )
+        target = luigi.LocalTarget(fn)
+        return target

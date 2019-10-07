@@ -68,3 +68,4 @@ def make_mask_from_objects_file(filename):
 
 from . import topology
 from . import integrate, identify, filter
+from . import flux_contribution
