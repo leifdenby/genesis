@@ -1073,8 +1073,7 @@ class ObjectScaleVsHeightComposition(luigi.Task):
     mask_method_extra_args = luigi.Parameter(default='')
     object_splitting_scalar = luigi.Parameter()
 
-    # object_filters = luigi.Parameter(default=None)
-
+    object_filters = luigi.Parameter(default=None)
     dx = luigi.FloatParameter(default=None)
     z_max = luigi.FloatParameter(default=None)
     filetype = luigi.Parameter(default='png')
@@ -1101,6 +1100,7 @@ class ObjectScaleVsHeightComposition(luigi.Task):
                 mask_method_extra_args=self.mask_method_extra_args,
                 object_splitting_scalar=self.object_splitting_scalar,
                 variables=self.x,
+                object_filters=self.object_filters,
             )
         )
 
@@ -1110,6 +1110,9 @@ class ObjectScaleVsHeightComposition(luigi.Task):
         da_3d = input['da_3d'].open()
         ds_scales = input['scales'].open()
         nx, ny = da_3d.xt.count(), da_3d.yt.count()
+
+        if self.object_filters is not None:
+            da_field.where(da_field.object_id == ds_scales.object_id)
 
         ds = xr.merge([da_field, ds_scales])
 
@@ -1129,9 +1132,14 @@ class ObjectScaleVsHeightComposition(luigi.Task):
         if self.x_max is not None:
             ax.set_xlim(None, self.x_max)
 
-        plt.suptitle(self.base_name, y=1.0)
+        N_objects = int(ds.object_id.count())
+        plt.suptitle(self.get_suptitle(N_objects=N_objects), y=1.0)
 
         plt.savefig(self.output().fn, bbox_inches='tight')
+
+    def get_suptitle(self, N_objects):
+        s_filters = objects.property_filters.latex_format(self.object_filters)
+        return "{} ({} objects)\n{}".format(self.base_name,N_objects, s_filters)
 
 
     def output(self):
@@ -1140,9 +1148,19 @@ class ObjectScaleVsHeightComposition(luigi.Task):
             method_name=self.mask_method,
             method_extra_args=self.mask_method_extra_args
         )
-        fn = "{base_name}.{mask_name}.{field_name}__by__{x}.{filetype}".format(
+        s_filter = ''
+        if self.object_filters is not None:
+            s_filter = '.filtered_by.{}'.format(
+                (self.object_filters.replace(',','.')
+                                    .replace(':', '__')
+                                    .replace('=', '_')
+                )
+            )
+        fn = ("{base_name}.{mask_name}.{field_name}__by__{x}"
+             "{s_filter}.{filetype}".format(
             base_name=self.base_name, mask_name=mask_name,
-            field_name=self.field_name, x=self.x, filetype=self.filetype
-        )
+            field_name=self.field_name, x=self.x, filetype=self.filetype,
+            s_filter=s_filter,
+        ))
         target = luigi.LocalTarget(fn)
         return target
