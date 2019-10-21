@@ -3,6 +3,7 @@ import numpy as np
 import xarray as xr
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+import math
 
 
 class PlotGrid():
@@ -44,11 +45,14 @@ class PlotGrid():
         f.subplots_adjust(hspace=space, wspace=space)
 
 
-def plot(ds, x, v, nx, ny, dx):
+def plot(ds, x, v, nx, ny, dx, da_prof_ref):
     if dx is None:
         bins = np.linspace(ds[x].min(), ds[x].max(), 10)
     else:
-        bins = np.arange(ds[x].min(), ds[x].max(), dx)
+        bins = np.arange(
+            math.floor(ds[x].min()/dx)*dx,
+            math.ceil(ds[x].max()/dx)*dx,
+        dx)
 
     bin_centers = 0.5*(bins[1:] + bins[:-1])
     #fig, axes = plt.subplots(ncols=2, nrows=2, sharex="col", sharey="row", figsize=(10,6))
@@ -58,14 +62,17 @@ def plot(ds, x, v, nx, ny, dx):
     da_flux_per_bin.plot(y='zt', ax=g.ax_joint, add_colorbar=False, robust=True)
 
     # ds.r_equiv.plot.hist(bins=bins, histtype='step', ax=g.ax_marg_x)
-    ds[x].plot.hist(bins=bins, histtype='step', ax=g.ax_marg_x)
+    Nobj_bin_counts, _, _= ds[x].plot.hist(bins=bins, histtype='step',
+                                           ax=g.ax_marg_x)
     g.ax_marg_x.set_ylabel('num objects [1]')
     g.ax_marg_x.set_yscale('log')
-    g.ax_marg_x.yaxis.set_ticks([1., 10., 100., ])
-    g.ax_marg_x.set_ylim(1, 500.)
+    p10_max = np.ceil(np.log10(np.max(Nobj_bin_counts)))
+    g.ax_marg_x.yaxis.set_ticks(10.0**np.arange(0., p10_max))
+    g.ax_marg_x.set_ylim(1, 10.0**p10_max)
 
+    da_prof_ref.plot(y='zt', ax=g.ax_marg_y)
     da_inobject_mean_flux = ds.sum(dim='object_id', dtype=np.float64)[v]/(nx*ny)
-    da_inobject_mean_flux.attrs['long_name'] = 'in-object contrib. to horz. mean flux'
+    da_inobject_mean_flux.attrs['long_name'] = 'horz. mean flux'
     da_inobject_mean_flux.attrs['units'] = ds[v].units
     da_inobject_mean_flux.plot(y='zt', ax=g.ax_marg_y, marker='.')
 
