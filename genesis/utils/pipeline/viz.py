@@ -473,34 +473,54 @@ class ObjectScalesComparison(luigi.Task):
     file_type = luigi.Parameter(default='png')
 
     def _parse_plot_definition(self):
+        loader = getattr(yaml, 'FullLoader', yaml.Loader)
         try:
             with open('{}.yaml'.format(self.plot_definition)) as fh:
-                loader = getattr(yaml, 'FullLoader', yaml.Loader)
                 return yaml.load(fh, Loader=loader)
         except IOError as e:
-            raise e
+            return yaml.load(self.plot_definition, Loader=loader)
 
     def requires(self):
         plot_definition = self._parse_plot_definition()
 
         def _make_dataset_label(**kws):
-            return ", ".join([
-                "{}={}".format(str(k), str(v))
-                for (k,v) in kws.items()
-            ])
+            arr = []
+            for (k, v) in kws.items():
+                if k == 'object_filters':
+                    s = "({})".format(objects.property_filters.latex_format(v))
+                else:
+                    s = "{}={}".format(str(k), str(v))
+                arr.append(s)
+            return ", ".join(arr)
 
         global_kws = plot_definition['global']
 
         variables = set(global_kws.pop('variables').split(','))
 
-        return dict([
-            (
-                _make_dataset_label(**kws),
-                data.ComputeObjectScales(variables=",".join(variables),
-                                         **global_kws, **kws)
-            )
-            for kws in plot_definition['sources']
-        ])
+        def _merge_kws(g_kws, kws):
+            if 'object_filters' in g_kws:
+                g_kws = dict(g_kws)
+                kws['object_filters'] = '{},{}'.format(
+                    g_kws['object_filters'], kws['object_filters']
+                )
+                del(g_kws['object_filters'])
+
+            kws.update(g_kws)
+            return kws
+
+        reqs = {}
+
+        for kws in plot_definition['sources']:
+            if 'label' in kws:
+                label = kws['label']
+            else:
+                label = _make_dataset_label(**kws)
+            all_kws = _merge_kws(global_kws, kws)
+            target = data.ComputeObjectScales(variables=",".join(variables),
+                                              **all_kws)
+            reqs[label] = target
+
+        return reqs
 
     def _parse_filters(self, filter_defs):
         if filter_defs is None:
@@ -557,17 +577,20 @@ class ObjectScalesComparison(luigi.Task):
 
         return ds
 
-    def _set_suptitle(self):
+    def get_suptitle(self):
         plot_definition = self._parse_plot_definition()
         global_params = plot_definition['global']
-        global_params.pop('variables')
 
-        identifier = "\n".join([
-            "{}={}".format(str(k), str(v))
-            for (k,v) in global_params.items()
-        ])
-
-        plt.suptitle(identifier, y=[1.1, 1.5][self.not_pairgrid])
+        if 'object_filters' in global_params:
+            object_filters = global_params['object_filters']
+            return objects.property_filters.latex_format(object_filters)
+        else:
+            global_params.pop('variables')
+            identifier = "\n".join([
+                "{}={}".format(str(k), str(v))
+                for (k,v) in global_params.items()
+            ])
+            return identifier
 
     def run(self):
         ds = self._load_data()
@@ -579,9 +602,10 @@ class ObjectScalesComparison(luigi.Task):
             ds=ds, as_pairgrid=not self.not_pairgrid, variables=variables
         )
 
-        self._set_suptitle()
+        st = plt.suptitle(self.get_suptitle(), y=[1.1, 1.5][self.not_pairgrid])
 
-        plt.savefig(self.output().fn, bbox_inches='tight')
+        plt.savefig(self.output().fn, bbox_inches='tight',
+                    bbox_extra_artists=(st,))
 
     def output(self):
         fn = "{}.object_scales.{}".format(
@@ -594,8 +618,11 @@ class FilamentarityPlanarityComparison(ObjectScalesComparison):
     def run(self):
         ds = self._load_data()
         objects.topology.plots.filamentarity_planarity(ds=ds)
-        self._set_suptitle()
-        plt.savefig(self.output().fn, bbox_inches='tight')
+
+        st = plt.suptitle(self.get_suptitle(), y=[1.05, 1.5][self.not_pairgrid])
+
+        plt.savefig(self.output().fn, bbox_inches='tight',
+                    bbox_extra_artists=(st,))
 
 
     def output(self):

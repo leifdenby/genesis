@@ -54,15 +54,15 @@ def plot_reference(ax, shape, lm_range=None, linestyle='-', marker='o',
 
     xlabel = ax.get_xlabel()
     if xlabel:
-        if xlabel != 'planarity':
-            raise Exception
+        if xlabel not in ['planarity', 'planarity [1]']:
+            raise Exception(xlabel)
     else:
         ax.set_xlabel('planarity')
 
     ylabel = ax.get_ylabel()
     if ylabel:
-        if ylabel != 'filamentarity':
-            raise Exception
+        if ylabel not in ['filamentarity', 'filamentarity [1]']:
+            raise Exception(ylabel)
     else:
         ax.set_ylabel('filamentarity')
 
@@ -105,13 +105,16 @@ def main(ds, auto_scale=True):
         raise NotImplementedError('Need to add some more colourmaps to handle'
                                   ' this number of datasets')
 
-    g = sns.JointGrid(x=x, y=y, data=ds.sel(dataset=datasets[0]),)
-    for c, cmap, dataset in zip(colors, cmaps, datasets):
-        ds_ = ds.sel(dataset=dataset).dropna(dim='object_id')
-        _ = g.ax_joint.scatter(ds_[x], ds_[y], color=c, alpha=0.5, marker='.')
-        sns.kdeplot(ds_[x], ds_[y], cmap=cmap, ax=g.ax_joint, n_levels=5)
-        _ = g.ax_marg_x.hist(ds_[x], alpha=.6, color=c, range=xlim)
-        _ = g.ax_marg_y.hist(ds_[y], alpha=.6, color=c, orientation="horizontal", range=ylim)
+    g = multi_jointplot(x='planarity', y='filamentarity', z='dataset',
+                    ds=ds, joint_type='kde')
+
+    # g = sns.JointGrid(x=x, y=y, data=ds.sel(dataset=datasets[0]),)
+    # for c, cmap, dataset in zip(colors, cmaps, datasets):
+        # ds_ = ds.sel(dataset=dataset).dropna(dim='object_id')
+        # _ = g.ax_joint.scatter(ds_[x], ds_[y], color=c, alpha=0.5, marker='.')
+        # sns.kdeplot(ds_[x], ds_[y], cmap=cmap, ax=g.ax_joint, n_levels=5)
+        # _ = g.ax_marg_x.hist(ds_[x], alpha=.6, color=c, range=xlim)
+        # _ = g.ax_marg_y.hist(ds_[y], alpha=.6, color=c, orientation="horizontal", range=ylim)
 
     LABEL_FORMAT = "{name}: {count} objects"
     g.ax_joint.legend(
@@ -124,7 +127,7 @@ def main(ds, auto_scale=True):
 
     if auto_scale:
         g.ax_joint.set_xlim(-0.0, 0.45)
-        g.ax_joint.set_ylim(-0.0, 0.7)
+        g.ax_joint.set_ylim(-0.0, 0.9)
 
     plot_reference(
         ax=g.ax_joint, shape='spheroid', color="black"
