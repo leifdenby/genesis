@@ -9,6 +9,8 @@ VAR_MAPPINGS = dict(
     thickness_m="minkowski",
     num_cells="minkowski",
     volume="minkowski",
+    filamentarity="minkowski",
+    planarity="minkowski",
     theta="com_incline_and_orientation_angle",
     phi="com_incline_and_orientation_angle",
     x_c="centroid",
@@ -133,7 +135,7 @@ def calc_z_max__dask(da_objs):
         x_3d = da_objs.x
         y_3d = da_objs.y
     else:
-        _, _, z_3d = xr.broadcast(da_objs.z, da_objs.y, da_objs.x)
+        _, _, z_3d = xr.broadcast(*[da_objs[d] for d in da_objs.dims])
 
     assert z_3d.shape == da_objs.shape
     assert z_3d.dims == da_objs.dims
