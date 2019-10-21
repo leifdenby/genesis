@@ -829,7 +829,7 @@ class ObjectsScaleDist(luigi.Task):
             [ax.set_ylabel('') for ax in axes[1:]]
 
         s_filters = objects.property_filters.latex_format(self.object_filters)
-        plt.suptitle("{}\n{}".format(self.base_names,s_filters), y=1.1)
+        st = plt.suptitle("{}\n{}".format(self.base_names,s_filters), y=1.1)
 
         sns.despine(right=not self.show_cumsum)
         ax_lgd = axes[len(axes)//2]
@@ -841,7 +841,7 @@ class ObjectsScaleDist(luigi.Task):
             ax.set_xlim(0., self.v_max)
 
         plt.tight_layout()
-        plt.savefig(self.output().fn, bbox_inches='tight', bbox_extra_artists=(lgd,))
+        plt.savefig(self.output().fn, bbox_inches='tight', bbox_extra_artists=(lgd, st))
 
     def output(self):
         s_filter = ''
@@ -1101,7 +1101,12 @@ class ObjectScaleVsHeightComposition(luigi.Task):
                 object_splitting_scalar=self.object_splitting_scalar,
                 variables=self.x,
                 object_filters=self.object_filters,
-            )
+            ),
+            mask=data.MakeMask(
+                base_name=self.base_name,
+                method_name=self.mask_method,
+                method_extra_args=self.mask_method_extra_args,
+            ),
         )
 
     def run(self):
@@ -1109,7 +1114,11 @@ class ObjectScaleVsHeightComposition(luigi.Task):
         da_field = input['decomp_profile'].open()
         da_3d = input['da_3d'].open()
         ds_scales = input['scales'].open()
+        da_mask = input['mask'].open()
         nx, ny = da_3d.xt.count(), da_3d.yt.count()
+
+        da_prof_ref = da_3d.where(da_mask).sum(dim=('xt', 'yt'),
+                                               dtype=np.float64)/(nx*ny)
 
         if self.object_filters is not None:
             da_field.where(da_field.object_id == ds_scales.object_id)
@@ -1126,7 +1135,7 @@ class ObjectScaleVsHeightComposition(luigi.Task):
 
         ax = objects.flux_contribution.plot(
             ds=ds, x=self.x, v=self.field_name + '__sum',
-            nx=nx, ny=ny, dx=self.dx,
+            nx=nx, ny=ny, dx=self.dx, da_prof_ref=da_prof_ref,
         )
 
         if self.x_max is not None:
