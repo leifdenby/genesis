@@ -16,9 +16,11 @@ import yaml
 from ...bulk_statistics import cross_correlation_with_height
 from ... import length_scales
 from ... import objects
-from .. import plot_types, cm_nilearn
+from .. import plot_types, cm_nilearn, figure_metadata
 
 from . import data
+
+figure_metadata.patch_savefig_for_argv_metadata()
 
 class CumulantScalesProfile(luigi.Task):
     base_names = luigi.Parameter()
