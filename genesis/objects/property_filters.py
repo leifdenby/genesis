@@ -75,6 +75,7 @@ PROP_NAME_MAPPING = dict(
     qv_flux="w'q'",
     cvrxp_p_stddivs="\sigma(\phi)",
     qc='q_c',
+    r_equiv='r_{equiv}',
 )
 
 def _get_prop_name_in_latex(s):
@@ -99,14 +100,19 @@ OP_NAME_MAPPING=dict(
     lt="<",eq="=",gt=">"
 )
 
-def _format_op_for_latex(prop_latex, op_name, s_value):
+PROP_NAME_UNITS_MAPPING = dict(
+    z_min='m',
+    z_max='m',
+    r_equiv='m',
+)
+
+def _format_op_for_latex(prop_latex, op_name, s_value, units=''):
     op_latex = OP_NAME_MAPPING.get(op_name)
     if op_latex is not None:
-        # TODO: implement passing in units
-        s = r"${prop}{op}{val}$".format(
+        s = r"${prop}{op}{val}{units}$".format(
             prop=prop_latex,
             op=OP_NAME_MAPPING.get(op_name, op_name),
-            val=s_value
+            val=s_value, units=units
         )
     elif op_name.endswith('_percentile'):
         part, _ = op_name.split('_')
@@ -128,7 +134,14 @@ def latex_format(filter_defs):
         if f_type == 'prop':
             prop_name, op_name, s_value = f_def
             prop_latex=_get_prop_name_in_latex(prop_name)
-            s_latex.append(_format_op_for_latex(prop_latex, op_name, s_value))
+
+            units = PROP_NAME_UNITS_MAPPING.get(prop_name, '')
+            if units == 'm':
+                s_value = int(float(s_value))
+            else:
+                units = ''
+            s_latex.append(_format_op_for_latex(prop_latex, op_name, s_value,
+                                                units))
         else:
             raise NotImplementedError(f_type, f_def)
     return " and ".join(s_latex)
