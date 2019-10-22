@@ -211,7 +211,17 @@ class ExtractField3D(luigi.Task):
 
         p = WORKDIR/self.base_name/fn
 
-        return XArrayTarget(str(p))
+        t = XArrayTarget(str(p))
+
+        if t.exists():
+            data = t.open()
+            if isinstance(data, xr.Dataset):
+                if len(data.variables) == 0:
+                    warnings.warn("Stored file for `{}` is empty, deleting..."
+                                  "".format(self.field_name))
+                    p.unlink()
+
+        return t
 
 
 class MakeMask(luigi.Task):
