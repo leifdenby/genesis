@@ -73,8 +73,8 @@ class JointDistProfile(luigi.Task):
     v2 = luigi.Parameter()
     base_name = luigi.Parameter()
 
-    mask = luigi.Parameter(default=None)
-    mask_args = luigi.Parameter(default='')
+    mask_method = luigi.Parameter(default=None)
+    mask_method_extra_args = luigi.Parameter(default='')
     plot_limits = luigi.ListParameter(default=None)
     data_only = luigi.BoolParameter(default=False)
 
@@ -91,21 +91,22 @@ class JointDistProfile(luigi.Task):
             data.ExtractCloudbaseState(base_name=self.base_name, field_name=self.v2),
         ]
 
-        if self.mask is not None:
-            reqs['mask'] = data.MakeMask(method_name=self.mask,
-                                         method_extra_args=self.mask_args,
-                                         base_name=self.base_name
-                                         )
+        if self.mask_method is not None:
+            reqs['mask'] = data.MakeMask(
+                method_name=self.mask_method,
+                method_extra_args=self.mask_method_extra_args,
+                base_name=self.base_name
+            )
 
         return reqs
 
     def output(self):
-        if self.mask is not None:
-            if not self.input()["mask"].exists():
-                mask_name = 'not__a__real__mask__name'
-            else:
-                mask = self.input()["mask"].open()
-                mask_name = mask.name
+        if self.mask_method is not None:
+            mask_name = data.MakeMask.make_mask_name(
+                base_name=self.base_name,
+                method_name=self.mask_method,
+                method_extra_args=self.mask_method_extra_args
+            )
             out_fn = '{}.cross_correlation.{}.{}.masked_by.{}.png'.format(
                 self.base_name, self.v1, self.v2, mask_name
             )
@@ -145,7 +146,7 @@ class JointDistProfile(luigi.Task):
                 ds_3d.attrs['mask_desc'] = mask.long_name
             ds_3d.to_netcdf(self.output().fn)
         else:
-            ax = cross_correlation_with_height.main(ds_3d=ds_3d, ds_cb=ds_cb)
+            ax, _ = cross_correlation_with_height.main(ds_3d=ds_3d, ds_cb=ds_cb)
 
             title = ax.get_title()
             title = "{}\n{}".format(self.base_name, title)
@@ -191,10 +192,10 @@ class JointDistProfileGrid(luigi.Task):
     v1 = luigi.Parameter()
     v2 = luigi.Parameter()
     base_names = luigi.Parameter()
-    mask = luigi.Parameter()
 
     separate_axis_limits = luigi.BoolParameter(default=False)
-    mask_args = luigi.Parameter(default='')
+    mask_method = luigi.Parameter(default=None)
+    mask_method_extra_args = luigi.Parameter(default='')
 
     def requires(self):
         reqs = {}
@@ -209,7 +210,8 @@ class JointDistProfileGrid(luigi.Task):
                 masked=JointDistProfile(
                     dk=self.dk, z_max=self.z_max, v1=self.v1,
                     v2=self.v2, base_name=base_name,
-                    mask=self.mask, mask_args=self.mask_args,
+                    mask_method=self.mask_method,
+                    mask_method_extra_args=self.mask_method_extra_args,
                     data_only=True
                 ),
                 cloudbase=[
@@ -278,8 +280,17 @@ class JointDistProfileGrid(luigi.Task):
         plt.savefig(self.output().fn, bbox_inches='tight')
 
     def output(self):
+        arr = []
+        for base_name in self.base_names.split(','):
+            mask_name = data.MakeMask.make_mask_name(
+                base_name=base_name,
+                method_name=self.mask_method,
+                method_extra_args=self.mask_method_extra_args
+            )
+            arr.append(mask_name)
+
         fn_out = "{}.cross_correlation.grid.{}.{}.png".format(
-            self.base_names.replace(',', '__'), self.v1, self.v2
+            "__".join(arr), self.v1, self.v2
         )
         return luigi.LocalTarget(fn_out)
 
@@ -1168,7 +1179,7 @@ class ObjectScaleVsHeightComposition(luigi.Task):
         )
 
         if self.x_max is not None:
-            ax.set_xlim(None, self.x_max)
+            ax.set_xlim(0., self.x_max)
 
         N_objects = int(ds.object_id.count())
         plt.suptitle(self.get_suptitle(N_objects=N_objects), y=1.0)

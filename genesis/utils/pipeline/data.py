@@ -12,6 +12,7 @@ import xarray as xr
 import numpy as np
 import yaml
 import hues
+from tqdm import tqdm
 
 from .. import mask_functions, make_mask
 from ... import objects
@@ -20,6 +21,8 @@ from ...utils import find_vertical_grid_spacing, calc_flux
 from ...objects import property_filters
 from ...objects import integral_properties
 from ... import length_scales
+
+import cloud_identification
 
 import dask_image
 
@@ -193,11 +196,12 @@ class ExtractField3D(luigi.Task):
                     (k, input.open()) for (k, input) in self.input().items()
                 ])
                 data_loader = self._get_data_loader_module(meta=meta)
-                data_loader.extract_field_to_filename(
-                    dataset_meta=meta, path_out=p_out,
-                    field_name=self.field_name,
-                    **opened_inputs
-                )
+                with ipdb.launch_ipdb_on_exception():
+                    data_loader.extract_field_to_filename(
+                        dataset_meta=meta, path_out=p_out,
+                        field_name=self.field_name,
+                        **opened_inputs
+                    )
         else:
             raise NotImplementedError(fn_out.fn)
 
@@ -230,16 +234,58 @@ class MakeMask(luigi.Task):
     method_name = luigi.Parameter()
 
     def requires(self):
-        method_kwargs = self._build_method_kwargs(
-            base_name=self.base_name, method_extra_args=self.method_extra_args
-        )
-        try:
-            make_mask.build_method_kwargs(method=self.method_name, kwargs=method_kwargs)
-        except make_mask.MissingInputException as e:
-            return dict([
-                (v, ExtractField3D(field_name=v, base_name=self.base_name))
-                for v in e.missing_kwargs
-            ])
+
+        reqs = {}
+        is_filtered = "__filtered_by=" in self.method_name
+        if is_filtered:
+            method_name, object_filters = self.method_name.split('__filtered_by=')
+        else:
+            method_name = self.method_name
+
+        if is_filtered:
+
+            if not "object_splitting_scalar=" in self.method_extra_args:
+                raise Exception("You must provide the object splitting scalar"
+                                " when creating a mask from filtered object"
+                                " properties (with --mask-method-extra-args)")
+            else:
+                extra_args = []
+                for item in self.method_extra_args.split(','):
+                    k, v = item.split('=')
+                    if k == 'object_splitting_scalar':
+                        object_splitting_scalar = v
+                    else:
+                        extra_args.append(item)
+                method_extra_args = ','.join(extra_args)
+
+            reqs['filtered_objects'] = ComputeObjectScales(
+                base_name=self.base_name,
+                variables="num_cells",
+                mask_method=method_name,
+                mask_method_extra_args=method_extra_args,
+                object_splitting_scalar=object_splitting_scalar,
+                object_filters=object_filters,
+            )
+
+            reqs['all_objects'] = IdentifyObjects(
+                base_name=self.base_name,
+                splitting_scalar=object_splitting_scalar,
+                mask_method=method_name,
+                mask_method_extra_args=method_extra_args,
+            )
+        else:
+
+            method_kwargs = self._build_method_kwargs(
+                base_name=self.base_name, method_extra_args=self.method_extra_args
+            )
+
+            try:
+                make_mask.build_method_kwargs(method=method_name, kwargs=method_kwargs)
+            except make_mask.MissingInputException as e:
+                for v in e.missing_kwargs:
+                    reqs[v] = ExtractField3D(field_name=v, base_name=self.base_name)
+
+        return reqs
 
     @staticmethod
     def _build_method_kwargs(base_name, method_extra_args):
@@ -247,30 +293,69 @@ class MakeMask(luigi.Task):
         for kv in method_extra_args.split(","):
             if kv == "":
                 continue
+            elif kv.startswith("object_splitting_scalar="):
+                continue
             k,v = kv.split("=")
             kwargs[k] = v
         return kwargs
 
     def run(self):
-        method_kwargs = self._build_method_kwargs(
-            base_name=self.base_name, method_extra_args=self.method_extra_args
-        )
+        if 'filtered_objects' in self.input():
+            method_name, object_filters = self.method_name.split('__filtered_by=')
+            method_kwargs = self._build_method_kwargs(
+                base_name=self.base_name, method_extra_args=self.method_extra_args
+            )
+            mask_fn = getattr(mask_functions, method_name)
+            assert hasattr(mask_fn, "description")
 
-        for (v, target) in self.input().items():
-            method_kwargs[v] = xr.open_dataarray(target.fn, decode_times=False)
+            input = self.input()
+            ds_obj_props_filtered = input['filtered_objects'].open()
+            da_objects = input['all_objects'].open()
 
-        cwd = os.getcwd()
-        p_data = WORKDIR/self.base_name
-        os.chdir(p_data)
-        mask = make_mask.main(method=self.method_name, method_kwargs=method_kwargs)
-        os.chdir(cwd)
-        mask.to_netcdf(self.output().fn)
+            labels = da_objects.values
+
+            cloud_identification.filter_labels(
+                labels=labels,
+                idxs_keep=ds_obj_props_filtered.object_id.values
+            )
+
+            da_mask = xr.DataArray(
+                labels != 0, coords=da_objects.coords,
+                dims=da_objects.dims
+            )
+
+            mask_desc = mask_fn.description.format(**method_kwargs)
+            filter_desc = objects.property_filters.latex_format(object_filters)
+            da_mask.attrs['long_name'] = "{} filtered by {}".format(
+                mask_desc, filter_desc
+            )
+
+            da_mask.name = self.method_name
+            da_mask.to_netcdf(self.output().fn)
+        else:
+            method_kwargs = self._build_method_kwargs(
+                base_name=self.base_name, method_extra_args=self.method_extra_args
+            )
+
+            for (v, input) in self.input().items():
+                method_kwargs[v] = xr.open_dataarray(input.fn, decode_times=False)
+
+            cwd = os.getcwd()
+            p_data = WORKDIR/self.base_name
+            os.chdir(p_data)
+            mask = make_mask.main(method=self.method_name, method_kwargs=method_kwargs)
+            os.chdir(cwd)
+            mask.to_netcdf(self.output().fn)
 
     @classmethod
     def make_mask_name(cls, base_name, method_name, method_extra_args):
         kwargs = cls._build_method_kwargs(
             base_name=base_name, method_extra_args=method_extra_args
         )
+
+        is_filtered = "__filtered_by=" in method_name
+        if is_filtered:
+            method_name, object_filters = method_name.split('__filtered_by=')
 
         try:
             kwargs = make_mask.build_method_kwargs(
@@ -286,6 +371,15 @@ class MakeMask(luigi.Task):
         mask_name = make_mask.make_mask_name(
             method=method_name, method_kwargs=kwargs
         )
+
+        if is_filtered:
+            s_filters = (object_filters.replace(',','.')
+                                       .replace('=', '')
+                                       .replace(':', '__'))
+            mask_name += ".filtered_by." + s_filters
+            if mask_name.endswith('.'):
+                mask_name = mask_name[:-1]
+
         return mask_name
 
     def output(self):
