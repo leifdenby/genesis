@@ -100,7 +100,10 @@ def joint_hist_contoured(xd, yd, bins=None, normed_levels=None, ax=None,
             for q in normed_levels
         ]
 
-        cnt = ax.contour(x_, y_, bin_counts, levels=levels, **kwargs)
+        try:
+            cnt = ax.contour(x_, y_, bin_counts, levels=levels, **kwargs)
+        except TypeError as e:
+            raise JointHistPlotError(str(e))
 
         # attempt of adapting the number of bins below so that we get exactly
         # one line per contour. This should reduce some of the messiness when
