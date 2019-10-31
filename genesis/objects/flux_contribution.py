@@ -59,6 +59,10 @@ def plot(ds, x, v, nx, ny, dx, da_prof_ref):
     g = PlotGrid()
     ds_ = ds.groupby_bins(x, bins=bins, labels=bin_centers)
     da_flux_per_bin = ds_.sum(dim='object_id', dtype=np.float64)[v]/(nx*ny)
+    if len(da_flux_per_bin["{}_bins".format(x)]) < 2:
+        raise Exception("Please set a smaller bin size on `{x}`, currently"
+                        "there's only one bin with the range of values in "
+                        "`{x}`".format(x=x))
     da_flux_per_bin.plot(y='zt', ax=g.ax_joint, add_colorbar=False, robust=True)
 
     # ds.r_equiv.plot.hist(bins=bins, histtype='step', ax=g.ax_marg_x)
