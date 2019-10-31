@@ -817,7 +817,7 @@ class ComputeObjectScales(luigi.Task):
                     import ipdb
                     ipdb.set_trace()
             else:
-                assert ds.name == self.variables
+                assert ds.name == variables[0]
 
         return target
 
@@ -845,6 +845,9 @@ class FilterObjectScales(ComputeObjectScales):
     def run(self):
         input = self.input()
         ds_objs = input.open()
+        if not isinstance(ds_objs, xr.Dataset):
+            # if only one variable was requested we'll get a dataarray back
+            ds_objs = ds_objs.to_dataset()
 
         filters = property_filters.parse_defs(self.object_filters)
         for fn in filters['fns']:
