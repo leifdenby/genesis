@@ -29,7 +29,8 @@ def _make_filter_fn(prop_name, op_name, s_value):
         fn = functools.partial(_filter_by_percentile, frac=value, part=part,
                                var_name=prop_name)
     else:
-        op = dict(lt="less_than", gt="greater_than", eq="equal")[op_name]
+        op = dict(lt="less_than", gt="greater_than", eq="equal",
+                  lte="less_equal", gte="greater_equal")[op_name]
         op_fn = getattr(np, op.replace('_than', ''))
         value = float(s_value)
         fn = lambda da: da.where(op_fn(getattr(da, prop_name), value), drop=True)
@@ -97,7 +98,7 @@ def _get_prop_name_in_latex(s):
 
 
 OP_NAME_MAPPING=dict(
-    lt="<",eq="=",gt=">"
+    lt="<",eq="=",gt=">",lte="\leq",gte="\geq"
 )
 
 PROP_NAME_UNITS_MAPPING = dict(
