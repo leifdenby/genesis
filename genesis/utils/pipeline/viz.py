@@ -409,7 +409,7 @@ class HorizontalMeanProfile(luigi.Task):
             ax.set_title('')
 
         sns.despine()
-        plt.suptitle(title)
+        plt.suptitle("{}\n{}".format(self.base_name, title))
 
         plt.savefig(self.output().fn)
 
