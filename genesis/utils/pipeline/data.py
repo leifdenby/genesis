@@ -52,7 +52,7 @@ def set_workdir(path):
     global WORKDIR
     WORKDIR = path
 
-def _get_dataset_meta_info(base_name):
+def get_datasources():
     if DATA_SOURCES is not None:
         datasources = DATA_SOURCES
     else:
@@ -62,6 +62,11 @@ def _get_dataset_meta_info(base_name):
                 datasources = yaml.load(fh, Loader=loader)
         except IOError:
             raise Exception("please define your data sources in datasources.yaml")
+
+    return datasources
+
+def _get_dataset_meta_info(base_name):
+    datasources = get_datasources()
 
     datasource = None
     if datasources is not None:
@@ -196,12 +201,11 @@ class ExtractField3D(luigi.Task):
                     (k, input.open()) for (k, input) in self.input().items()
                 ])
                 data_loader = self._get_data_loader_module(meta=meta)
-                with ipdb.launch_ipdb_on_exception():
-                    data_loader.extract_field_to_filename(
-                        dataset_meta=meta, path_out=p_out,
-                        field_name=self.field_name,
-                        **opened_inputs
-                    )
+                data_loader.extract_field_to_filename(
+                    dataset_meta=meta, path_out=p_out,
+                    field_name=self.field_name,
+                    **opened_inputs
+                )
         else:
             raise NotImplementedError(fn_out.fn)
 
