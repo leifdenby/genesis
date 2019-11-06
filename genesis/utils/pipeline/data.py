@@ -50,7 +50,7 @@ def add_datasource(name, attrs):
 
 def set_workdir(path):
     global WORKDIR
-    WORKDIR = path
+    WORKDIR = Path(path)
 
 def get_datasources():
     if DATA_SOURCES is not None:
