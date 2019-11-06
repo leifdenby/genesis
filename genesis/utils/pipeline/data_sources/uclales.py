@@ -106,6 +106,9 @@ def extract_field_to_filename(dataset_meta, path_out, field_name, **kwargs):
         da = _calc_theta_l_v(**kwargs)
         can_symlink = False
     else:
+        if not path_in.exists():
+            raise Exception("Can't open `{}` because it doesn't exist"
+                            "".format(path_in))
         da = xr.open_dataarray(path_in, decode_times=False)
 
     da, modified = _scale_field(da)
