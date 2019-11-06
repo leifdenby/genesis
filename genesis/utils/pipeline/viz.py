@@ -11,6 +11,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import yaml
+import shutil
 
 # from ...length_scales.plot import cumulant_scale_vs_height
 from ...bulk_statistics import cross_correlation_with_height
@@ -353,7 +354,7 @@ class CumulantSlices(luigi.Task):
 
 class HorizontalMeanProfile(luigi.Task):
     base_name = luigi.Parameter()
-    field_names = luigi.Parameter(default='qv,qc,theta')
+    field_names = luigi.Parameter(default='qv,qc,theta_l')
     mask_method = luigi.Parameter(default=None)
     mask_method_extra_args = luigi.Parameter(default='')
     mask_only = luigi.BoolParameter()
@@ -1213,3 +1214,45 @@ class ObjectScaleVsHeightComposition(luigi.Task):
         ))
         target = luigi.LocalTarget(fn)
         return target
+
+class Suite(luigi.Task):
+    base_name = luigi.Parameter(default=None)
+    timestep = luigi.IntParameter(default=None)
+
+    DISTS = dict(
+        mean_profile='mean.profiles',
+    )
+
+    def requires(self):
+        reqs = {}
+        if self.base_name is None:
+            datasources = data.get_datasources()
+            for base_name in datasources.keys():
+                if self.timestep is not None:
+                    base_name = "{}.tn{}".format(base_name, self.timestep)
+                reqs[base_name] = Suite(base_name=base_name)
+        else:
+            reqs['mean_profile'] = HorizontalMeanProfile(
+                base_name=self.base_name,
+            )
+        return reqs
+
+    def run(self):
+        if self.base_name is not None:
+            for comp, target in self.input().items():
+                dst_path = self._build_output_path(comp=comp, target=target)
+                dst_path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.move(target.fn, dst_path)
+
+    def _build_output_path(self, comp, target):
+        d = self.DISTS[comp]
+        return Path(d)/target.fn
+
+    def output(self):
+        if self.base_name is None:
+            return self.input()
+        else:
+            return [
+                self._build_output_path(comp, target)
+                for (comp, target) in self.input().items()
+            ]
