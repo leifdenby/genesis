@@ -667,6 +667,24 @@ class ComputeObjectScale(luigi.Task):
                                          **kwargs)
         ds.to_netcdf(self.output().fn)
 
+def merge_object_datasets(dss):
+    def _strip_coord(ds_):
+        """
+        remove the values of the `object_id` coordinate so that
+        we can concate along it without having duplicates. We keep
+        a copy of the original object id values
+        """
+        obj_id = ds_['object_id']
+        del(ds_['object_id'])
+        ds_['org_object_id'] = ('object_id'), obj_id.values
+        return ds_
+    dss = [_strip_coord(ds_) for ds_ in dss]
+    ds = xr.concat(dss, dim="object_id")
+    ds['object_id'] = np.arange(ds.object_id.max()+1)
+
+    return ds
+
+
 class ComputeObjectScales(luigi.Task):
     object_splitting_scalar = luigi.Parameter()
     base_name = luigi.Parameter()
@@ -748,22 +766,12 @@ class ComputeObjectScales(luigi.Task):
             pass
         else:
             if "+" in self.base_name:
-                def _strip_coord(ds_):
-                    """
-                    remove the values of the `object_id` coordinate so that
-                    we can concate along it without having duplicates. We keep
-                    a copy of the original object id values
-                    """
-                    obj_id = ds_['object_id']
-                    del(ds_['object_id'])
-                    ds_['org_object_id'] = ('object_id'), obj_id.values
-                    return ds_
                 dss = [
-                    _strip_coord(fh.open(decode_times=False))
+                    fh.open(decode_times=False)
                     for (base_name, fh) in self.input().items()
                 ]
-                ds = xr.concat(dss, dim="object_id")
-                ds['object_id'] = np.arange(ds.object_id.max()+1)
+                ds = merge_object_datasets(dss=dss)
+
                 Path(self.output().fn).parent.mkdir(parents=True, exist_ok=True)
             else:
                 ds = xr.merge([
@@ -1281,3 +1289,99 @@ class ComputePerObjectProfiles(luigi.Task):
         target = XArrayTarget(str(p))
         return target
 
+class ComputeObjectScaleVsHeightComposition(luigi.Task):
+    x = luigi.Parameter()
+    field_name = luigi.Parameter()
+
+    base_name = luigi.Parameter()
+    mask_method = luigi.Parameter()
+    mask_method_extra_args = luigi.Parameter(default='')
+    object_splitting_scalar = luigi.Parameter()
+
+    object_filters = luigi.Parameter(default=None)
+    z_max = luigi.FloatParameter(default=None)
+
+    def requires(self):
+        return dict(
+            decomp_profile=ComputePerObjectProfiles(
+                base_name=self.base_name,
+                mask_method=self.mask_method,
+                mask_method_extra_args=self.mask_method_extra_args,
+                object_splitting_scalar=self.object_splitting_scalar,
+                field_name=self.field_name,
+                op='sum',
+                z_max=self.z_max,
+            ),
+            da_3d=ExtractField3D(
+                base_name=self.base_name,
+                field_name=self.field_name,
+            ),
+            scales=ComputeObjectScales(
+                base_name=self.base_name,
+                mask_method=self.mask_method,
+                mask_method_extra_args=self.mask_method_extra_args,
+                object_splitting_scalar=self.object_splitting_scalar,
+                variables=self.x,
+                object_filters=self.object_filters,
+            ),
+            mask=MakeMask(
+                base_name=self.base_name,
+                method_name=self.mask_method,
+                method_extra_args=self.mask_method_extra_args,
+            ),
+        )
+
+    def run(self):
+        input = self.input()
+        da_field = input['decomp_profile'].open()
+        da_3d = input['da_3d'].open()
+        ds_scales = input['scales'].open()
+        da_mask = input['mask'].open()
+        nx, ny = da_3d.xt.count(), da_3d.yt.count()
+
+        da_prof_ref = da_3d.where(da_mask).sum(dim=('xt', 'yt'),
+                                               dtype=np.float64)/(nx*ny)
+        da_prof_ref.name = 'prof_ref'
+
+        if self.object_filters is not None:
+            da_field.where(da_field.object_id == ds_scales.object_id)
+
+        ds = xr.merge([da_field, ds_scales])
+
+        if self.z_max is not None:
+            ds = ds.sel(zt=slice(None, self.z_max))
+
+        ds = ds.where(np.logical_and(
+            ~np.isinf(ds[self.x]),
+            ~np.isnan(ds[self.x]),
+        ), drop=True)
+
+        ds_combined = xr.merge([ds, da_prof_ref])
+        ds_combined.attrs['nx'] = int(nx)
+        ds_combined.attrs['ny'] = int(ny)
+        ds_combined.to_netcdf(self.output().fn)
+
+    def output(self):
+        mask_name = MakeMask.make_mask_name(
+            base_name=self.base_name,
+            method_name=self.mask_method,
+            method_extra_args=self.mask_method_extra_args
+        )
+        s_filter = ''
+        if self.object_filters is not None:
+            s_filter = '.filtered_by.{}'.format(
+                (self.object_filters.replace(',','.')
+                                    .replace(':', '__')
+                                    .replace('=', '_')
+                )
+            )
+        fn = ("{base_name}.{mask_name}.{field_name}__by__{x}"
+             "{s_filter}.{filetype}".format(
+            base_name=self.base_name, mask_name=mask_name,
+            field_name=self.field_name, x=self.x, filetype="nc",
+            s_filter=s_filter,
+        ))
+
+        p = WORKDIR/self.base_name/fn
+        target = XArrayTarget(str(p))
+        return target

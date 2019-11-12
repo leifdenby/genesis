@@ -1105,6 +1105,7 @@ class ObjectsScalesJointDist(luigi.Task):
         )
         return luigi.LocalTarget(fn)
 
+
 class ObjectScaleVsHeightComposition(luigi.Task):
     x = luigi.Parameter()
     field_name = luigi.Parameter()
@@ -1121,58 +1122,23 @@ class ObjectScaleVsHeightComposition(luigi.Task):
     x_max = luigi.FloatParameter(default=None)
 
     def requires(self):
-        return dict(
-            decomp_profile=data.ComputePerObjectProfiles(
-                base_name=self.base_name,
-                mask_method=self.mask_method,
-                mask_method_extra_args=self.mask_method_extra_args,
-                object_splitting_scalar=self.object_splitting_scalar,
-                field_name=self.field_name,
-                op='sum',
-                z_max=self.z_max,
-            ),
-            da_3d=data.ExtractField3D(
-                base_name=self.base_name,
-                field_name=self.field_name,
-            ),
-            scales=data.ComputeObjectScales(
-                base_name=self.base_name,
-                mask_method=self.mask_method,
-                mask_method_extra_args=self.mask_method_extra_args,
-                object_splitting_scalar=self.object_splitting_scalar,
-                variables=self.x,
-                object_filters=self.object_filters,
-            ),
-            mask=data.MakeMask(
-                base_name=self.base_name,
-                method_name=self.mask_method,
-                method_extra_args=self.mask_method_extra_args,
-            ),
+        return data.ComputeObjectScaleVsHeightComposition(
+            base_name=self.base_name,
+            mask_method=self.mask_method,
+            mask_method_extra_args=self.mask_method_extra_args,
+            object_splitting_scalar=self.object_splitting_scalar,
+            field_name=self.field_name,
+            object_filters=self.object_filters,
+            z_max=self.z_max,
+            x=self.x,
         )
 
     def run(self):
-        input = self.input()
-        da_field = input['decomp_profile'].open()
-        da_3d = input['da_3d'].open()
-        ds_scales = input['scales'].open()
-        da_mask = input['mask'].open()
-        nx, ny = da_3d.xt.count(), da_3d.yt.count()
+        ds = self.input().open()
 
-        da_prof_ref = da_3d.where(da_mask).sum(dim=('xt', 'yt'),
-                                               dtype=np.float64)/(nx*ny)
-
-        if self.object_filters is not None:
-            da_field.where(da_field.object_id == ds_scales.object_id)
-
-        ds = xr.merge([da_field, ds_scales])
-
-        if self.z_max is not None:
-            ds = ds.sel(zt=slice(None, self.z_max))
-
-        ds = ds.where(np.logical_and(
-            ~np.isinf(ds[self.x]),
-            ~np.isnan(ds[self.x]),
-        ), drop=True)
+        da_prof_ref = ds.prof_ref
+        nx = ds.nx
+        ny = ds.ny
 
         ax = objects.flux_contribution.plot(
             ds=ds, x=self.x, v=self.field_name + '__sum',
@@ -1190,7 +1156,6 @@ class ObjectScaleVsHeightComposition(luigi.Task):
     def get_suptitle(self, N_objects):
         s_filters = objects.property_filters.latex_format(self.object_filters)
         return "{} ({} objects)\n{}".format(self.base_name,N_objects, s_filters)
-
 
     def output(self):
         mask_name = data.MakeMask.make_mask_name(
