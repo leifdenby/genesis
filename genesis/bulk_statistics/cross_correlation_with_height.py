@@ -40,7 +40,7 @@ def get_approximate_cloudbase_height(qc, z_tol=100.):
     return z_cb
 
 
-def get_cloudbase_height(cloud_data, t0, t_age_max=200., z_base_max=700.):
+def get_cloudbase_height(cloud_data, t0, t_age_max, z_base_max=700.):
     if not HAS_CLOUD_TRACKING:
         raise Exception("cloud_tracking_analysis module isn't available")
 
@@ -67,6 +67,8 @@ def get_cloudbase_height(cloud_data, t0, t_age_max=200., z_base_max=700.):
     m = nrcloud_cloudbase == 0
     cldbase_heights_2d = cldbase.where(~m)
 
+    cldbase_heights_2d.attrs['num_clouds'] = len(cloud_set)
+
     return cldbase_heights_2d
 
 
@@ -91,7 +93,7 @@ def get_cloudbase_data(cloud_data, v, t0, t_age_max=200., z_base_max=700.):
     return v__belowcloud.where(m, drop=True)
 
 
-def main(ds_3d, ds_cb=None, normed_levels = [5, 95], ax=None):
+def main(ds_3d, ds_cb=None, normed_levels = [10, 90], ax=None):
     colors = iter(sns.color_palette("cubehelix", len(ds_3d.zt)))
     sns.set_color_codes()
 
@@ -115,6 +117,8 @@ def main(ds_3d, ds_cb=None, normed_levels = [5, 95], ax=None):
     else:
         yscale = 1.
 
+    if ax is None:
+        ax = plt.gca()
 
     for z in tqdm.tqdm(ds_3d.zt):
         ds_ = ds_3d.sel(zt=z, method='nearest').squeeze()
@@ -134,7 +138,10 @@ def main(ds_3d, ds_cb=None, normed_levels = [5, 95], ax=None):
                 if n == 0:
                     l.set_label("z={}m".format(ds_.zt.values))
                     lines.append(l)
-            pass
+
+            if 0.0 in cnt.levels or len(cnt.levels) != len(normed_levels):
+                ax.scatter(xd.mean(), yd.mean(), marker='.', color=c)
+
         except JointHistPlotError:
             print("error", ds_.zt.values, "skipping")
         except Exception as e:
@@ -153,6 +160,9 @@ def main(ds_3d, ds_cb=None, normed_levels = [5, 95], ax=None):
                 _, _, cnt = joint_hist_contoured(
                     xd=xd, yd=yd, normed_levels=normed_levels, ax=ax
                 )
+
+                if 0.0 in cnt.levels or len(cnt.levels) != len(normed_levels):
+                    ax.scatter(xd.mean(), yd.mean(), marker='.', color='red')
 
                 for n, l in enumerate(cnt.collections):
                     l.set_color('red')
