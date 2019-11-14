@@ -1217,8 +1217,7 @@ class Suite(luigi.Task):
                 )
                 reqs['cumulant_profiles__{}'.format(v)] = CumulantScalesProfile(
                     base_names=base_names,
-                    cumulants="w:w,qv:qv,qc:qc,cvrxp:cvrxp,w:qv,w:qc,w:cvrxp",
-                    var_name=v,
+                    cumulants="w:w,qv:qv,qc:qc,theta_l:theta_l,cvrxp:cvrxp,w:qv,w:qc,w:cvrxp",
                     z_max=1000.,
                 )
         else:
