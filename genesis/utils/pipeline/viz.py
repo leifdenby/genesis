@@ -78,6 +78,8 @@ class JointDistProfile(luigi.Task):
     mask_method_extra_args = luigi.Parameter(default='')
     plot_limits = luigi.ListParameter(default=None)
     data_only = luigi.BoolParameter(default=False)
+    cloud_age_max = luigi.FloatParameter(default=200.)
+    cumulative_contours = luigi.Parameter(default="10,90")
 
     def requires(self):
         reqs = dict(
@@ -88,8 +90,12 @@ class JointDistProfile(luigi.Task):
         )
 
         reqs['cloudbase'] = [
-            data.ExtractCloudbaseState(base_name=self.base_name, field_name=self.v1),
-            data.ExtractCloudbaseState(base_name=self.base_name, field_name=self.v2),
+            data.ExtractCloudbaseState(base_name=self.base_name,
+                                       field_name=self.v1,
+                                       cloud_age_max=self.cloud_age_max),
+            data.ExtractCloudbaseState(base_name=self.base_name,
+                                       field_name=self.v2,
+                                       cloud_age_max=self.cloud_age_max),
         ]
 
         if self.mask_method is not None:
@@ -121,6 +127,9 @@ class JointDistProfile(luigi.Task):
             p_out = Path("data")/self.base_name/out_fn
             return data.XArrayTarget(str(p_out))
         else:
+            out_fn = out_fn.replace('.png', '.{}__contour_levels.png'.format(
+                self.cumulative_contours.replace(',', '__')
+            ))
             return luigi.LocalTarget(out_fn)
 
     def run(self):
@@ -138,8 +147,9 @@ class JointDistProfile(luigi.Task):
             mask = self.input()["mask"].open()
             ds_3d = ds_3d.where(mask)
 
-        ds_3d = (ds_3d.isel(zt=slice(None, None, self.dk))
+        ds_3d = (ds_3d
                  .sel(zt=slice(0, self.z_max))
+                 .isel(zt=slice(None, None, self.dk))
                  )
 
         if self.data_only:
@@ -147,7 +157,10 @@ class JointDistProfile(luigi.Task):
                 ds_3d.attrs['mask_desc'] = mask.long_name
             ds_3d.to_netcdf(self.output().fn)
         else:
-            ax, _ = cross_correlation_with_height.main(ds_3d=ds_3d, ds_cb=ds_cb)
+            normed_levels = [int(v) for v in self.cumulative_contours.split(',')]
+            ax, _ = cross_correlation_with_height.main(ds_3d=ds_3d, ds_cb=ds_cb,
+                normed_levels=normed_levels,
+            )
 
             title = ax.get_title()
             title = "{}\n{}".format(self.base_name, title)

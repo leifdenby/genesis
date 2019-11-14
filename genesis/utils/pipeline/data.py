@@ -1109,6 +1109,8 @@ class ExtractCloudbaseState(luigi.Task):
     base_name = luigi.Parameter()
     field_name = luigi.Parameter()
 
+    cloud_age_max = luigi.FloatParameter(default=200.)
+
     def requires(self):
         if HAS_CLOUD_TRACKING:
             return dict(
@@ -1141,7 +1143,7 @@ class ExtractCloudbaseState(luigi.Task):
 
             t0 = da_scalar_3d.time.values[0]
             z_cb = cross_correlation_with_height.get_cloudbase_height(
-                cloud_data=cloud_data, t0=t0,
+                cloud_data=cloud_data, t0=t0, t_age_max=self.cloud_age_max,
             )
             dz = cloud_data.dx
             method = 'tracked clouds'
@@ -1166,11 +1168,16 @@ class ExtractCloudbaseState(luigi.Task):
         da_cb = da_cb.squeeze()
         da_cb.name = self.field_name
         da_cb.attrs['method'] = method
+        da_cb.attrs['cloud_age_max'] = self.cloud_age_max
+        da_cb.attrs['num_clouds'] = z_cb.num_clouds
 
         da_cb.to_netcdf(self.output().fn)
 
     def output(self):
-        fn = "{}.{}.cloudbase.xy.nc".format(self.base_name, self.field_name)
+        fn = "{}.{}.max_t_age__{:.0f}s.cloudbase.xy.nc".format(self.base_name,
+                                            self.field_name,
+                                            self.cloud_age_max,
+                                            )
         p = WORKDIR/self.base_name/fn
         return XArrayTarget(str(p))
 
