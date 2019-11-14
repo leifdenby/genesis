@@ -10,7 +10,7 @@ FIELD_NAME_MAPPING = dict(
     xt='xt',
     yt='yt',
     zt='zt',
-    qv='q',
+    qt='q',
     qc='l',
     qr='r',
     theta_l='t',
@@ -36,7 +36,8 @@ UNITS_FORMAT = {
 
 DERIVED_FIELDS = dict(
     T=('qc', 'theta_l', 'p'),
-    theta_l_v=('theta_l', 'qv', 'qc', 'qr')
+    theta_l_v=('theta_l', 'qv', 'qc', 'qr'),
+    qv=('qt', 'qc', 'qr'),
 )
 
 FN_FORMAT_3D = "3d_blocks/full_domain/{experiment_name}.tn{timestep}.{field_name}.nc"
@@ -105,6 +106,9 @@ def extract_field_to_filename(dataset_meta, path_out, field_name, **kwargs):
     elif field_name == 'theta_l_v':
         da = _calc_theta_l_v(**kwargs)
         can_symlink = False
+    elif field_name == 'qv':
+        da = _calc_qv(**kwargs)
+        can_symlink = False
     else:
         if not path_in.exists():
             raise Exception("Can't open `{}` because it doesn't exist"
@@ -137,10 +141,11 @@ def extract_field_to_filename(dataset_meta, path_out, field_name, **kwargs):
         da.to_netcdf(path_out)
 
 
-def _calc_theta_l_v(theta_l, qv, qc, qr):
-    assert qv.units.lower() == 'g/kg' and qv.max() > 1.0
+def _calc_theta_l_v(theta_l, qt, qc, qr):
+    assert qt.units.lower() == 'g/kg' and qt.max() > 1.0
     assert theta_l.units == 'K'
 
+    qv = qt - qc - qr
     # qc here refers to q "cloud", the total condensate is qc+qr (here
     # forgetting about ice...)
     eps = 0.608
@@ -150,3 +155,13 @@ def _calc_theta_l_v(theta_l, qv, qc, qr):
     theta_l_v.attrs['long_name'] = 'virtual liquid potential temperature'
     theta_l_v.name = "theta_l_v"
     return theta_l_v
+
+def _calc_qv(theta_l, qt, qc, qr):
+    assert qt.units.lower() == 'g/kg' and qt.max() > 1.0
+    assert theta_l.units == 'K'
+
+    qv = qt - qc - qr
+    qv.attrs['units'] = 'g/kg'
+    qv.attrs['long_name'] = 'water vapour mixing ratio'
+    qv.name = 'qv'
+    return qv
