@@ -1081,7 +1081,7 @@ class PerformObjectTracking2D(luigi.Task):
 
         tracking_identifier = self._get_tracking_identifier(meta)
 
-        p_data = Path(os.getcwd())/"data"
+        p_data = WORKDIR
         cloud_tracking_analysis.cloud_data.ROOT_DIR = str(p_data)
         cloud_data = CloudData(dataset_name, tracking_identifier,
                                dataset_pathname=self.base_name)
@@ -1101,7 +1101,7 @@ class PerformObjectTracking2D(luigi.Task):
         FN_2D_FORMAT = "{}.out.xy.{}.nc"
 
         fn = FN_2D_FORMAT.format(dataset_name, tracking_identifier)
-        p = Path(os.getcwd())/"data"/self.base_name/"tracking_output"/fn
+        p = WORKDIR/self.base_name/"tracking_output"/fn
         return luigi.LocalTarget(str(p))
 
 
@@ -1132,7 +1132,7 @@ class ExtractCloudbaseState(luigi.Task):
             tracking_timerange = matches[2]
             tracking_identifier = "track_{}".format(tracking_timerange)
 
-            p_data = Path(os.getcwd())/"data"
+            p_data = WORKDIR
             cloud_tracking_analysis.cloud_data.ROOT_DIR = str(p_data)
             cloud_data = CloudData(dataset_name, tracking_identifier,
                                    dataset_pathname=self.base_name)
