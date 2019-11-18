@@ -5,6 +5,7 @@ import numpy as np
 import xarray as xr
 import matplotlib.pyplot as plt
 import seaborn as sns
+from scipy import interpolate
 
 try:
     # reduce moved in py3
@@ -13,17 +14,56 @@ except ImportError:
     pass
 
 
-def _find_bin_on_percentile(q, bin_counts):
-    bc = bin_counts.flatten()
-    sort_indx = np.argsort(bc)
+def _find_bin_on_percentile(q, bin_counts, debug_plot=False):
+    """
+    Find value for percentile by ranking all bins and through linear
+    interpolation on the cumulative sum of points finding the bin
+    count which would match the percentile requested
+    """
+    bc = np.sort(bin_counts.flatten())
 
-    bin_counts_sorted = bc[sort_indx]
+    y = np.cumsum(bc)/np.sum(bc)
+    x = np.arange(len(bc))/len(bc)
 
-    bin_count_cum = np.cumsum(bin_counts_sorted)/np.sum(bin_counts)
+    y, idxs_unique = np.unique(y, return_index=True)
+    x = x[idxs_unique]
+    bc = bc[idxs_unique]
 
-    i = np.argmin(np.abs(q/100. - bin_count_cum))
+    idxs_nearest = np.sort(np.argsort(np.abs(y - q/100.))[:2])
 
-    v = bc[sort_indx[i]]
+    # y = ax+b
+    # y1 - y0 = (x1 - x0)a
+    # a = (y1 - y0)/(x1 - x0)
+    x0, x1 = x[idxs_nearest]
+    y0, y1 = y[idxs_nearest]
+    a = (y1 - y0)/(x1 - x0)
+
+    # y1 = a*x1 + b
+    # b = y1 - a*x1
+    b = y1 - a*x1
+
+    # y2 = a*x2 + b
+    # x2 = (y2 - b)/a
+    x_fit = (q/100. - b)/a
+
+    fn = interpolate.interp1d(x, bc, fill_value="extrapolate")
+    v = fn(x_fit)
+
+    if debug_plot:
+        ax = plt.gcf().axes[0]
+        ax.plot(x, y, marker='.')
+        ax.plot(x[idxs_nearest], y[idxs_nearest], marker='x')
+        ax.plot(x, a*x+b)
+        ax.axvline(x_fit)
+
+        ax.set_ylim(0., 1.1)
+        ax.set_xlim(0.5, None)
+
+        ax = plt.gcf().axes[1]
+        ax.plot(x, bc, marker='.')
+        ax.axhline(v)
+        ax.axvline(x_fit)
+        ax.set_xlim(0.5, None)
 
     return v
 
@@ -78,7 +118,6 @@ def calc_joint_hist(xd, yd, bins=None):
     else:
         return _raw_calc_joint_hist(xd=xd, yd=yd, bins=bins)
 
-
 def joint_hist_contoured(xd, yd, bins=None, normed_levels=None, ax=None,
                          **kwargs):
     """
@@ -100,33 +139,18 @@ def joint_hist_contoured(xd, yd, bins=None, normed_levels=None, ax=None,
             for q in normed_levels
         ]
 
-        try:
-            cnt = ax.contour(x_, y_, bin_counts, levels=levels, **kwargs)
-        except TypeError as e:
-            raise JointHistPlotError(str(e))
-
-        # attempt of adapting the number of bins below so that we get exactly
-        # one line per contour. This should reduce some of the messiness when
-        # we're using very few datapoints
-        if all([len(seg) == 1 for seg in cnt.allsegs]):
-            pass
-        elif any([len(seg) == 0 for seg in cnt.allsegs]):
-            pass
+        linestyles = [":", "--", "-"]
+        if len(normed_levels) > len(linestyles):
+            raise NotImplementedError
         else:
-            if bins is None:
-                bins = _estimate_bin_count(xd)
-            bins = int(bins*0.95)
-            for col in cnt.collections:
-                col.remove()
-            return joint_hist_contoured(
-                xd=xd, yd=yd, bins=bins, normed_levels=normed_levels, ax=ax,
-                **kwargs
-            )
+            linestyles = linestyles[-len(normed_levels):]
+
+        cnt = ax.contour(x_, y_, bin_counts, levels=levels, linestyles=linestyles, **kwargs)
+
     else:
         cnt = ax.contour(x_, y_, bin_counts, **kwargs)
 
     return (x_, y_), bin_counts, cnt
-
 
 def _get_counts(x, y):
     c = Counter([tuple(v) for v in zip(x, y)])
@@ -144,7 +168,7 @@ def make_marker_plot(x, y, scale=100., ax=None, marker='o', **kwargs):
     """
     if ax is None:
         ax = plt.gca()
-    
+
     if not len(x.shape) == 1:
         raise Exception("Only pass in 1D arrays")
 
@@ -232,7 +256,7 @@ def multi_jointplot(x, y, z, ds, joint_type='pointhist', **kwargs):
     LABEL_FORMAT = "{name}: {count} objects"
     g.ax_joint.legend(
         labels=[LABEL_FORMAT.format(
-            name=z_, 
+            name=z_,
             count=int(ds.sel(**{z:z_}).dropna(dim='object_id').object_id.count())
             ) for z_ in z_values],
         bbox_to_anchor=[0.5, -0.4], loc="lower center"
