@@ -175,7 +175,6 @@ def main(ds_3d, ds_cb=None, normed_levels = [10, 90], ax=None):
                         else:
                             l.set_label('into cloudbase')
                         lines.append(l)
-                        l.set_linestyle('--')
             else:
                 warnings.warn("Skipping cloud base plot, missing one or more variables")
 
