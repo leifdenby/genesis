@@ -141,11 +141,10 @@ def extract_field_to_filename(dataset_meta, path_out, field_name, **kwargs):
         da.to_netcdf(path_out)
 
 
-def _calc_theta_l_v(theta_l, qt, qc, qr):
-    assert qt.units.lower() == 'g/kg' and qt.max() > 1.0
+def _calc_theta_l_v(theta_l, qv, qc, qr):
+    assert qv.units.lower() == 'g/kg' and qv.max() > 1.0
     assert theta_l.units == 'K'
 
-    qv = qt - qc - qr
     # qc here refers to q "cloud", the total condensate is qc+qr (here
     # forgetting about ice...)
     eps = 0.608
