@@ -80,6 +80,7 @@ class JointDistProfile(luigi.Task):
     data_only = luigi.BoolParameter(default=False)
     cloud_age_max = luigi.FloatParameter(default=200.)
     cumulative_contours = luigi.Parameter(default="10,90")
+    add_mean_ref = luigi.BoolParameter(default=True)
 
     def requires(self):
         reqs = dict(
@@ -147,19 +148,24 @@ class JointDistProfile(luigi.Task):
             mask = self.input()["mask"].open()
             ds_3d = ds_3d.where(mask)
 
-        ds_3d = (ds_3d
-                 .sel(zt=slice(0, self.z_max))
-                 .isel(zt=slice(None, None, self.dk))
-                 )
+        ds_3d = ds_3d.sel(zt=slice(0, self.z_max))
+
+        ds_3d_levels = ds_3d.isel(zt=slice(None, None, self.dk))
 
         if self.data_only:
             if 'mask' in self.input():
-                ds_3d.attrs['mask_desc'] = mask.long_name
-            ds_3d.to_netcdf(self.output().fn)
+                ds_3d_levels.attrs['mask_desc'] = mask.long_name
+            ds_3d_levels.to_netcdf(self.output().fn)
         else:
+            ax = plt.gca()
+            if self.add_mean_ref:
+                ax.axvline(x=ds_3d[self.v1].mean(), color='grey', alpha=0.4)
+                ax.axhline(y=ds_3d[self.v2].mean(), color='grey', alpha=0.4)
+
             normed_levels = [int(v) for v in self.cumulative_contours.split(',')]
-            ax, _ = cross_correlation_with_height.main(ds_3d=ds_3d, ds_cb=ds_cb,
-                normed_levels=normed_levels,
+            ax, _ = cross_correlation_with_height.main(ds_3d=ds_3d_levels,
+                ds_cb=ds_cb,
+                normed_levels=normed_levels, ax=ax
             )
 
             title = ax.get_title()
@@ -330,6 +336,9 @@ class CumulantSlices(luigi.Task):
             for base_name in base_names
         )
 
+    def get_suptitle(self, base_name):
+        return base_name
+
     def makeplot(self):
         base_names = self.base_names.split(',')
 
@@ -341,9 +350,9 @@ class CumulantSlices(luigi.Task):
             v2 = inputs[self.v2].open(decode_times=False)
 
             ds = xr.merge([v1, v2])
-            ds = ds.isel(zt=slice(None, None, self.z_step))
             ds = ds.sel(zt=slice(0.0, self.z_max))
-            ds.attrs['name'] = base_name
+            ds = ds.isel(zt=slice(None, None, self.z_step))
+            ds.attrs['name'] = self.get_suptitle(base_name)
             datasets.append(ds)
 
         plot_fn = length_scales.cumulant.sections.plot
@@ -523,12 +532,15 @@ class ObjectScalesComparison(luigi.Task):
         variables = set(global_kws.pop('variables').split(','))
 
         def _merge_kws(g_kws, kws):
-            if 'object_filters' in g_kws:
-                g_kws = dict(g_kws)
-                kws['object_filters'] = '{},{}'.format(
-                    g_kws['object_filters'], kws['object_filters']
-                )
-                del(g_kws['object_filters'])
+            if 'object_filters' in g_kws or 'object_filters' in kws:
+                filter_strings = []
+                if 'object_filters' in g_kws:
+                    filter_strings.append(g_kws['object_filters'])
+                    g_kws = dict(g_kws)
+                    del(g_kws['object_filters'])
+                if 'object_filters' in kws:
+                    filter_strings.append(kws['object_filters'])
+                kws['object_filters'] = ','.join(filter_strings)
 
             kws.update(g_kws)
             return kws
