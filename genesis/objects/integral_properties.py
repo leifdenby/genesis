@@ -18,7 +18,7 @@ VAR_MAPPINGS = dict(
     z_c="centroid",
 )
 
-def calc_com_incline_and_orientation_angle(da_mask, plot_ax=None):
+def calc_com_incline_and_orientation_angle(da_mask, return_centerline_pts=False):
     """
     Calculate approximate shear angle of object (theta) and xy-orientation
     angle (phi) from the change of xy-position of the center-of-mass computed
@@ -43,10 +43,6 @@ def calc_com_incline_and_orientation_angle(da_mask, plot_ax=None):
     x_c = x_3d.where(m).mean(**kws)  # other=nan so that these get excluded from mean calculation
     y_c = y_3d.where(m).mean(**kws)
 
-    if plot_ax:
-        x_c.plot(y='z', ax=ax)
-        ds.mask.sel(y=0, method='nearest').plot(y='z', ax=ax, rasterized=True)
-
     try:
         dx = np.gradient(x_c)
         dy = np.gradient(y_c)
@@ -66,12 +62,17 @@ def calc_com_incline_and_orientation_angle(da_mask, plot_ax=None):
     theta = np.rad2deg(theta)
 
     if phi < 0:
-        phi += 180.
+        phi += 360.
 
-    return xr.merge([
+    ds = xr.merge([
         xr.DataArray(phi, name='phi', attrs=dict(long_name='xy-plane angle', units='deg')),
         xr.DataArray(theta, name='theta', attrs=dict(long_name='z-axis slope angle', units='deg')),
     ])
+
+    if return_centerline_pts:
+        return ds, [x_c, y_c, da_mask.z]
+    else:
+        return ds
 
 
 def calc_xy_proj_length(da_mask):

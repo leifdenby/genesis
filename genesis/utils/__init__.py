@@ -7,20 +7,25 @@ REQUIRED_DX_PRECISION = 4
 
 def find_grid_spacing(mask):
     # NB: should also checked for stretched grids..
-    xt, yt, zt = mask.xt, mask.yt, mask.zt
+    try:
+        x, y, z = mask.xt, mask.yt, mask.zt
+        z_var = 'zt'
+    except AttributeError:
+        x, y, z = mask.x, mask.y, mask.z
+        z_var = 'z'
 
-    dx_all = np.diff(xt.values)
-    dy_all = np.diff(yt.values)
+    dx_all = np.diff(x.values)
+    dy_all = np.diff(y.values)
     dx, dy = np.max(dx_all), np.max(dy_all)
 
     dx = np.round(dx, REQUIRED_DX_PRECISION)
     dy = np.round(dx, REQUIRED_DX_PRECISION)
 
-    if not 'zt' in mask.coords:
-        warnings.warn("zt hasn't got any coordinates defined, assuming dz=dx")
+    if not z_var in mask.coords:
+        warnings.warn("z hasn't got any coordinates defined, assuming dz=dx")
         dz = np.max(dx)
     else:
-        dz_all = np.diff(zt.values)
+        dz_all = np.diff(z.values)
         dz = np.max(dz_all)
         dz = np.round(dz, REQUIRED_DX_PRECISION)
 
