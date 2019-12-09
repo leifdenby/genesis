@@ -17,6 +17,7 @@ FIELD_NAME_MAPPING = dict(
     cvrxp='cvrxp',
     p='p',
     theta_l_v='theta_l_v',
+    qv='qv',
 )
 
 FIELD_DESCRIPTIONS = dict(
@@ -66,11 +67,13 @@ def _scale_field(da):
         da.values *= 1000.
         da.attrs['units'] = 'm'
         modified = True
-    elif da.name.startswith('q'):
+    # XXX: there is a bug in UCLALES where the units reported (g/kg) are
+    # actually wrong (they are kg/kg), this messes up the density calculation
+    # later if we don't fix it
+    # qv is already scaled because it has been calculated from qt and qr
+    # which were scaled
+    elif da.name.startswith('q') and da.name != 'qv':
         assert da.max() < 1.0 and da.units == 'g/kg'
-        # XXX: there is a bug in UCLALES where the units reported (g/kg) are
-        # actually wrong (they are kg/kg), this messes up the density
-        # calculation later if we don't fix it
         da.values *= 1000.
         modified = True
     return da, modified
@@ -118,6 +121,7 @@ def extract_field_to_filename(dataset_meta, path_out, field_name, **kwargs):
     da, modified = _scale_field(da)
     if modified:
         can_symlink = False
+
     da, modified = _fix_long_name(da)
     if modified:
         can_symlink = False
@@ -155,9 +159,8 @@ def _calc_theta_l_v(theta_l, qv, qc, qr):
     theta_l_v.name = "theta_l_v"
     return theta_l_v
 
-def _calc_qv(theta_l, qt, qc, qr):
+def _calc_qv(qt, qc, qr):
     assert qt.units.lower() == 'g/kg' and qt.max() > 1.0
-    assert theta_l.units == 'K'
 
     qv = qt - qc - qr
     qv.attrs['units'] = 'g/kg'
