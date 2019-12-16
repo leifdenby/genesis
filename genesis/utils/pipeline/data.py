@@ -18,7 +18,6 @@ from .. import mask_functions, make_mask
 from ... import objects
 from ...bulk_statistics import cross_correlation_with_height
 from ...utils import find_vertical_grid_spacing, calc_flux
-from ...objects import property_filters
 from ...objects import integral_properties
 from ... import length_scales
 
@@ -329,7 +328,7 @@ class MakeMask(luigi.Task):
             )
 
             mask_desc = mask_fn.description.format(**method_kwargs)
-            filter_desc = objects.property_filters.latex_format(object_filters)
+            filter_desc = objects.filter.latex_format(object_filters)
             da_mask.attrs['long_name'] = "{} filtered by {}".format(
                 mask_desc, filter_desc
             )
@@ -842,7 +841,7 @@ class FilterObjectScales(ComputeObjectScales):
     object_filters = luigi.Parameter()
 
     def requires(self):
-        filters = property_filters.parse_defs(self.object_filters)
+        filters = objects.filter.parse_defs(self.object_filters)
         variables = self.variables.split(',')
         variables += filters['reqd_props']
 
@@ -861,7 +860,7 @@ class FilterObjectScales(ComputeObjectScales):
             # if only one variable was requested we'll get a dataarray back
             ds_objs = ds_objs.to_dataset()
 
-        filters = property_filters.parse_defs(self.object_filters)
+        filters = objects.filter.parse_defs(self.object_filters)
         for fn in filters['fns']:
             ds_objs = fn(ds_objs)
 

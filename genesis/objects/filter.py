@@ -17,6 +17,60 @@ import cloud_tracking_analysis
 from cloud_tracking_analysis import CloudData
 from cloud_tracking_analysis.tracking_utility import TrackingType
 
+from . import property_filters
+
+
+def latex_format(filter_defs):
+    if filter_defs is None:
+        return ""
+    s_latex = []
+    s_filters = filter_defs.split(',')
+
+    for (f_type, f_def) in _defs_iterator(filter_defs):
+        if f_type == 'prop':
+            s_latex.append(property_filters.latex_format(f_type, f_def))
+        else:
+            raise NotImplementedError(f_type, f_def)
+    return " and ".join(s_latex)
+
+def _defs_iterator(filter_defs):
+    s_filters = filter_defs.split(',')
+    for s_filter in s_filters:
+        try:
+            f_type, f_cond = s_filter.split(':')
+            s_prop_and_op, s_value = f_cond.split("=")
+
+            if f_type == 'prop':
+                i = s_prop_and_op.rfind('__')
+                prop_name, op_name = s_prop_and_op[:i], s_prop_and_op[i+2:]
+                yield f_type, (prop_name, op_name, s_value)
+            elif f_type == 'tracking':
+                yield f_type, (f_cond,)
+            else:
+                raise NotImplementedError("Filter type `{}` not recognised"
+                                          "".format(f_type))
+        except (IndexError, ValueError) as e:
+            raise Exception("Malformed filter definition: `{}`".format(
+                            s_filter))
+
+def parse_defs(filter_defs):
+    filters = dict(reqd_props=[], fns=[])
+
+    for (f_type, f_def) in _defs_iterator(filter_defs):
+        if f_type == 'prop':
+            prop_name, op_name, s_value = f_def
+            fn = property_filters.make_filter_fn(prop_name, op_name, s_value)
+            filters['reqd_props'].append(prop_name)
+            filters['fns'].append(fn)
+        elif f_type == 'tracking':
+            tracking_type, = f_def
+            assert tracking_type == 'triggers_cloud'
+            fn = filter_objects_by_tracking
+            filters['fns'].append(fn)
+        else:
+            raise NotImplementedError
+
+    return filters
 
 def label_objects(mask, splitting_scalar=None, remove_at_edge=True):
     def _remove_at_edge(object_labels):
