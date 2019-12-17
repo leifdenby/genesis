@@ -512,7 +512,7 @@ class ObjectScalesComparison(luigi.Task):
             arr = []
             for (k, v) in kws.items():
                 if k == 'object_filters':
-                    s = "({})".format(objects.property_filters.latex_format(v))
+                    s = "({})".format(objects.filter.latex_format(v))
                 else:
                     s = "{}={}".format(str(k), str(v))
                 arr.append(s)
@@ -608,7 +608,7 @@ class ObjectScalesComparison(luigi.Task):
 
         if 'object_filters' in global_params:
             object_filters = global_params['object_filters']
-            return objects.property_filters.latex_format(object_filters)
+            return objects.filter.latex_format(object_filters)
         else:
             global_params.pop('variables')
             identifier = "\n".join([
@@ -690,7 +690,7 @@ class ObjectScalesFit(luigi.Task):
         return {}
 
     def get_suptitle(self):
-        s_filters = objects.property_filters.latex_format(self.object_filters)
+        s_filters = objects.filter.latex_format(self.object_filters)
         return "{}\n{}".format(self.base_names,s_filters)
 
     def run(self):
@@ -882,7 +882,7 @@ class ObjectsScaleDist(luigi.Task):
             ax1.autoscale()
             [ax.set_ylabel('') for ax in axes[1:]]
 
-        s_filters = objects.property_filters.latex_format(self.object_filters)
+        s_filters = objects.filter.latex_format(self.object_filters)
         st = plt.suptitle("{}\n{}".format(self.base_names,s_filters), y=1.1)
 
         sns.despine(right=not self.show_cumsum)
@@ -978,7 +978,7 @@ class ObjectsScalesJointDist(luigi.Task):
 
             g = plot_types.multi_jointplot(x=self.x, y=self.y, z='dataset', ds=ds, **kws)
             ax = g.ax_joint
-            s_filters = objects.property_filters.latex_format(self.object_filters)
+            s_filters = objects.filter.latex_format(self.object_filters)
             plt.suptitle("{}\n{}".format(self.base_names,s_filters), y=1.1)
             if self.plot_aspect is not None:
                 raise Exception("Can't set aspect ratio on jointplot, set limits instead")
@@ -1167,7 +1167,7 @@ class ObjectScaleVsHeightComposition(luigi.Task):
         plt.savefig(self.output().fn, bbox_inches='tight')
 
     def get_suptitle(self, N_objects):
-        s_filters = objects.property_filters.latex_format(self.object_filters)
+        s_filters = objects.filter.latex_format(self.object_filters)
         return "{} ({} objects)\n{}".format(self.base_name,N_objects, s_filters)
 
     def output(self):

@@ -4,6 +4,7 @@ file
 """
 import os
 import warnings
+import re
 
 import xarray as xr
 import numpy as np
@@ -29,6 +30,8 @@ def latex_format(filter_defs):
     for (f_type, f_def) in _defs_iterator(filter_defs):
         if f_type == 'prop':
             s_latex.append(property_filters.latex_format(f_type, f_def))
+        elif f_type == 'tracking':
+            s_latex.append("tracked {}".format(f_def[0]))
         else:
             raise NotImplementedError(f_type, f_def)
     return " and ".join(s_latex)
@@ -38,9 +41,8 @@ def _defs_iterator(filter_defs):
     for s_filter in s_filters:
         try:
             f_type, f_cond = s_filter.split(':')
-            s_prop_and_op, s_value = f_cond.split("=")
-
             if f_type == 'prop':
+                s_prop_and_op, s_value = f_cond.split("=")
                 i = s_prop_and_op.rfind('__')
                 prop_name, op_name = s_prop_and_op[:i], s_prop_and_op[i+2:]
                 yield f_type, (prop_name, op_name, s_value)
@@ -54,21 +56,35 @@ def _defs_iterator(filter_defs):
                             s_filter))
 
 def parse_defs(filter_defs):
-    filters = dict(reqd_props=[], fns=[])
+    filters = []
 
     for (f_type, f_def) in _defs_iterator(filter_defs):
+        filter = dict(fn=None, reqd_props=[], extra=[])
         if f_type == 'prop':
             prop_name, op_name, s_value = f_def
             fn = property_filters.make_filter_fn(prop_name, op_name, s_value)
-            filters['reqd_props'].append(prop_name)
-            filters['fns'].append(fn)
+            filter['reqd_props'].append(prop_name)
+            filter['fn'] = fn
         elif f_type == 'tracking':
             tracking_type, = f_def
-            assert tracking_type == 'triggers_cloud'
+
+            m = re.match("(?P<tracking_type>\w+)__(?P<prop>\w+)__(?P<op>\w+)=(?P<value>\d+)", tracking_type)
+            if m is not None:
+                filter['extra_kws'] = dict(extra_filter=m.groupdict())
+                filter['extra_kws']['extra_filter']['value'] = float(
+                    filter['extra_kws']['extra_filter']['value']
+                )
+            else:
+                filter_op = None
+                op_value = None
+
             fn = filter_objects_by_tracking
-            filters['fns'].append(fn)
+            filter['fn'] = fn
+            filter['extra'].append('cloud_tracking_data')
+            filter['extra'].append('objects_3d')
         else:
             raise NotImplementedError
+        filters.append(filter)
 
     return filters
 
@@ -115,7 +131,63 @@ def filter_objects_by_mask(objects, mask):
     return objects
 
 
-def filter_objects_by_tracking(objects, base_name, dt_pad):
+def filter_objects_by_tracking(da_objects, ds_objects_scales, cloud_tracking_data, extra_filter=None):
+    cloud_data = cloud_tracking_data
+
+    t0 = da_objects.time.values
+
+    ds_tracked = cloud_data._fh_track.sel(time=t0)
+    objects_tracked_2d = ds_tracked.nrthrm
+
+    if extra_filter is not None:
+        if (extra_filter['prop'] == 'max_height'
+            and extra_filter['op'] == 'gt'):
+
+            trac_labels_2d = objects_tracked_2d.fillna(0.0).astype(int).values
+            # remove object zero
+            trac_ids_present = np.unique(trac_labels_2d)[1:]
+
+            ds_tracked__max_height = (
+                ds_tracked
+                .sel(smthrm=trac_ids_present)
+                .smthrmtop.max(dim='smthrmt')
+            )
+
+            are_ok = ds_tracked__max_height > float(extra_filter['value'])
+            idxs_to_keep = are_ok.where(are_ok, drop=True).smthrm.astype(int).values
+
+            labels__fake_3d = np.expand_dims(trac_labels_2d, axis=-1).astype(np.uint32)
+
+            labels__copy = np.array(labels__fake_3d)
+
+            cloud_identification.filter_labels(
+                labels=labels__fake_3d,
+                idxs_keep=idxs_to_keep
+            )
+
+            da_mask = xr.DataArray(
+                labels__fake_3d[...,0], coords=objects_tracked_2d.coords,
+                dims=objects_tracked_2d.dims
+            )
+            objects_tracked_2d = da_mask.where(da_mask != 0)
+        else:
+            raise NotImplementedError(extra_filter)
+
+    # mask the 3D objects identified so that we can find out what object IDs
+    # should be kept
+    da_objects_filtered = da_objects.where(~objects_tracked_2d.isnull())
+
+    filter_nans = lambda v: v[~np.isnan(v)]
+    # remove nan values and object with id `0` (which is outside object)
+    object_ids_filtered = filter_nans(np.unique(da_objects_filtered))[1:]
+
+    ds_objects_scales_filtered = ds_objects_scales.sel(
+        object_id=object_ids_filtered[1:]
+    )
+
+    return ds_objects_scales_filtered
+
+def filter_objects_by_tracking_old(objects, base_name,):
     t0 = objects.time.values
     valid_units = ["seconds since 2000-01-01 00:00:00", "seconds since 2000-01-01"]
     assert objects.time.units in valid_units
@@ -138,6 +210,7 @@ def filter_objects_by_tracking(objects, base_name, dt_pad):
         tracking_identifier=tracking_identifier,
         tracking_type=TrackingType.THERMALS_ONLY
     )
+
 
     ds_track_2d = cloud_data._fh_track.sel(time=objects.time)
     objects_tracked_2d = ds_track_2d.nrthrm
