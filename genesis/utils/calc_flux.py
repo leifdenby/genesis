@@ -11,7 +11,7 @@ xr_chunks = dict(zt=20)
 
 def get_horz_devition(da):
     dv = da - da.mean(dim=(da.dims[1], da.dims[2]), dtype=np.float64)
-    dv = dv[:,:,:,1:] # remove sub-surface values
+    dv = dv.sel(zt=slice(0, None)) # remove sub-surface values
     dv.attrs['units'] = da.units
     dv.attrs['long_name'] = "{} horz deviation".format(da.long_name)
     dv.name = 'd_{}'.format(dv.name)
