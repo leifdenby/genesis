@@ -68,8 +68,7 @@ def _extract_horizontal(da, z):
         # warnings.warn("input dataset doesn't have its `from_file` "
                       # "attribute set so can't store horizontal cross-sections "
                       # "for optimisation")
-        da_slice = da.isel(time=0, drop=True)\
-                     .where(da.zt==z, drop=True).squeeze()
+        da_slice = da.where(da.zt==z, drop=True).squeeze()
         da_slice.name = da.name
     else:
         fn = da.from_file
@@ -103,10 +102,11 @@ def _extract_horizontal(da, z):
     return da_slice
 
 
-def get_height_variation_of_characteristic_scales(v1_3d, z_max, 
-                                                  width_method, v2_3d=None,
-                                                  z_min=0.0, mask=None,
-                                                  sample_angle=None):
+def get_height_variation_of_characteristic_scales(
+        v1_3d, z_max,
+        width_method=cumulant_analysis.WidthEstimationMethod.MASS_WEIGHTED,
+        v2_3d=None, z_min=0.0, mask=None, sample_angle=None):
+
     datasets = []
 
     z_ = v1_3d.zt[np.logical_and(v1_3d.zt > z_min, v1_3d.zt <= z_max)]
