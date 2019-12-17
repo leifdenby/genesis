@@ -13,6 +13,7 @@ dependencies:
   - dask
   - bottleneck
   - pystan
+  - dask-image
   - pip:
     - scipy
     - matplotlib
