@@ -15,7 +15,7 @@ OUT_FILENAME_FORMAT = "{base_name}.objects.{objects_name}.nc"
 def make_objects_name(mask_name, splitting_var):
     return "{mask_name}.split_on.{splitting_var}".format(**locals())
 
-def label_objects(mask, splitting_scalar, remove_at_edge=False):
+def _label_objects_wrapper(mask, splitting_scalar, remove_at_edge=False):
     if remove_at_edge:
         raise NotImplementedError
         def _remove_at_edge(object_labels):
@@ -41,13 +41,13 @@ def label_objects(mask, splitting_scalar, remove_at_edge=False):
 
     return object_labels
 
-def process(mask, splitting_scalar):
+def label_objects(mask, splitting_scalar):
     dx = find_grid_spacing(mask)
 
     if splitting_scalar is not None:
         mask = mask.sel(zt=splitting_scalar.zt).squeeze()
 
-    object_labels = label_objects(mask=mask, splitting_scalar=splitting_scalar)
+    object_labels = _label_objects_wrapper(mask=mask, splitting_scalar=splitting_scalar)
 
     da = xr.DataArray(data=object_labels, coords=mask.coords, dims=mask.dims,
                       name="object_labels")
@@ -105,7 +105,7 @@ if __name__ == "__main__":
                 zt=slice(0.0, args.z_max)
             ).squeeze()
 
-    ds = process(mask=mask, splitting_scalar=splitting_scalar,
+    ds = label_objects(mask=mask, splitting_scalar=splitting_scalar,
                  remove_at_edge=args.remove_edge_objects)
 
     ds.attrs['input_name'] = input_name

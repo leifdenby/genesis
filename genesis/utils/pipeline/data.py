@@ -518,7 +518,7 @@ class IdentifyObjects(luigi.Task):
             da_mask = xr.open_dataarray(self.input()['mask'].fn).squeeze()
             da_scalar = xr.open_dataarray(self.input()['scalar'].fn).squeeze()
 
-            object_labels = objects.identify.process(
+            object_labels = objects.identify.label_objects(
                 mask=da_mask, splitting_scalar=da_scalar
             )
 
