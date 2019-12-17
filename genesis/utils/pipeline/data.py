@@ -72,6 +72,11 @@ def _get_dataset_meta_info(base_name):
     if datasources is not None:
         if base_name in datasources:
             datasource = datasources[base_name]
+            if "tn" in base_name:
+                _, timestep = base_name.split('.tn')
+                datasource["timestep"] = int(timestep)
+            else:
+                datasource["timestep"] = 0
         elif re.search(r"\.tn\d+$", base_name):
             base_name, timestep = base_name.split('.tn')
             datasource = datasources[base_name]
@@ -213,7 +218,8 @@ class ExtractField3D(luigi.Task):
         meta = _get_dataset_meta_info(self.base_name)
 
         fn = self.FN_FORMAT.format(
-            experiment_name=meta['experiment_name'], timestep=meta['timestep'],
+            experiment_name=meta['experiment_name'],
+            timestep=meta['timestep'],
             field_name=self.field_name
         )
 
