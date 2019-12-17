@@ -13,9 +13,13 @@ import genesis.objects
 
 import cloud_identification
 
-import cloud_tracking_analysis
-from cloud_tracking_analysis import CloudData
-from cloud_tracking_analysis.tracking_utility import TrackingType
+try:
+    import cloud_tracking_analysis
+    from cloud_tracking_analysis import CloudData
+    from cloud_tracking_analysis.tracking_utility import TrackingType
+    HAS_CLOUD_TRACKING = True
+except ImportError:
+    HAS_CLOUD_TRACKING = False
 
 
 def label_objects(mask, splitting_scalar=None, remove_at_edge=True):
@@ -62,6 +66,9 @@ def filter_objects_by_mask(objects, mask):
 
 
 def filter_objects_by_tracking(objects, base_name, dt_pad):
+    if not HAS_CLOUD_TRACKING:
+        raise Exception("Cloud tracking library isn't available so can't"
+                        " filter based on tracking")
     t0 = objects.time.values
     valid_units = ["seconds since 2000-01-01 00:00:00", "seconds since 2000-01-01"]
     assert objects.time.units in valid_units
