@@ -127,7 +127,30 @@ def get_integration_requirements(variable):
     else:
         return {}
 
-def integrate(objects, variable, operator, **kwargs):
+def integrate(objects, variable, operator=None, **kwargs):
+    """
+    Integrate over the labelled objects in `objects` the variable (named by a
+    string, .e.g `r_equiv` would be the equivalent spherical radius). Can also
+    integrate for example a scalar field provided through an extra kwarg to
+    find for example the maximum value.
+
+    Available variables:
+
+        {avail_vars}
+
+    Calculating equivalent radius for each object:
+
+    >> integrate(da_objects, variable='r_equiv')
+
+    Calculate the maximum value of vertical velocity for each object
+
+    >> integrate(da_objects, variable='w', operator='maximum', w=da_w)
+
+    Calculate the volume integral of water vapour for each object
+
+    >> integrate(da_objects, variable='q', operator='volume_integral', q=ds.q)
+    """
+
     ds_out = None
 
     if variable in objects.coords:
@@ -165,7 +188,8 @@ def integrate(objects, variable, operator, **kwargs):
             # coords=objects.coords, attrs=dict(units='1')
         # )
         # da_scalar.name = 'volume'
-    elif variable in ['length_m', 'width_m', 'thickness_m', 'volume', 'num_cells']:
+    elif variable in ['length_m', 'width_m', 'thickness_m', 'volume',
+            'num_cells', 'filamentarity', 'planarity']:
         ds_minkowski = minkowski_scales.main(da_objects=objects)
         ds_out = ds_minkowski[variable]
     elif variable == 'r_equiv':
@@ -211,6 +235,10 @@ def integrate(objects, variable, operator, **kwargs):
         ds_out = _integrate_scalar(objects=objects, da=da_scalar, operator=operator)
 
     return ds_out
+# hack to set docstring at runtime so we can include the available variables
+integrate.__doc__ = integrate.__doc__.format(
+    avail_vars=", ".join(integral_properties.VAR_MAPPINGS.keys())
+)
 
 if __name__ == "__main__":
     import argparse
