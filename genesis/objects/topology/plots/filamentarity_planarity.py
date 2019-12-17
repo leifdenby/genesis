@@ -91,44 +91,29 @@ def main(ds, auto_scale=True):
     Create a filamentarity-planarity joint plot using the `dataset` attribute
     of `ds` for the hue 
     """
-    colors = ['b', 'r', 'g', 'orange']
-    cmaps = ['Blues', 'Reds', 'Greens', 'Oranges']
-    x = 'planarity'
-    y = 'filamentarity'
-
     xlim = np.array([ds[x].min(), ds[x].max()])
     ylim = np.array([ds[y].min(), ds[y].max()])
 
-    datasets = ds.dataset.values
+    if not 'dataset' in ds:
+        g = fp_plot(ds)
+    else:
 
-    if len(datasets) > len(cmaps):
-        raise NotImplementedError('Need to add some more colourmaps to handle'
-                                  ' this number of datasets')
+        g = multi_jointplot(x='planarity', y='filamentarity', z='dataset',
+                        ds=ds, joint_type='kde')
 
-    g = multi_jointplot(x='planarity', y='filamentarity', z='dataset',
-                    ds=ds, joint_type='kde')
+        LABEL_FORMAT = "{name}: {count} objects"
+        g.ax_joint.legend(
+            labels=[LABEL_FORMAT.format(
+                name=d, 
+                count=int(ds.sel(dataset=d).dropna(dim='object_id').object_id.count())
+                ) for d in datasets],
+            bbox_to_anchor=[0.5, -0.4], loc="lower center"
+        )
 
-    # g = sns.JointGrid(x=x, y=y, data=ds.sel(dataset=datasets[0]),)
-    # for c, cmap, dataset in zip(colors, cmaps, datasets):
-        # ds_ = ds.sel(dataset=dataset).dropna(dim='object_id')
-        # _ = g.ax_joint.scatter(ds_[x], ds_[y], color=c, alpha=0.5, marker='.')
-        # sns.kdeplot(ds_[x], ds_[y], cmap=cmap, ax=g.ax_joint, n_levels=5)
-        # _ = g.ax_marg_x.hist(ds_[x], alpha=.6, color=c, range=xlim)
-        # _ = g.ax_marg_y.hist(ds_[y], alpha=.6, color=c, orientation="horizontal", range=ylim)
-
-    LABEL_FORMAT = "{name}: {count} objects"
-    g.ax_joint.legend(
-        labels=[LABEL_FORMAT.format(
-            name=d, 
-            count=int(ds.sel(dataset=d).dropna(dim='object_id').object_id.count())
-            ) for d in datasets],
-        bbox_to_anchor=[0.5, -0.4], loc="lower center"
-    )
+        plot_reference(
+            ax=g.ax_joint, shape='spheroid', color="black"
+        )
 
     if auto_scale:
         g.ax_joint.set_xlim(-0.0, 0.45)
         g.ax_joint.set_ylim(-0.0, 0.9)
-
-    plot_reference(
-        ax=g.ax_joint, shape='spheroid', color="black"
-    )
