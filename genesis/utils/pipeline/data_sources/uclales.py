@@ -140,7 +140,7 @@ def extract_field_to_filename(dataset_meta, path_out, field_name, **kwargs):
         da.name = field_name
 
     if can_symlink and path_in.exists():
-        os.symlink(str(path_in), str(path_out))
+        os.symlink(str(path_in.absolute()), str(path_out))
     else:
         da.to_netcdf(path_out)
 

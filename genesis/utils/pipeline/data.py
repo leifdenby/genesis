@@ -1029,7 +1029,7 @@ class ExtractCrossSection2D(luigi.Task):
 
         p_out.parent.mkdir(exist_ok=True, parents=True)
 
-        os.symlink(str(p_in), str(p_out))
+        os.symlink(str(p_in.absolute()), str(p_out))
 
     def output(self):
         meta = _get_dataset_meta_info(self.base_name)
