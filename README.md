@@ -25,7 +25,7 @@ create a conda environment and install the dependencies into there:
 
 
 ```
-conda create -n genesis -f environment.yml
+conda env create -n genesis -f environment.yml
 conda activate genesis
 ```
 
