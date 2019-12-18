@@ -74,7 +74,7 @@ def fp_plot(ds, lm_range=None):
     g.plot_joint(sns.kdeplot, cmap='Blues', zorder=0)
     ax = g.ax_joint
     ax.text(0.95, 0.95,
-            "{}, {} objects".format(ds.mask, len(ds.object_id)),
+            "{} objects".format(len(ds.object_id)),
             transform=ax.transAxes, horizontalalignment='right',
             bbox=dict(facecolor='white', alpha=0.8, edgecolor='none')
     )
@@ -84,6 +84,7 @@ def fp_plot(ds, lm_range=None):
     )
     ax.set_ylim(-0.01, ds.filamentarity.max())
     ax.set_xlim(-0.01, ds.planarity.max())
+    return g
 
 
 def main(ds, auto_scale=True):
@@ -91,6 +92,12 @@ def main(ds, auto_scale=True):
     Create a filamentarity-planarity joint plot using the `dataset` attribute
     of `ds` for the hue 
     """
+    x = 'planarity'
+    y = 'filamentarity'
+
+    assert x in ds
+    assert y in ds
+
     xlim = np.array([ds[x].min(), ds[x].max()])
     ylim = np.array([ds[y].min(), ds[y].max()])
 
