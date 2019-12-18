@@ -9,7 +9,7 @@ import numpy as np
 from scipy.constants import pi
 import scipy.optimize
 import scipy.integrate
-from intergrid import intergrid
+from ...utils.intergrid import intergrid
 import xarray as xr
 from tqdm import tqdm
 from enum import Enum

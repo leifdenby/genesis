@@ -1,0 +1,144 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <meta http-equiv="Content-Style-Type" content="text/css" />
+  <meta name="generator" content="pandoc" />
+  <title></title>
+  <style type="text/css">code{white-space: pre;}</style>
+  <title>
+  Intergrid: interpolate data given on an N-d rectangular grid, uniform or non-uniform.
+  </title>
+  <meta name="author" content="Denis Bzowy denis-bz-py@t-online.de" />
+  <meta name="date" content="2013-06-28 Jun" />
+  
+  <style type="text/css">
+  	body { 
+  		font-family: Arial, sans-serif;
+  		font-size: 100%;
+  		line-height: 120%;
+  		max-width: 800px;
+  		margin-left: 1pt
+  		padding: 0;
+  		color: #333;
+  		background: none;
+  		}
+  	code {
+  		font-family: /*"Courier New",*/ Courier, monospace;
+  		font-size: 95%;
+  		} 
+  	pre {
+  		background-color: #f6fff6;  /* f0 grell, f8 prints white */
+  		margin-left: 2em;
+  	}
+  
+  	/*Headings */
+  	h1,h2,h3,h4,h5,h6 {
+  		font-family: Arial, sans-serif;
+  		color: #248;
+  		border-bottom: 1px solid #ccc;
+  		}
+  	h1 { font-size: 150%;
+  		padding-bottom: 5px;
+  		}
+  	h2 { font-size: 120%;
+  		margin-top: 1em;
+  		padding-bottom: 2px;
+  		}
+  
+  	blockquote { margin: 1.3em; padding: 1em;  font-size: 10pt; }
+  	hr { background-color: #ccc; }
+  
+  	/* Images */
+  	img { float: left; margin: 1em 1.5em 1.5em 0; }
+  	a img { border: none; }
+  </style>
+  
+</head>
+<body>
+<h1 id="intergrid-interpolate-data-given-on-an-n-d-rectangular-grid">Intergrid: interpolate data given on an N-d rectangular grid</h1>
+<p>Purpose: interpolate data given on an N-dimensional rectangular grid, uniform or non-uniform, with the fast <code>scipy.ndimage.map_coordinates</code> . Non-uniform grids are first uniformized with <code>numpy.interp</code> .</p>
+<p>Background: the reader should know some Python and NumPy (<a href="http://ipython.org">IPython</a> is invaluable for learning both). For basics of interpolation, see <a href="http://en.wikipedia.org/wiki/Bilinear_interpolation">Bilinear interpolation</a> on Wikipedia. For <code>map_coordinates</code>, see the example under <a href="http://stackoverflow.com/questions/6238250/multivariate-spline-interpolation-in-python-scipy">multivariate-spline-interpolation-in-python-scipy</a> .</p>
+<h2 id="example">Example</h2>
+<p>Say we have rainfall on a 4 x 5 grid of rectangles, lat 52 .. 55 x lon -10 .. -6, and want to interpolate (estimate) rainfall at 1000 query points in between the grid points.</p>
+<pre><code>from intergrid import Intergrid  # intergrid.py in $PYTHONPATH
+
+    # define the grid --
+griddata = np.loadtxt(...)  # griddata.shape == (4, 5)
+lo = np.array([ 52, -10 ])  # lowest lat, lowest lon
+hi = np.array([ 55, -6 ])   # highest lat, highest lon
+
+    # set up an interpolator function &quot;interfunc()&quot; with class Intergrid --
+interfunc = Intergrid( griddata, lo=lo, hi=hi )
+
+    # generate 1000 random query points, lo &lt;= [lat, lon] &lt;= hi --
+query_points = lo + np.random.uniform( size=(1000, 2) ) * (hi - lo)
+
+    # get rainfall at the 1000 query points --
+query_values = interfunc.at( query_points )  # -&gt; 1000 values</code></pre>
+<p>What this does: for each [lat, lon] in query_points:</p>
+<ol style="list-style-type: decimal">
+<li>find the square of <code>griddata</code> it's in, e.g. [52.5, -8.1] -&gt; [0, 3][0, 4] [1, 4][1, 3]</li>
+<li>do bilinear (multilinear) interpolation in that square, using <code>scipy.ndimage.map_coordinates</code> .</li>
+</ol>
+<p>Check:<br />        <code>interfunc( lo ) == griddata[0, 0]</code><br />        <code>interfunc( hi ) == griddata[-1, -1]</code> i.e. <code>griddata[3, 4]</code></p>
+<h2 id="parameters">Parameters</h2>
+<p><code>griddata</code>: numpy array_like, 2d 3d 4d ...<br /><code>lo, hi</code>: user coordinates of the corners of griddata, 1d array-like, lo &lt; hi<br /><code>maps</code>: an optional list of <code>dim</code> descriptors of piecewise-linear or nonlinear maps,<br />        e.g. [[50, 52, 62, 63], None]   # uniformize lat, linear lon; see below<br /><code>copy</code>: make a copy of query_points, default <code>True</code>;<br />        <code>copy=False</code> overwrites query_points, runs in less memory<br /><code>verbose</code>: the default 1 prints a summary of each call, with run time<br /><code>order</code>: interpolation order:<br />        default 1: bilinear, trilinear ... interpolation using all 2^dim corners<br />        0: each query point -&gt; the nearest grid point -&gt; the value there<br />        2 to 5: spline, see below<br /><code>prefilter</code>: the kind of spline:<br />        default <code>False</code>: smoothing B-spline<br />        <code>True</code>: exact-fit C-R spline<br />        1/3: Mitchell-Netravali spline, 1/3 B + 2/3 fit</p>
+<h2 id="methods">Methods</h2>
+<p>After setting up <code>interfunc = Intergrid(...)</code>, either</p>
+<pre><code>query_values = interfunc.at( query_points )  # or
+query_values = interfunc( query_points )</code></pre>
+<p>do the interpolation. (The latter is <code>__call__</code> in python.)</p>
+<h2 id="non-uniform-rectangular-grids">Non-uniform rectangular grids</h2>
+<p>What if our griddata above is at non-uniformly-spaced latitudes, say [50, 52, 62, 63] ? <code>Intergrid</code> can &quot;uniformize&quot; these before interpolation, like this:</p>
+<pre><code>lo = np.array([ 50, -10 ])
+hi = np.array([ 60, -6 ])
+maps = [[50, 52, 62, 63], None]  # uniformize lat, linear lon
+interfunc = Intergrid( griddata, lo=lo, hi=hi, maps=maps )</code></pre>
+<p>This will map (transform, stretch, warp) the lats in query_points column 0 to array coordinates in the range 0 .. 3, using <code>np.interp</code> to do piecewise-linear (PWL) mapping:</p>
+<pre><code>50  51  52  53  54  55  56  57  58  59  60  61  62  63   # lo[0] .. hi[0]
+ 0  .5   1  1.1 1.2 1.3 1.4 1.5 1.6 1.7 1.8 1.9  2   3</code></pre>
+<p><code>maps[1] None</code> says to map the lons in query_points column 1 linearly:</p>
+<pre><code>-10  -9  -8  -7  -6   # lo[1] .. hi[1]
+  0   1   2   3   4</code></pre>
+<h2 id="mapping-details">Mapping details</h2>
+<p>The query_points are first clipped, then columns mapped linearly or non-linearly, then fed to <code>map_coordinates</code> .<br />In <code>dim</code> dimensions (i.e. axes or columns), <code>lo</code> and <code>hi</code> are each <code>dim</code> numbers, the low and high corners of the data grid.<br /><code>maps</code> is an optional list of <code>dim</code> map descriptors, which can be</p>
+<ul>
+<li><code>None</code>: linear-transform that column, <code>query_points[:,j]</code>, to <code>griddata</code>:<br /> <code>lo[j] -&gt; 0</code><br /> <code>hi[j] -&gt; griddata.shape[j] - 1</code></li>
+<li>a callable function: e.g. <code>np.log</code> does<br /> <code>query_points[:,j] = np.log( query_points[:,j] )</code></li>
+<li>a <em>sorted</em> array describing a non-uniform grid:<br /> <code>query_points[:,j] =</code><br /> <code>np.interp( query_points[:,j], [50, 52, 62, 63], [0, 1, 2, 3] )</code></li>
+</ul>
+<h2 id="download">Download</h2>
+<pre><code>git clone http://github.com/denis-bz/interpol.git
+# rm -rf interpol/barypol
+# add .../interpol/intergrid to PYTHONPATH in ~/.bashrc or ~/.cshrc</code></pre>
+<h2 id="splines">Splines</h2>
+<p><code>Intergrid( ... order = 0 to 5 )</code> gives the spline order:<br />        <code>order=1</code>, the default, does bilinear, trilinear ... interpolation, which looks at the grid data at all 4 8 16 .. 2^dim corners of the box around each query point.<br />        <code>order=0</code> looks at only the one gridpoint nearest each query point — crude but fast.<br />        <code>order = 2 to 5</code> does spline interpolation on a uniform or uniformized grid, looking at (order+1)^dim neighbors of each query point.</p>
+<p><code>Intergrid( ... prefilter = False | True | 1/3 )</code> specifies the kind of spline, for <code>order &gt;= 2</code>:<br />        <code>prefilter=0</code> or <code>False</code>, the default: B-spline<br />        <code>prefilter=1</code> or <code>True</code>: exact-fit spline<br />        <code>prefilter=1/3</code>: M-N spline.<br />A B-spline goes through smoothed data points, with [1 4 1] smoothing, [0 0 1 0 0] -&gt; [0 1 4 1 0] / 6.<br />An exact-fit a.k.a interpolating spline goes through the data points exactly. This is not what you want for noisy data, and may also wiggle or overshoot more than B-splines do.<br />An M-N spline blends 1/3 B-spline and 2/3 exact-fit; see Mitchell and Netravali, <a href="http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.125.201&amp;rep=rep1&amp;type=pdf">Reconstruction filters in computer-graphics</a> , 1988, and the plots from <code>intergrid/test/MNspline.py</code>.</p>
+<p><small> Exact-fit or interpolating splines can be local or global. Catmull-Rom splines and the original M-N splines are local: they look at 4 neighbors of each query point in 1d, 16 in 2d, 64 in 3d. Prefiltering is global, with IIR falloff ~ 1 / 4^distance (I don't know of test images that show a visible difference to local C-R). Confusingly, the term &quot;Cardinal spline&quot; is sometimes used for local (C-R, FIR), and sometimes for global (IIR prefilter, then B-spline).</p>
+<p>Prefiltering is a clever transformation such that <code>Bspline( transform( data )) = exactfitspline( data )</code>. It is described in a paper by M. Unser, <a href="http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.19.6706&amp;rep=rep1&amp;type=pdf">Splines: A perfect fit for signal and image processing</a> , 1999. </small></p>
+<p>Uniformizing a grid with PWL, then uniform-splining, is fast and simple, but not as smooth as true splining on the original non-uniform grid. The differences will of course depend on the grid spacings and on how rough the function is.</p>
+<h2 id="notes">Notes</h2>
+<p>Run any interpolator on <em>your</em> data with orders 0, 1 ... to get an idea of how the results get smoother, and take longer. Check a few query points by hand; plot some cross-sections.</p>
+<p><code>griddata</code> values can be of any numpy integer or floating type: int8 uint8 .. int32 int64 float32 float64. <code>np.float32</code> will use less memory than <code>np.float64</code> (but beware of functions in the flow that silently convert everything to float64). The values must be numbers, not vectors.</p>
+<p>Coordinate scaling doesn't matter to <code>Intergrid</code>; corner weights are calculated in unit cubes of <code>griddata</code>, after scaling and mapping. If for example griddata column 3 is multiplied by 1000, and lo[3] hi[3] too, the weights are unchanged.</p>
+<p>Box grids get big and slow above 5d. A cube with steps 0 .1 .2 .. 1.0 in all dimensions has 11^6 ~ 1.8M points in 6d, 11^8 ~ 200M in 8d. One can reduce that only with a coarser grid like 0 .5 1 in some dimensions (those that vary the least). But time ~ 2^d per query point grows pretty fast.</p>
+<p><code>map_coordinates</code> in 5d looks at 32 corner values, with average weight 3 %. If the weights are roughly equal (which they will tend to be, by the central limit theorem ?), sharp edges or gradients will be blurred, and colors mixed to a grey fog.</p>
+<h2 id="kinds-of-grids">Kinds of grids</h2>
+<p>Terminology varies, so the basic kinds of box grids a.k.a. rectangular grids are defined here.</p>
+<p>An integer or Cartesian grid has integer coordinates, e.g. 2 x 3 x 5 points in a numpy array: <code>A = np.array((2,3,5)); A[0,0,0], A[0,0,1] .. A[1,2,4]</code>.</p>
+<p>A uniform box grid has nx x ny x nz ... points uniformly spaced, linspace x linspace x linspace ... so all boxes have the same size and are axis-aligned. Examples: 1024 x 768 pixels on a screen, or 4 x 5 points at latitudes [10 20 30 40] x longitudes [-10 -9 -8 -7 -6].</p>
+<p>A non-uniform box grid also has nx x ny x nz ... points, but allows non-uniform spacings, e.g. latitudes [-10 0 60 70] x longitudes [-10 -9 0 20 40]; the boxes have different sizes but are still axis-aligned.</p>
+<p>(Scattered data, as the name says, has points anywhere, not only on grid lines. To interpolate scattered data in <code>scipy</code>, see <a href="http://docs.scipy.org/doc/scipy/reference/generated/scipy.interpolate.griddata.html">scipy.interpolate.griddata</a> and <a href="http://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.cKDTree.html">scipy.spatial.cKDTree</a> .)</p>
+<p>There are countless varieties of grids: grids with holes, grids warped to various map projections, multiscale / multiresolution grids ... Google &quot;regridding&quot; or &quot;resampling&quot;.</p>
+<h2 id="run-times">Run times</h2>
+<p>See intergrid/test/test-4d.py: a 4d grid with 1M scattered query points, uniform / non-uniform box grid, on a 2.5Gz i5 iMac:</p>
+<pre><code>shape (361, 720, 47, 8)  98M * 8
+Intergrid: 617 msec  1000000 points in a (361, 720, 47, 8) grid  0 maps  order 1
+Intergrid: 788 msec  1000000 points in a (361, 720, 47, 8) grid  4 maps  order 1</code></pre>
+<h2 id="see-also">See also</h2>
+<p><a href="http://docs.scipy.org/doc/scipy-dev/reference/generated/scipy.ndimage.interpolation.map_coordinates.html">scipy.ndimage.interpolation.map_coordinates</a><br /><a href="http://docs.scipy.org/doc/scipy/reference/tutorial/ndimage.html">scipy reference ndimage</a><br /><a href="http://stackoverflow.com/questions/tagged/scipy+interpolation">stackoverflow.com/questions/tagged/scipy+interpolation</a></p>
+<h2 id="comments-welcome">Comments welcome</h2>
+<p>and testcases most welcome<br />  — denis-bz-py at t-online dot de<br />  Last change: 2013-06-04 Jun prefilter Bspline / exact-fit / M-N</p>
+</body>
+</html>
