@@ -14,13 +14,13 @@ dependencies:
   - bottleneck
   - pystan
   - dask-image
+  - scipy
+  - matplotlib
+  - seaborn
+  - scikit-image
+  - ipdb
+  - luigi
+  - jupyter
+  - notebook
   - pip:
-    - scipy
-    - matplotlib
-    - seaborn
-    - scikit-image
-    - ipdb
     - hues
-    - luigi
-    - jupyter
-    - notebook
