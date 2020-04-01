@@ -26,8 +26,14 @@ def render_mask_as_3d_voxels(da_mask, ax=None, center_xy_pos=False, alpha=0.5):
     z_c = da_mask[dims[2]]
 
     if center_xy_pos:
-        x_c -= x_c.mean()
-        y_c -= y_c.mean()
+        if type(center_xy_pos) == bool:
+            x_c -= x_c.mean()
+            y_c -= y_c.mean()
+        elif len(center_xy_pos) == 2:
+            x_c -= center_xy_pos[0]
+            y_c -= center_xy_pos[1]
+        else:
+            raise NotImplementedError(center_xy_pos)
 
     x = np.empty(np.array(x_c.shape) + 1)
     y = np.empty(np.array(y_c.shape) + 1)
