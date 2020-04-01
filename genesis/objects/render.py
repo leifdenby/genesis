@@ -72,6 +72,71 @@ def render_mask_as_3d_voxels(da_mask, ax=None, center_xy_pos=False, alpha=0.5):
 
 
 
+def plot_orientation_triangle(ax, x_cl, y_cl, z_cl, phi, theta):
+    x0 = float(x_cl[0])
+    y0 = float(y_cl[0])
+    z0 = float(z_cl[0])
+
+    phi = float(phi)
+    theta = float(theta)
+
+    x_or = x0 + (z_cl-z0)*np.tan(np.deg2rad(theta))*np.cos(np.deg2rad(phi))
+    y_or = y0 + (z_cl-z0)*np.tan(np.deg2rad(theta))*np.sin(np.deg2rad(phi))
+
+    ax.plot(x_or, y_or, z_cl, color='blue', linestyle='--')
+    ax.plot(x_or, y_or, np.zeros_like(z_cl), color='blue', linestyle=':')
+    ax.plot(x_or[-1].values*np.ones_like(x_or),
+            y_or[-1].values*np.ones_like(y_or),
+            z_cl, color='blue', linestyle=':')
+
+    # surface arc
+    xl = x_cl.max() - x_cl.min()
+    yl = y_cl.max() - y_cl.min()
+    l_max = np.sqrt(xl**2. + yl**2.)
+    r_srf_arc = 0.2*float(l_max)
+
+    t_ = np.linspace(0., np.deg2rad(phi), 100)
+
+    # surface angle plot for phi
+    x_srf_arc = x0 + r_srf_arc*np.cos(t_)
+    y_src_arc = y0 + r_srf_arc*np.sin(t_)
+    ax.plot(x_srf_arc, y_src_arc, np.zeros_like(x_srf_arc),
+            color='blue', linestyle='-')
+    ax.plot(x0 + np.linspace(0, 1.5*r_srf_arc, 100),
+            y0 + np.zeros_like(y_src_arc),
+            np.zeros_like(x_srf_arc), color='blue', linestyle='-')
+
+    ax.text(
+        x0 + 1.5*r_srf_arc*np.cos(t_.mean()),
+        y0 + 1.5*r_srf_arc*np.sin(t_.mean()),
+        0,
+        r"$\phi$",
+        color='blue'
+    )
+
+    # elevated arc plot for theta
+
+    t_ = np.linspace(np.deg2rad(90-theta), np.deg2rad(90), 100)
+    print(phi)
+
+    x_arc = x0 + r_srf_arc*np.cos(np.deg2rad(phi))*np.cos(t_)
+    y_arc = y0 + r_srf_arc*np.sin(np.deg2rad(phi))*np.cos(t_)
+    z_arc = z0 + r_srf_arc*np.sin(t_)
+
+    ax.plot(x_arc, y_arc, z_arc, color='blue', linestyle='-', )
+    ax.plot([x0, x0], [y0, y0], [z0, z0 + r_srf_arc*2.],
+            color='blue', linestyle='-')
+
+    ax.text(
+        x0 + 0.5*r_srf_arc*np.cos(np.deg2rad(phi)),
+        y0 + 0.5*r_srf_arc*np.sin(np.deg2rad(phi)),
+        z0 + 1.5*r_srf_arc,
+        r"$\theta$",
+        color='blue',
+        horizontalalignment='center',
+    )
+
+
 if __name__ == "__main__":
     import argparse
     argparser = argparse.ArgumentParser(description=__doc__)
