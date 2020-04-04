@@ -18,7 +18,6 @@ from .. import mask_functions, make_mask
 from ... import objects
 from ...bulk_statistics import cross_correlation_with_height
 from ...utils import find_vertical_grid_spacing, calc_flux
-from ...objects import property_filters
 from ...objects import integral_properties
 from ... import length_scales
 
@@ -35,6 +34,7 @@ import importlib
 try:
     import cloud_tracking_analysis.cloud_data
     from cloud_tracking_analysis import CloudData, CloudType, cloud_operations
+    from cloud_tracking_analysis import tracking_utility
     HAS_CLOUD_TRACKING = True
 except ImportError:
     HAS_CLOUD_TRACKING = False
@@ -244,16 +244,14 @@ class MakeMask(luigi.Task):
     method_name = luigi.Parameter()
 
     def requires(self):
-
         reqs = {}
         is_filtered = "__filtered_by=" in self.method_name
         if is_filtered:
-            method_name, object_filters = self.method_name.split('__filtered_by=')
+            method_name, filters = self.method_name.split('__filtered_by=')
         else:
             method_name = self.method_name
 
         if is_filtered:
-
             if not "object_splitting_scalar=" in self.method_extra_args:
                 raise Exception("You must provide the object splitting scalar"
                                 " when creating a mask from filtered object"
@@ -268,21 +266,30 @@ class MakeMask(luigi.Task):
                         extra_args.append(item)
                 method_extra_args = ','.join(extra_args)
 
-            reqs['filtered_objects'] = ComputeObjectScales(
-                base_name=self.base_name,
-                variables="num_cells",
-                mask_method=method_name,
-                mask_method_extra_args=method_extra_args,
-                object_splitting_scalar=object_splitting_scalar,
-                object_filters=object_filters,
-            )
-
             reqs['all_objects'] = IdentifyObjects(
                 base_name=self.base_name,
                 splitting_scalar=object_splitting_scalar,
                 mask_method=method_name,
                 mask_method_extra_args=method_extra_args,
             )
+
+            if "tracking" in filters:
+                assert filters == "tracking:triggers_cloud"
+                reqs['tracking'] = PerformObjectTracking2D(
+                    base_name=self.base_name,
+                    tracking_type=objects.filter.TrackingType.THERMALS_ONLY
+                )
+
+            else:
+
+                reqs['filtered_objects'] = ComputeObjectScales(
+                    base_name=self.base_name,
+                    variables="num_cells",
+                    mask_method=method_name,
+                    mask_method_extra_args=method_extra_args,
+                    object_splitting_scalar=object_splitting_scalar,
+                    object_filters=filters,
+                )
         else:
 
             method_kwargs = self._build_method_kwargs(
@@ -310,7 +317,7 @@ class MakeMask(luigi.Task):
         return kwargs
 
     def run(self):
-        if 'filtered_objects' in self.input():
+        if '__filtered_by=' in self.method_name:
             method_name, object_filters = self.method_name.split('__filtered_by=')
             method_kwargs = self._build_method_kwargs(
                 base_name=self.base_name, method_extra_args=self.method_extra_args
@@ -319,23 +326,37 @@ class MakeMask(luigi.Task):
             assert hasattr(mask_fn, "description")
 
             input = self.input()
-            ds_obj_props_filtered = input['filtered_objects'].open()
-            da_objects = input['all_objects'].open()
+            da_objects = input['all_objects'].open(decode_times=False)
 
-            labels = da_objects.values
+            if 'tracking:' in self.method_name:
+                raise NotImplementedError
+                cloud_data = self.requires()['tracking'].get_cloud_data()
 
-            cloud_identification.filter_labels(
-                labels=labels,
-                idxs_keep=ds_obj_props_filtered.object_id.values
-            )
+                t0 = da_objects.time.values
 
-            da_mask = xr.DataArray(
-                labels != 0, coords=da_objects.coords,
-                dims=da_objects.dims
-            )
+                ds_track_2d = cloud_data._fh_track.sel(time=t0)
+                objects_tracked_2d = ds_track_2d.nrthrm
+
+                da_mask = da_objects.where(~objects_tracked_2d.isnull())
+                filter_desc = "cloud_trigger"
+            else:
+                ds_obj_props_filtered = input['filtered_objects'].open()
+
+                labels = da_objects.values
+
+                cloud_identification.filter_labels(
+                    labels=labels,
+                    idxs_keep=ds_obj_props_filtered.object_id.values
+                )
+
+                da_mask = xr.DataArray(
+                    labels != 0, coords=da_objects.coords,
+                    dims=da_objects.dims
+                )
+
+                filter_desc = objects.filter.latex_format(object_filters)
 
             mask_desc = mask_fn.description.format(**method_kwargs)
-            filter_desc = objects.property_filters.latex_format(object_filters)
             da_mask.attrs['long_name'] = "{} filtered by {}".format(
                 mask_desc, filter_desc
             )
@@ -401,89 +422,6 @@ class MakeMask(luigi.Task):
 
         fn = make_mask.OUT_FILENAME_FORMAT.format(
             base_name=self.base_name, mask_name=mask_name
-        )
-        p = WORKDIR/self.base_name/fn
-        return XArrayTarget(str(p))
-
-class FilterObjects(luigi.Task):
-    base_name = luigi.Parameter()
-    mask_method = luigi.Parameter()
-    mask_method_extra_args = luigi.Parameter(default='')
-    object_splitting_scalar = luigi.Parameter()
-    filter_defs = luigi.Parameter()
-
-    def requires(self):
-        filters = self._parse_filter_defs()
-        reqs = {}
-        reqs['objects'] = IdentifyObjects(
-            base_name=self.base_name,
-            splitting_scalar=self.object_splitting_scalar,
-            mask_method=self.mask_method,
-            mask_method_extra_args=self.mask_method_extra_args,
-        )
-
-        reqs['props'] = [
-            ComputeObjectScale(
-                base_name=self.base_name,
-                variable=reqd_prop,
-                object_splitting_scalar=self.object_splitting_scalar,
-                mask_method=self.mask_method,
-                mask_method_extra_args=self.mask_method_extra_args,
-            )
-            for reqd_prop in filters['reqd_props']
-        ]
-        return reqs
-
-    def _parse_filter_defs(self):
-        filters = dict(reqd_props=[], fns=[])
-        s_filters = sorted(self.filter_defs.split(','))
-        for s_filter in s_filters:
-            try:
-                f_type, f_cond = s_filter.split(':')
-                if f_type == 'prop':
-                    s_prop_and_op, s_value = f_cond.split("=")
-                    i = s_prop_and_op.rfind('__')
-                    prop_name, op_name = s_prop_and_op[:i], s_prop_and_op[i+2:]
-                    op = dict(lt="less_than", gt="greater_than", eq="equals")[op_name]
-                    value = float(s_value)
-                    fn_base = objects.filter.filter_objects_by_property
-                    fn = partial(fn_base, op=op, value=value)
-
-                    filters['reqd_props'].append(prop_name)
-                    filters['fns'].append(fn)
-                else:
-                    raise NotImplementedError("Filter type `{}` not recognised"
-                                              "".format(f_type))
-            except (IndexError, ValueError) as e:
-                raise Exception("Malformed filter definition: `{}`".format(
-                                s_filter))
-        return filters
-
-    def run(self):
-        input = self.input()
-        da_obj = input['objects'].open()
-
-        filters = self._parse_filter_defs()
-
-        for fn, prop in zip(filters['fns'], input['props']):
-            da_obj = fn(objects=da_obj, da_property=prop.open())
-
-        da_obj.to_netcdf(self.output().fn)
-
-    def output(self):
-        mask_name = MakeMask.make_mask_name(
-            base_name=self.base_name,
-            method_name=self.mask_method,
-            method_extra_args=self.mask_method_extra_args
-        )
-        objects_name = objects.identify.make_objects_name(
-            mask_name=mask_name,
-            splitting_var=self.object_splitting_scalar
-        )
-        s_filters = self.filter_defs.replace(',','.').replace('=', '')
-        objects_name = "{}.filtered_by.{}".format(objects_name, s_filters)
-        fn = objects.identify.OUT_FILENAME_FORMAT.format(
-            base_name=self.base_name, objects_name=objects_name
         )
         p = WORKDIR/self.base_name/fn
         return XArrayTarget(str(p))
@@ -839,79 +777,6 @@ class ComputeObjectScales(luigi.Task):
 
         return target
 
-class FilterObjectScales(ComputeObjectScales):
-    object_splitting_scalar = luigi.Parameter()
-    base_name = luigi.Parameter()
-    mask_method = luigi.Parameter()
-    mask_method_extra_args = luigi.Parameter(default='')
-    variables = luigi.Parameter(default='com_angles')
-    object_filters = luigi.Parameter()
-
-    def requires(self):
-        filters = property_filters.parse_defs(self.object_filters)
-        variables = self.variables.split(',')
-        variables += filters['reqd_props']
-
-        return ComputeObjectScales(
-            variables=",".join(variables), base_name=self.base_name,
-            mask_method=self.mask_method,
-            mask_method_extra_args=self.mask_method_extra_args,
-            object_splitting_scalar=self.object_splitting_scalar,
-            # no object filter, get properties for all objects
-        )
-
-    def run(self):
-        input = self.input()
-        ds_objs = input.open()
-        if not isinstance(ds_objs, xr.Dataset):
-            # if only one variable was requested we'll get a dataarray back
-            ds_objs = ds_objs.to_dataset()
-
-        filters = property_filters.parse_defs(self.object_filters)
-        for fn in filters['fns']:
-            ds_objs = fn(ds_objs)
-
-        objects_name = IdentifyObjects.make_name(
-            base_name=self.base_name,
-            mask_method=self.mask_method,
-            mask_method_extra_args=self.mask_method_extra_args,
-            object_splitting_scalar=self.object_splitting_scalar,
-            filter_defs=self.object_filters,
-        )
-        ds_objs.attrs['base_name'] = self.base_name
-        ds_objs.attrs['objects_name'] = objects_name
-
-        ds_objs.to_netcdf(self.output().fn)
-
-    def output(self):
-        objects_name = IdentifyObjects.make_name(
-            base_name=self.base_name,
-            mask_method=self.mask_method,
-            mask_method_extra_args=self.mask_method_extra_args,
-            object_splitting_scalar=self.object_splitting_scalar,
-            filter_defs=self.object_filters,
-        )
-
-        fn = objects.integrate.FN_OUT_FORMAT.format(
-            base_name=self.base_name, objects_name=objects_name,
-            name="object_scales_collection"
-        )
-
-        p = WORKDIR/self.base_name/fn
-        target = XArrayTarget(str(p))
-
-        if target.exists():
-            ds = target.open(decode_times=False)
-            variables = self.variables.split(',')
-            if isinstance(ds, xr.Dataset):
-                if any([v not in ds.data_vars for v in variables]):
-                    p.unlink()
-            elif ds.name != self.variables:
-                print(ds.name)
-                p.unlink()
-
-        return target
-
 class ExtractCumulantScaleProfile(luigi.Task):
     base_name = luigi.Parameter()
     v1 = luigi.Parameter()
@@ -1056,16 +921,20 @@ class ExtractCrossSection2D(luigi.Task):
 
 class PerformObjectTracking2D(luigi.Task):
     base_name = luigi.Parameter()
+    tracking_type = luigi.EnumParameter(enum=objects.filter.TrackingType)
 
     def requires(self):
         if not HAS_CLOUD_TRACKING:
             raise Exception("cloud_tracking_analysis module isn't available")
 
+        required_fields = tracking_utility.get_required_fields(
+            tracking_type=self.tracking_type
+        )
+
         return [
-            ExtractCrossSection2D(base_name=self.base_name, field_name='core'),
-            ExtractCrossSection2D(base_name=self.base_name, field_name='cldbase'),
-            ExtractCrossSection2D(base_name=self.base_name, field_name='cldtop'),
-            ExtractCrossSection2D(base_name=self.base_name, field_name='lwp'),
+            ExtractCrossSection2D(base_name=self.base_name,
+                                  field_name=field_name)
+            for field_name in required_fields
         ]
 
     def _get_tracking_identifier(self, meta):
@@ -1090,7 +959,10 @@ class PerformObjectTracking2D(luigi.Task):
         p_data = WORKDIR
         cloud_tracking_analysis.cloud_data.ROOT_DIR = str(p_data)
         cloud_data = CloudData(dataset_name, tracking_identifier,
-                               dataset_pathname=self.base_name)
+                               dataset_pathname=self.base_name,
+                               tracking_type=self.tracking_type)
+
+        return cloud_data
 
     def run(self):
         self.get_cloud_data()
@@ -1101,7 +973,9 @@ class PerformObjectTracking2D(luigi.Task):
 
         meta = _get_dataset_meta_info(self.base_name)
         tracking_identifier = self._get_tracking_identifier(meta)
-        tracking_identifier = tracking_identifier.replace('_', '__cloud_core__')
+        tracking_identifier = tracking_identifier.replace('_', 
+            '__{}__'.format(tracking_utility.TrackingType.make_identifier(self.tracking_type))
+        )
 
         dataset_name = meta['experiment_name']
         FN_2D_FORMAT = "{}.out.xy.{}.nc"
@@ -1421,7 +1295,9 @@ class ComputeObjectScaleVsHeightComposition(luigi.Task):
 
         fn = self.output().fn
         Path(fn).parent.mkdir(parents=True, exist_ok=True)
-        ds_combined.to_netcdf(fn)
+        import ipdb
+        with ipdb.launch_ipdb_on_exception():
+            ds_combined.to_netcdf(fn)
 
     def output(self):
         mask_name = MakeMask.make_mask_name(
@@ -1447,3 +1323,248 @@ class ComputeObjectScaleVsHeightComposition(luigi.Task):
         p = WORKDIR/self.base_name/fn
         target = XArrayTarget(str(p))
         return target
+
+class FilterObjectScales(ComputeObjectScales):
+    object_splitting_scalar = luigi.Parameter()
+    base_name = luigi.Parameter()
+    mask_method = luigi.Parameter()
+    mask_method_extra_args = luigi.Parameter(default='')
+    variables = luigi.Parameter(default='num_cells')
+    object_filters = luigi.Parameter()
+
+    def requires(self):
+        filters = objects.filter.parse_defs(self.object_filters)
+        variables = self.variables.split(',')
+        for filter in filters:
+            variables += filter['reqd_props']
+
+        reqs = {}
+        reqs['objects_scales'] = ComputeObjectScales(
+            variables=",".join(variables), base_name=self.base_name,
+            mask_method=self.mask_method,
+            mask_method_extra_args=self.mask_method_extra_args,
+            object_splitting_scalar=self.object_splitting_scalar,
+            # no object filter, get properties for all objects
+        )
+
+        for filter in filters:
+            if 'cloud_tracking_data' in filter['extra']:
+                reqs['tracking'] = PerformObjectTracking2D(
+                    base_name=self.base_name,
+                    tracking_type=objects.filter.TrackingType.THERMALS_ONLY
+                )
+            if 'objects_3d' in filter['extra']:
+                reqs['objects'] = IdentifyObjects(
+                    base_name=self.base_name,
+                    mask_method=self.mask_method,
+                    mask_method_extra_args=self.mask_method_extra_args,
+                    splitting_scalar=self.object_splitting_scalar
+                )
+
+        return reqs
+
+    def run(self):
+        input = self.input()
+        ds_objects_scales = input['objects_scales'].open()
+        if not isinstance(ds_objects_scales, xr.Dataset):
+            # if only one variable was requested we'll get a dataarray back
+            ds_objects_scales = ds_objects_scales.to_dataset()
+
+        filters = objects.filter.parse_defs(self.object_filters)
+        for filter in filters:
+            fn = filter['fn']
+            kws = {}
+            if 'cloud_tracking_data' in filter['extra']:
+                kws['cloud_tracking_data'] = self.requires()['tracking'].get_cloud_data()
+            if 'objects_3d' in filter['extra']:
+                kws['da_objects'] = self.input()['objects'].open(decode_times=False)
+
+            if 'extra_kws' in filter:
+                kws.update(**filter['extra_kws'])
+
+            ds_objects_scales = fn(ds_objects_scales, **kws)
+
+        objects_name = IdentifyObjects.make_name(
+            base_name=self.base_name,
+            mask_method=self.mask_method,
+            mask_method_extra_args=self.mask_method_extra_args,
+            object_splitting_scalar=self.object_splitting_scalar,
+            filter_defs=self.object_filters,
+        )
+        ds_objects_scales.attrs['base_name'] = self.base_name
+        ds_objects_scales.attrs['objects_name'] = objects_name
+
+        ds_objects_scales.to_netcdf(self.output().fn)
+
+    def output(self):
+        objects_name = IdentifyObjects.make_name(
+            base_name=self.base_name,
+            mask_method=self.mask_method,
+            mask_method_extra_args=self.mask_method_extra_args,
+            object_splitting_scalar=self.object_splitting_scalar,
+            filter_defs=self.object_filters,
+        )
+
+        fn = objects.integrate.FN_OUT_FORMAT.format(
+            base_name=self.base_name, objects_name=objects_name,
+            name="object_scales_collection"
+        )
+
+        p = WORKDIR/self.base_name/fn
+        target = XArrayTarget(str(p))
+
+        if target.exists():
+            ds = target.open(decode_times=False)
+            variables = self.variables.split(',')
+            if isinstance(ds, xr.Dataset):
+                if any([v not in ds.data_vars for v in variables]):
+                    p.unlink()
+            elif ds.name != self.variables:
+                print(ds.name)
+                p.unlink()
+
+        return target
+
+
+class FilterObjects(luigi.Task):
+    base_name = luigi.Parameter()
+    mask_method = luigi.Parameter()
+    mask_method_extra_args = luigi.Parameter(default='')
+    object_splitting_scalar = luigi.Parameter()
+    filter_defs = luigi.Parameter()
+
+    def requires(self):
+        filters = self._parse_filter_defs()
+        reqs = dict(props={}, extra={})
+        reqs['objects'] = IdentifyObjects(
+            base_name=self.base_name,
+            splitting_scalar=self.object_splitting_scalar,
+            mask_method=self.mask_method,
+            mask_method_extra_args=self.mask_method_extra_args,
+        )
+
+        for filter in filters:
+            for r_prop in filter['reqs_props']:
+                reqs['props'][r_prop] = ComputeObjectScale(
+                    base_name=self.base_name,
+                    variable=reqd_prop,
+                    object_splitting_scalar=self.object_splitting_scalar,
+                    mask_method=self.mask_method,
+                    mask_method_extra_args=self.mask_method_extra_args,
+                )
+
+            if len(filters['extra']) > 0:
+                for r_field in filter['extra']:
+                    if r_field.startswith('tracked_'):
+                        _, tracking_type = r_field.split('_')
+                        reqs['extra'][r_field].append(
+                                PerformObjectTracking2D(
+                                    base_name=self.base_name,
+                                    tracking_type=tracking_type)
+                        )
+                    else:
+                        raise NotImplementedError(r_field)
+        return reqs
+
+    def _parse_filter_defs(self):
+        filters = dict(reqd_props=[], fns=[])
+        s_filters = sorted(self.filter_defs.split(','))
+        for s_filter in s_filters:
+            try:
+                f_type, f_cond = s_filter.split(':')
+                if f_type == 'prop':
+                    s_prop_and_op, s_value = f_cond.split("=")
+                    i = s_prop_and_op.rfind('__')
+                    prop_name, op_name = s_prop_and_op[:i], s_prop_and_op[i+2:]
+                    op = dict(lt="less_than", gt="greater_than", eq="equals")[op_name]
+                    value = float(s_value)
+                    fn_base = objects.filter.filter_objects_by_property
+                    fn = partial(fn_base, op=op, value=value)
+
+                    filters['reqd_props'].append(prop_name)
+                    filters['fns'].append(fn)
+                else:
+                    raise NotImplementedError("Filter type `{}` not recognised"
+                                              "".format(f_type))
+            except (IndexError, ValueError) as e:
+                raise Exception("Malformed filter definition: `{}`".format(
+                                s_filter))
+        return filters
+
+    def run(self):
+        input = self.input()
+        da_obj = input['objects'].open()
+
+        filters = self._parse_filter_defs()
+
+        for object_filter in filters:
+            fn = object_filter['fn']
+            kws = dict(objects=da_obj)
+
+            if 'reqd_props' in object_filter:
+                raise NotImplementedError()
+                # for r_prop in 
+            if 'extra' in object_filter:
+                for extra_req in object_filter['extra']:
+                    assert extra_req == 'tracked_thermals'
+                    kws['cloud_data'] = input['extra'][extra_req]
+
+            da_obj = fn(**kws)
+
+        da_obj.to_netcdf(self.output().fn)
+
+    def output(self):
+        mask_name = MakeMask.make_mask_name(
+            base_name=self.base_name,
+            method_name=self.mask_method,
+            method_extra_args=self.mask_method_extra_args
+        )
+        objects_name = objects.identify.make_objects_name(
+            mask_name=mask_name,
+            splitting_var=self.object_splitting_scalar
+        )
+        s_filters = self.filter_defs.replace(',','.').replace('=', '')
+        objects_name = "{}.filtered_by.{}".format(objects_name, s_filters)
+        fn = objects.identify.OUT_FILENAME_FORMAT.format(
+            base_name=self.base_name, objects_name=objects_name
+        )
+        p = WORKDIR/self.base_name/fn
+        return XArrayTarget(str(p))
+
+class FilterTriggeringThermalsByMask(luigi.Task):
+    base_name = luigi.Parameter()
+    mask_method = luigi.Parameter()
+    mask_method_extra_args = luigi.Parameter(default='')
+
+    def requires(self):
+        reqs = {}
+        reqs['mask'] = MakeMask(
+            base_name=self.base_name,
+            method_name=self.mask_method,
+            method_extra_args=self.mask_method_extra_args
+        )
+        reqs['tracking'] = PerformObjectTracking2D(
+            base_name=self.base_name,
+            tracking_type=objects.filter.TrackingType.THERMALS_ONLY
+        )
+
+        return reqs
+
+    def run(self):
+        input = self.input()
+        mask = input['mask'].open(decode_times=False)
+        cloud_data = self.requires()['tracking'].get_cloud_data()
+
+        t0 = mask.time.values
+
+        ds_track_2d = cloud_data._fh_track.sel(time=t0)
+        objects_tracked_2d = ds_track_2d.nrthrm
+
+        mask_filtered = mask.where(~objects_tracked_2d.isnull())
+
+        mask_filtered.to_netcdf(mask_filtered)
+
+    def output(self):
+        fn = 'triggering_thermals.mask.nc'
+        p = WORKDIR/self.base_name/fn
+        return XArrayTarget(str(p))

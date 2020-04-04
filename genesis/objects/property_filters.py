@@ -21,7 +21,7 @@ def _filter_by_percentile(ds, var_name, frac=90., part="upper"):
         else:
             return ds.where(ds[var_name] > vlim, drop=True)
 
-def _make_filter_fn(prop_name, op_name, s_value):
+def make_filter_fn(prop_name, op_name, s_value):
 
     if op_name in ["upper_percentile", "lower_percentile"]:
         value = float(s_value)
@@ -36,38 +36,6 @@ def _make_filter_fn(prop_name, op_name, s_value):
         fn = lambda da: da.where(op_fn(getattr(da, prop_name), value), drop=True)
 
     return fn
-
-def _defs_iterator(filter_defs):
-    s_filters = filter_defs.split(',')
-    for s_filter in s_filters:
-        try:
-            f_type, f_cond = s_filter.split(':')
-            s_prop_and_op, s_value = f_cond.split("=")
-
-            if f_type == 'prop':
-                i = s_prop_and_op.rfind('__')
-                prop_name, op_name = s_prop_and_op[:i], s_prop_and_op[i+2:]
-                yield f_type, (prop_name, op_name, s_value)
-            else:
-                raise NotImplementedError("Filter type `{}` not recognised"
-                                          "".format(f_type))
-        except (IndexError, ValueError) as e:
-            raise Exception("Malformed filter definition: `{}`".format(
-                            s_filter))
-
-def parse_defs(filter_defs):
-    filters = dict(reqd_props=[], fns=[])
-
-    for (f_type, f_def) in _defs_iterator(filter_defs):
-        if f_type == 'prop':
-            prop_name, op_name, s_value = f_def
-            fn = _make_filter_fn(prop_name, op_name, s_value)
-            filters['reqd_props'].append(prop_name)
-            filters['fns'].append(fn)
-        else:
-            raise NotImplementedError
-
-    return filters
 
 PROP_NAME_MAPPING = dict(
     num_cells="N_c",
@@ -125,13 +93,7 @@ def _format_op_for_latex(prop_latex, op_name, s_value, units=''):
 
     return s
 
-def latex_format(filter_defs):
-    if filter_defs is None:
-        return ""
-    s_latex = []
-    s_filters = filter_defs.split(',')
-
-    for (f_type, f_def) in _defs_iterator(filter_defs):
+def latex_format(f_type, f_def):
         if f_type == 'prop':
             prop_name, op_name, s_value = f_def
             prop_latex=_get_prop_name_in_latex(prop_name)
@@ -141,8 +103,4 @@ def latex_format(filter_defs):
                 s_value = int(float(s_value))
             else:
                 units = ''
-            s_latex.append(_format_op_for_latex(prop_latex, op_name, s_value,
-                                                units))
-        else:
-            raise NotImplementedError(f_type, f_def)
-    return " and ".join(s_latex)
+            return _format_op_for_latex(prop_latex, op_name, s_value, units)

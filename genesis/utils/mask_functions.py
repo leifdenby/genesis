@@ -269,7 +269,11 @@ def rad_tracer_thermals(base_name, cvrxp, num_std_div=1.0):
         da_stddivs = calc_scalar_perturbation_in_std_div(da=cvrxp)
         da_stddivs.to_netcdf(fn_stddiv)
     else:
-        da_stddivs = xr.open_dataarray(fn_stddiv)
+        try:
+            da_stddivs = xr.open_dataarray(fn_stddiv)
+        except ValueError:
+            print("THere was an issue opening `{}`".format(fn_stddiv))
+            raise
 
     mask = da_stddivs > num_std_div
     return mask
