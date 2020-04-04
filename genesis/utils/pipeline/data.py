@@ -1270,6 +1270,11 @@ class ComputeObjectScaleVsHeightComposition(luigi.Task):
             da_mask = input['mask'].open()
             nx, ny = da_3d.xt.count(), da_3d.yt.count()
 
+            # need to cast scales indexing (int64) to object identifitcation
+            # indexing (uint32) here, otherwise saving goes wrong when merging
+            # (because xarray makes the dtype `object` otherwise)
+            ds_scales['object_id'] = ds_scales.object_id.astype(da_field.object_id.dtype)
+
             da_prof_ref = da_3d.where(da_mask).sum(dim=('xt', 'yt'),
                                                    dtype=np.float64)/(nx*ny)
             da_prof_ref.name = 'prof_ref'
