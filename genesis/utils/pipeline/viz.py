@@ -1217,7 +1217,7 @@ class FluxFractionCarried(luigi.Task):
     z_max = luigi.Parameter(default=600)
 
     def requires(self):
-        return data.ComputeObjectScaleVsHeightComposition(
+        return dict(filtered_objects=data.ComputeObjectScaleVsHeightComposition(
             base_name=self.base_name,
             field_name="{}_flux".format(self.scalar),
             z_max=self.z_max,
@@ -1226,7 +1226,7 @@ class FluxFractionCarried(luigi.Task):
             mask_method=self.mask_method,
             mask_method_extra_args=self.mask_method_extra_args,
             object_splitting_scalar=self.object_splitting_scalar
-        )
+        ))
 
     def get_suptitle(self):
         if self.object_filters is not None:
@@ -1235,9 +1235,8 @@ class FluxFractionCarried(luigi.Task):
             return "all objects"
 
     def run(self):
-        input = self.input()
-        ds = self.input().open()
-        s = "{} flux ratio:".format(self.base_name)
+        input = self.input()['filtered_objects']
+        ds = input.open()
 
         fig, axes = plt.subplots(ncols=3, figsize=(12, 8))
 
