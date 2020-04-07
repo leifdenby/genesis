@@ -1281,8 +1281,6 @@ class FluxFractionCarried(luigi.Task):
         plt.suptitle(self.get_suptitle(), y=1.1)
 
         fig.savefig(self.output()['plot'].fn, bbox_inches='tight')
-        with open(self.output()['txt'].fn, 'w') as fh:
-            fh.write(s)
 
     def output(self):
         s_filter = ''
@@ -1296,12 +1294,10 @@ class FluxFractionCarried(luigi.Task):
         else:
             s_filter = "all_objects"
 
-        fn_txt = "{}.{}.txt".format(snake_case_class_name(self), self.base_name)
         fn_plot = "{}.{}.{}.png".format(
             snake_case_class_name(self), self.base_name, s_filter
         )
         return dict(
-            txt=luigi.LocalTarget(fn_txt),
             plot=luigi.LocalTarget(fn_plot)
         )
 
