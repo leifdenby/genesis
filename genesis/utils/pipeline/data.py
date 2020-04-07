@@ -1151,7 +1151,10 @@ class ComputePerObjectProfiles(luigi.Task):
         da_objects_ = ds[kwargs['objects']].compute()
         object_ids = kwargs['object_ids']
         fn = getattr(dask_image.ndmeasure, kwargs['op'])
-        v = fn(da_, labels=da_objects_, index=object_ids).compute()
+        try:
+            v = fn(da_, labels=da_objects_, index=object_ids).compute()
+        except TypeError:
+            v = fn(da_, label_image=da_objects_, index=object_ids).compute()
         da = xr.DataArray(data=v, dims=['object_id',],
                             coords=dict(object_id=object_ids))
         da.name = "{}__{}".format(da_.name, kwargs['op'])
@@ -1177,7 +1180,7 @@ class ComputePerObjectProfiles(luigi.Task):
         return target
 
 class ComputeObjectScaleVsHeightComposition(luigi.Task):
-    x = luigi.Parameter()
+    x = luigi.Parameter(default=None)
     field_name = luigi.Parameter()
 
     base_name = luigi.Parameter()
@@ -1209,7 +1212,16 @@ class ComputeObjectScaleVsHeightComposition(luigi.Task):
             return reqs
         else:
             return dict(
-                decomp_profile=ComputePerObjectProfiles(
+                decomp_profile_ncells=ComputePerObjectProfiles(
+                    base_name=self.base_name,
+                    mask_method=self.mask_method,
+                    mask_method_extra_args=self.mask_method_extra_args,
+                    object_splitting_scalar=self.object_splitting_scalar,
+                    field_name=self.field_name,
+                    op='area',
+                    z_max=self.z_max,
+                ),
+                decomp_profile_sum=ComputePerObjectProfiles(
                     base_name=self.base_name,
                     mask_method=self.mask_method,
                     mask_method_extra_args=self.mask_method_extra_args,
@@ -1237,72 +1249,152 @@ class ComputeObjectScaleVsHeightComposition(luigi.Task):
                 ),
             )
 
+    def _run_multiple(self):
+        raise NotImplementedError
+        dss = [input.open() for input in self.input().values()]
+        if len(set([ds.nx for ds in dss])) != 1:
+            raise Exception("All selected base_names must have same number"
+                            " of points in x-direction (nx)")
+        if len(set([ds.ny for ds in dss])) != 1:
+            raise Exception("All selected base_names must have same number"
+                            " of points in y-direction (ny)")
+        # we increase the effective area so that the mean flux contribution
+        # is scaled correctly, the idea is that we're just considering a
+        # larger domain now and the inputs are stacked in the x-direction
+        nx = np.sum([ds.nx for ds in dss])
+        ny = dss[0].ny
+
+        raise NotImplementedError("Need to finish combining profiles")
+
+        mask_domain_mean_profile_name = '{}__mask_domain_mean'.format(
+            self.field_name
+        )
+
+        # strip out the reference profiles, these aren't concatenated but
+        # instead we take the mean, we squeeze here so that for example
+        # `time` isn't kept as a dimension
+        das_profile = [ds[mask_domain_mean_profile_name].squeeze() for ds in dss]
+        dss = [ds.drop(mask_domain_mean_profile_name) for ds in dss]
+
+        # we use the mean profile across datasets for now
+        da_mask_domain_mean_profile = xr.concat(
+            das_profile, dim='base_name'
+        ).mean(dim='base_name', dtype=np.float64)
+
+        ds = merge_object_datasets(dss)
+
+    def _run_single(self):
+        input = self.input()
+        da_field_ncells_per_object = input['decomp_profile_ncells'].open().squeeze()
+        da_field_sum_per_object = input['decomp_profile_sum'].open()
+        ds_scales = input['scales'].open()
+        da_3d = input['da_3d'].open().squeeze()
+        da_mask = input['mask'].open().squeeze()
+        nx, ny = da_3d.xt.count(), da_3d.yt.count()
+
+        # need to cast scales indexing (int64) to object identifitcation
+        # indexing (uint32) here, otherwise saving goes wrong when merging
+        # (because xarray makes the dtype `object` otherwise)
+        ds_scales['object_id'] = ds_scales.object_id.astype(
+            da_field_ncells_per_object.object_id.dtype
+        )
+
+        # calculate domain mean profile
+        da_domain_mean_profile = da_3d.mean(
+            dim=('xt', 'yt'), dtype=np.float64, skipna=True
+        )
+        da_domain_mean_profile["sampling"] = "full domain"
+
+        ### contributions from mask only
+        # calculate mask mean profile and mask fractional area (so that
+        # total contribution to domain mean can be computed later)
+        da_mask_mean_profile = da_3d.where(da_mask).mean(
+            dim=('xt', 'yt'), dtype=np.float64, skipna=True
+        )
+        da_mask_mean_profile["sampling"] = "mask"
+        da_mask_areafrac_profile = da_mask.sum(
+            dim=('xt', 'yt'), dtype=np.float64, skipna=True
+        )/(nx*ny)
+        da_mask_areafrac_profile["sampling"] = "mask"
+
+        ### contributions from objects
+        # if object filters have been provided we should only include the
+        # objects which are in the filtered scales file (as these satisfy the
+        # filtering criteria)
+        if self.object_filters is not None:
+            def filter_per_object_field(da_field):
+                return da_field.where(da_field.object_id == ds_scales.object_id)
+
+            da_field_ncells_per_object = filter_per_object_field(
+                da_field=da_field_ncells_per_object
+            )
+            da_field_sum_per_object = filter_per_object_field(
+                da_field=da_field_sum_per_object
+            )
+
+        # calculate objects mean profile and objects fractional area (so
+        # that total contribution to domain mean can be computed later)
+        da_objects_total_flux = da_field_sum_per_object.sum(
+            dim=('object_id',), dtype=np.float64, skipna=True
+        )
+        da_objects_total_ncells = da_field_ncells_per_object.sum(
+            dim=('object_id',), dtype=np.float64, skipna=True
+        )
+        da_objects_mean_profile = (
+            da_objects_total_flux/da_objects_total_ncells
+        )
+        da_objects_mean_profile["sampling"] = "objects"
+        da_objects_areafrac_profile = da_objects_total_ncells/(nx*ny)
+        da_objects_areafrac_profile["sampling"] = "objects"
+
+        da_mean_profiles = xr.concat([
+            da_domain_mean_profile,
+            da_mask_mean_profile,
+            da_objects_mean_profile
+        ], dim="sampling")
+        da_mean_profiles.name = "{}__mean".format(self.field_name)
+        da_mean_profiles.attrs = dict(
+            units=da_3d.units, long_name="{} mean".format(da_3d.long_name)
+        )
+
+        da_areafrac_profiles = xr.concat([
+            da_mask_areafrac_profile,
+            da_objects_areafrac_profile
+        ], dim="sampling")
+        da_areafrac_profiles.name = "areafrac"
+        da_areafrac_profiles.attrs = dict(
+            units="1", long_name="area fraction"
+        )
+
+        ds_profiles = xr.merge([
+            da_mean_profiles, da_areafrac_profiles
+        ])
+
+        ds = xr.merge([
+            ds_profiles,
+            ds_scales,
+            da_field_ncells_per_object,
+            da_field_sum_per_object
+        ])
+
+        if self.z_max is not None:
+            ds = ds.sel(zt=slice(None, self.z_max))
+
+        ds.attrs['nx'] = int(nx)
+        ds.attrs['ny'] = int(ny)
+        return ds
+
     def run(self):
-        if "+" in self.base_name:
-            dss = [input.open() for input in self.input().values()]
-            if len(set([ds.nx for ds in dss])) != 1:
-                raise Exception("All selected base_names must have same number"
-                                " of points in x-direction (nx)")
-            if len(set([ds.ny for ds in dss])) != 1:
-                raise Exception("All selected base_names must have same number"
-                                " of points in y-direction (ny)")
-            # we increase the effective area so that the mean flux contribution
-            # is scaled correctly, the idea is that we're just considering a
-            # larger domain now and the inputs are stacked in the x-direction
-            nx = np.sum([ds.nx for ds in dss])
-            ny = dss[0].ny
-
-            # strip out the reference profiles, these aren't concatenated but
-            # instead we take the mean, we squeeze here so that for example
-            # `time` isn't kept as a dimension
-            das_profile = [ds.prof_ref.squeeze() for ds in dss]
-            dss = [ds.drop('prof_ref') for ds in dss]
-
-            # we use the mean profile across datasets for now
-            da_prof_ref = xr.concat(das_profile, dim='base_name').mean(dim='base_name', dtype=np.float64)
-
-            ds = merge_object_datasets(dss)
-        else:
-            input = self.input()
-            da_field = input['decomp_profile'].open()
-            da_3d = input['da_3d'].open()
-            ds_scales = input['scales'].open()
-            da_mask = input['mask'].open()
-            nx, ny = da_3d.xt.count(), da_3d.yt.count()
-
-            # need to cast scales indexing (int64) to object identifitcation
-            # indexing (uint32) here, otherwise saving goes wrong when merging
-            # (because xarray makes the dtype `object` otherwise)
-            ds_scales['object_id'] = ds_scales.object_id.astype(da_field.object_id.dtype)
-
-            da_prof_ref = da_3d.where(da_mask).sum(dim=('xt', 'yt'),
-                                                   dtype=np.float64)/(nx*ny)
-            da_prof_ref.name = 'prof_ref'
-
-            if self.object_filters is not None:
-                da_field.where(da_field.object_id == ds_scales.object_id)
-
-            ds = xr.merge([da_field, ds_scales])
-
-            if self.z_max is not None:
-                ds = ds.sel(zt=slice(None, self.z_max))
-
-            ds = ds.where(np.logical_and(
-                ~np.isinf(ds[self.x]),
-                ~np.isnan(ds[self.x]),
-            ), drop=True)
-
-        ds_combined = xr.merge([ds, da_prof_ref])
-        ds_combined.attrs['nx'] = int(nx)
-        ds_combined.attrs['ny'] = int(ny)
-
-        ds_combined = ds_combined.sel(zt=slice(None, self.z_max))
-
-        fn = self.output().fn
-        Path(fn).parent.mkdir(parents=True, exist_ok=True)
         import ipdb
         with ipdb.launch_ipdb_on_exception():
-            ds_combined.to_netcdf(fn)
+            if "+" in self.base_name:
+                ds = self._run_multiple()
+            else:
+                ds = self._run_single()
+
+            fn = self.output().fn
+            Path(fn).parent.mkdir(parents=True, exist_ok=True)
+            ds.to_netcdf(fn)
 
     def output(self):
         mask_name = MakeMask.make_mask_name(

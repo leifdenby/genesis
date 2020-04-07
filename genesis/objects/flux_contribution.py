@@ -45,7 +45,7 @@ class PlotGrid():
         f.subplots_adjust(hspace=space, wspace=space)
 
 
-def plot(ds, x, v, nx, ny, dx, da_prof_ref):
+def plot(ds, x, v, dx):
     if dx is None:
         bins = np.linspace(ds[x].min(), ds[x].max(), 10)
     else:
@@ -54,11 +54,16 @@ def plot(ds, x, v, nx, ny, dx, da_prof_ref):
             math.ceil(ds[x].max()/dx)*dx,
         dx)
 
+    nx = ds.nx
+    ny = ds.ny
+
+    bin_var = "{}__sum".format(v)
+
     bin_centers = 0.5*(bins[1:] + bins[:-1])
     #fig, axes = plt.subplots(ncols=2, nrows=2, sharex="col", sharey="row", figsize=(10,6))
     g = PlotGrid()
     ds_ = ds.groupby_bins(x, bins=bins, labels=bin_centers)
-    da_flux_per_bin = ds_.sum(dim='object_id', dtype=np.float64)[v]/(nx*ny)
+    da_flux_per_bin = ds_.sum(dim='object_id', dtype=np.float64)[bin_var]/(nx*ny)
     if len(da_flux_per_bin["{}_bins".format(x)]) < 2:
         raise Exception("Please set a smaller bin size on `{x}`, currently"
                         "there's only one bin with the range of values in "
@@ -66,7 +71,7 @@ def plot(ds, x, v, nx, ny, dx, da_prof_ref):
     da_flux_per_bin.plot(y='zt', ax=g.ax_joint, add_colorbar=False, robust=True)
 
     # ds.r_equiv.plot.hist(bins=bins, histtype='step', ax=g.ax_marg_x)
-    Nobj_bin_counts, _, _= ds[x].plot.hist(bins=bins, histtype='step',
+    Nobj_bin_counts, _, _= ds[bin_var].plot.hist(bins=bins, histtype='step',
                                            ax=g.ax_marg_x)
     g.ax_marg_x.set_ylabel('num objects [1]')
     g.ax_marg_x.set_yscale('log')
@@ -74,15 +79,23 @@ def plot(ds, x, v, nx, ny, dx, da_prof_ref):
     g.ax_marg_x.yaxis.set_ticks(10.0**np.arange(0., p10_max))
     g.ax_marg_x.set_ylim(1, 10.0**p10_max)
 
-    da_prof_ref.plot(y='zt', ax=g.ax_marg_y)
-    da_inobject_mean_flux = ds.sum(dim='object_id', dtype=np.float64)[v]/(nx*ny)
+    ref_var = "{}__mean".format(v)
+    def scale_flux(da_flux):
+        if da_flux.sampling == 'full domain':
+            return da_flux
+        else:
+            return da_flux*ds.areafrac.sel(sampling=da_flux.sampling)
+    da_flux_tot = ds[ref_var].groupby('sampling').apply(scale_flux)
+    da_flux_tot.plot(y='zt', ax=g.ax_marg_y, hue="sampling", marker='+', markersize=10)
+
+    da_inobject_mean_flux = ds.sum(dim='object_id', dtype=np.float64)[bin_var]/(nx*ny)
     da_inobject_mean_flux.attrs['long_name'] = 'horz. mean flux'
-    da_inobject_mean_flux.attrs['units'] = ds[v].units
+    da_inobject_mean_flux.attrs['units'] = ds[bin_var].units
     da_inobject_mean_flux.plot(y='zt', ax=g.ax_marg_y, marker='.')
 
-    if v == 'qv_flux__sum':
-        g.ax_marg_y.xaxis.set_ticks([0., 0.01, 0.02])
-        g.ax_marg_y.set_xlim(0., 0.03)
+    # if bin_var == 'qv_flux__sum':
+        # g.ax_marg_y.xaxis.set_ticks([0., 0.01, 0.02])
+        # g.ax_marg_y.set_xlim(0., 0.03)
 
     g.ax_joint.set_title('')
     g.ax_marg_x.set_title('')

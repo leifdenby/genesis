@@ -1,6 +1,7 @@
 import itertools
 import textwrap
 from pathlib import Path
+import re
 
 import matplotlib
 matplotlib.use("Agg")
@@ -1161,14 +1162,11 @@ class ObjectScaleVsHeightComposition(luigi.Task):
     def run(self):
         ds = self.input().open()
 
-        da_prof_ref = ds.prof_ref
-        nx = ds.nx
-        ny = ds.ny
-
-        ax = objects.flux_contribution.plot(
-            ds=ds, x=self.x, v=self.field_name + '__sum',
-            nx=nx, ny=ny, dx=self.dx, da_prof_ref=da_prof_ref,
-        )
+        import ipdb
+        with ipdb.launch_ipdb_on_exception():
+            ax = objects.flux_contribution.plot(
+                ds=ds, x=self.x, v=self.field_name, dx=self.dx
+            )
 
         if self.x_max is not None:
             ax.set_xlim(0., self.x_max)
@@ -1204,6 +1202,108 @@ class ObjectScaleVsHeightComposition(luigi.Task):
         ))
         target = luigi.LocalTarget(fn)
         return target
+
+def snake_case_class_name(obj):
+    return re.sub(r'(?<!^)(?=[A-Z])', '_', obj.__class__.__name__).lower()
+
+
+class FluxFractionCarried(luigi.Task):
+    base_name = luigi.Parameter()
+    scalar = luigi.Parameter()
+    mask_method = luigi.Parameter()
+    mask_method_extra_args = luigi.Parameter(default='')
+    object_splitting_scalar = luigi.Parameter()
+    object_filters = luigi.Parameter(default=None)
+    z_max = luigi.Parameter(default=600)
+
+    def requires(self):
+        return data.ComputeObjectScaleVsHeightComposition(
+            base_name=self.base_name,
+            field_name="{}_flux".format(self.scalar),
+            z_max=self.z_max,
+            x="r_equiv",
+            object_filters=self.object_filters,
+            mask_method=self.mask_method,
+            mask_method_extra_args=self.mask_method_extra_args,
+            object_splitting_scalar=self.object_splitting_scalar
+        )
+
+    def get_suptitle(self):
+        if self.object_filters is not None:
+            return objects.filter.latex_format(self.object_filters)
+        else:
+            return "all objects"
+
+    def run(self):
+        input = self.input()
+        ds = self.input().open()
+        s = "{} flux ratio:".format(self.base_name)
+
+        fig, axes = plt.subplots(ncols=3, figsize=(12, 8))
+
+        SCALAR_TO_LATEX = dict(
+            qv="q_v",
+        )
+        s_latex = SCALAR_TO_LATEX.get(self.scalar, self.scalar)
+
+        name = "{}_flux__mean".format(self.scalar)
+
+        ax = axes[0]
+        ds[name].plot(ax=ax, y='zt', hue='sampling')
+        ax.set_xlim(0, None)
+        ax.set_xlabel(r"$\overline{{w'{}'}}$ [{}]".format(
+            s_latex, ds[name].units
+        ))
+
+        ax = axes[1]
+        da_areafrac_procent = 100.0*ds.areafrac
+        da_areafrac_procent.attrs['units'] = "%"
+        da_areafrac_procent.attrs['long_name'] = "area fraction"
+        sampling_types = list(da_areafrac_procent.sampling.values)
+        sampling_types.remove('full domain')
+        (da_areafrac_procent.sel(sampling=sampling_types)
+                            .plot(ax=ax, y='zt', hue='sampling'))
+
+        ax = axes[2]
+        def scale_flux(da_flux):
+            if da_flux.sampling == 'full domain':
+                return da_flux
+            else:
+                return da_flux*ds.areafrac.sel(sampling=da_flux.sampling)
+        da_flux_tot = ds[name].groupby('sampling').apply(scale_flux)
+        da_flux_tot.plot(ax=ax, y='zt', hue='sampling')
+        ax.set_xlim(0, None)
+        ax.set_xlabel(r"$\sigma\ \overline{{w'{}'}}$ [{}]".format(
+            s_latex, ds[name].units
+        ))
+
+        plt.tight_layout()
+        plt.suptitle(self.get_suptitle(), y=1.1)
+
+        fig.savefig(self.output()['plot'].fn, bbox_inches='tight')
+        with open(self.output()['txt'].fn, 'w') as fh:
+            fh.write(s)
+
+    def output(self):
+        s_filter = ''
+        if self.object_filters is not None:
+            s_filter = 'filtered_by.{}'.format(
+                (self.object_filters.replace(',','.')
+                                    .replace(':', '__')
+                                    .replace('=', '_')
+                )
+            )
+        else:
+            s_filter = "all_objects"
+
+        fn_txt = "{}.{}.txt".format(snake_case_class_name(self), self.base_name)
+        fn_plot = "{}.{}.{}.png".format(
+            snake_case_class_name(self), self.base_name, s_filter
+        )
+        return dict(
+            txt=luigi.LocalTarget(fn_txt),
+            plot=luigi.LocalTarget(fn_plot)
+        )
 
 class Suite(luigi.Task):
     base_name = luigi.Parameter(default=None)
