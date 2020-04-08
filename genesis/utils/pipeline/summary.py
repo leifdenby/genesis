@@ -7,7 +7,9 @@ class FluxFractionCarriedSummary(viz.FluxFractionCarried):
     z_pad = luigi.FloatParameter(default=100)
 
     def requires(self):
-        reqs = super().requires()
+        req = super().requires()
+
+        reqs = { 'filtered': req }
 
         reqs['unfiltered'] = data.ComputeObjectScaleVsHeightComposition(
             base_name=self.base_name,
@@ -23,10 +25,11 @@ class FluxFractionCarriedSummary(viz.FluxFractionCarried):
         return reqs
 
     def run(self):
-        super().run()
-
         input = self.input()
-        ds_filtered = self.input()['filtered_objects'].open()
+        ds_filtered = self.input()['filtered'].open()
+        self._make_plot(ds=ds_filtered, output_fn=self.output()['plot'].fn)
+
+
         ds_unfiltered = self.input()['unfiltered'].open()
 
         name = "{}_flux__mean".format(self.scalar)
@@ -48,20 +51,41 @@ class FluxFractionCarriedSummary(viz.FluxFractionCarried):
             /da_flux_tot_range.sel(sampling='mask')
         ).mean(dim='zt')
 
-        n_objects_total = ds_unfiltered.object_id.count().item()
-        n_objects_filtered = ds_filtered.object_id.count().item()
+        n_objects_total = (ds_unfiltered
+            .sel(zt=slice(*z_lims))
+            .object_id.count().item()
+        )
+        n_objects_filtered = (ds_filtered
+            .sel(zt=slice(*z_lims))
+            .object_id.count().item()
+        )
+
+        name_area = "{}_flux__area".format(self.scalar)
+        volume_objects_total = (ds_unfiltered[name_area]
+            .sel(zt=slice(*z_lims))
+            .sum().item()
+        )
+        volume_objects_filtered = (ds_filtered[name_area]
+            .sel(zt=slice(*z_lims))
+            .sum().item()
+        )
 
         with open(self.output()['txt'].fn, 'w') as fh:
             fh.write("mean fraction of mask flux carried by objects"
-                    " ({} / {} ~ {:.2f}%) between {}m and {}m: "
-                    "{:.2f}%".format(
+                    " ({} / {} ~ {:.2f}% by number,"
+                    "  {} / {} ~ {:.2f}% by volume)"
+                    " between {}m and {}m: {:.2f}%\n".format(
                 n_objects_filtered, n_objects_total,
                 100.*float(n_objects_filtered)/float(n_objects_total),
+                volume_objects_filtered, volume_objects_total,
+                100*float(volume_objects_filtered)/float(volume_objects_total),
                 *z_lims, 100.*captured_fraction.values
             ))
 
     def output(self):
-        output = super().output()
-        fn_txt = output['plot'].fn.replace('.png', '.txt')
+        t = super().output()
+        fn_txt = t.fn.replace('.png', '.txt')
+        output = {}
         output['txt'] = luigi.LocalTarget(fn_txt)
+        output['plot'] = t
         return output

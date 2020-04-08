@@ -12,7 +12,7 @@ Use cases:
     certain height). And so we need:
       1) where the objects are defined in 3D by IdentifyObjects so that this
       may be projected to 2D
-      2) 
+      2)
 
 Approaches:
 
@@ -27,10 +27,10 @@ b) try to assign each 3D object to a matching 2D tracked object. The two
 """
 
 import luigi
-import numpy as np
 
-from .data import MakeMask, XArrayTarget, PerformObjectTracking2D, MakeMask
+from .data import MakeMask, XArrayTarget, PerformObjectTracking2D
 from ... import objects
+
 
 class FilterTriggeringThermalsByMask(luigi.Task):
     base_name = luigi.Parameter()

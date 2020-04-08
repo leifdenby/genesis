@@ -19,6 +19,7 @@ from ...bulk_statistics import cross_correlation_with_height
 from ... import length_scales
 from ... import objects
 from .. import plot_types, cm_nilearn, figure_metadata
+from ...utils.calc_flux import scale_flux_to_watts
 
 from . import data
 
@@ -1217,7 +1218,7 @@ class FluxFractionCarried(luigi.Task):
     z_max = luigi.Parameter(default=600)
 
     def requires(self):
-        return dict(filtered_objects=data.ComputeObjectScaleVsHeightComposition(
+        return data.ComputeObjectScaleVsHeightComposition(
             base_name=self.base_name,
             field_name="{}_flux".format(self.scalar),
             z_max=self.z_max,
@@ -1226,7 +1227,7 @@ class FluxFractionCarried(luigi.Task):
             mask_method=self.mask_method,
             mask_method_extra_args=self.mask_method_extra_args,
             object_splitting_scalar=self.object_splitting_scalar
-        ))
+        )
 
     def get_suptitle(self):
         if self.object_filters is not None:
@@ -1235,57 +1236,32 @@ class FluxFractionCarried(luigi.Task):
             return "all objects"
 
     def run(self):
-        input = self.input()['filtered_objects']
         ds = input.open()
+        self._make_plot(ds, self.output().fn)
 
-        fig, axes = plt.subplots(ncols=3, figsize=(12, 8))
-
-        SCALAR_TO_LATEX = dict(
-            qv="q_v",
+    def _make_plot(self, ds, output_fn, **kwargs):
+        ds_ = ds.rename({ 
+            '{}_flux__mean'.format(self.scalar): "flux_mean",
+            'zt': 'z'
+        })
+        ds_ = ds_[['areafrac', 'flux_mean']]
+        ds_.attrs['scalar'] = self.scalar
+        ds_['flux_mean'] = scale_flux_to_watts(
+            da=ds_['flux_mean'], scalar=self.scalar
         )
-        s_latex = SCALAR_TO_LATEX.get(self.scalar, self.scalar)
-
-        name = "{}_flux__mean".format(self.scalar)
-
-        ax = axes[0]
-        ds[name].plot(ax=ax, y='zt', hue='sampling')
-        ax.set_xlim(0, None)
-        ax.set_xlabel(r"$\overline{{w'{}'}}$ [{}]".format(
-            s_latex, ds[name].units
-        ))
-
-        ax = axes[1]
-        da_areafrac_procent = 100.0*ds.areafrac
-        da_areafrac_procent.attrs['units'] = "%"
-        da_areafrac_procent.attrs['long_name'] = "area fraction"
-        sampling_types = list(da_areafrac_procent.sampling.values)
-        sampling_types.remove('full domain')
-        (da_areafrac_procent.sel(sampling=sampling_types)
-                            .plot(ax=ax, y='zt', hue='sampling'))
-
-        ax = axes[2]
-        def scale_flux(da_flux):
-            if da_flux.sampling == 'full domain':
-                return da_flux
-            else:
-                return da_flux*ds.areafrac.sel(sampling=da_flux.sampling)
-        da_flux_tot = ds[name].groupby('sampling').apply(scale_flux)
-        da_flux_tot.plot(ax=ax, y='zt', hue='sampling')
-        ax.set_xlim(0, None)
-        ax.set_xlabel(r"$\sigma\ \overline{{w'{}'}}$ [{}]".format(
-            s_latex, ds[name].units
-        ))
-
-        plt.tight_layout()
-        plt.suptitle(self.get_suptitle(), y=1.1)
-
-        fig.savefig(self.output()['plot'].fn, bbox_inches='tight')
+        fig, axes = objects.flux_contribution.plot_with_areafrac(
+            ds=ds_, **kwargs
+        )
+        suptitle = self.get_suptitle()
+        if suptitle:
+            plt.suptitle(get_suptitle(), y=1.1)
+        fig.savefig(output_fn, bbox_inches='tight')
 
     def output(self):
         s_filter = ''
         if self.object_filters is not None:
             s_filter = 'filtered_by.{}'.format(
-                (self.object_filters.replace(',','.')
+                (self.object_filters.replace(',', '.')
                                     .replace(':', '__')
                                     .replace('=', '_')
                 )
@@ -1296,9 +1272,60 @@ class FluxFractionCarried(luigi.Task):
         fn_plot = "{}.{}.{}.png".format(
             snake_case_class_name(self), self.base_name, s_filter
         )
-        return dict(
-            plot=luigi.LocalTarget(fn_plot)
+        return luigi.LocalTarget(fn_plot)
+
+class FluxFractionCarriedFiltersComparison(FluxFractionCarried):
+    def requires(self):
+        assert ";" in self.object_filters
+        object_filters_sets = self.object_filters.split(';')
+        return {
+            object_filters:
+                data.ComputeObjectScaleVsHeightComposition(
+                    base_name=self.base_name,
+                    field_name="{}_flux".format(self.scalar),
+                    z_max=self.z_max,
+                    x="r_equiv",
+                    object_filters=object_filters,
+                    mask_method=self.mask_method,
+                    mask_method_extra_args=self.mask_method_extra_args,
+                    object_splitting_scalar=self.object_splitting_scalar
+                )
+            for object_filters in object_filters_sets
+        }
+
+    def run(self):
+        input = self.input()
+        dss = []
+        for n, (object_filters, input) in enumerate(self.input().items()):
+            ds_ = input.open()
+            flux_var = "{}_flux__mean".format(self.scalar)
+            vars_needed = ["areafrac", flux_var]
+            ds_ = ds_[vars_needed]
+
+            if n > 0:
+                sampling_modes = ds_.sampling.values.tolist()
+                sampling_modes.remove('full domain')
+                sampling_modes.remove('mask')
+                ds_ = ds_.sel(sampling=sampling_modes)
+
+            obj_s_latex = objects.filter.latex_format(object_filters)
+            ds_['sampling'] = ds_.sampling.where(
+                ds_.sampling != "objects",
+                ds_.sampling.values + ": " + obj_s_latex
+            )
+            dss.append(ds_)
+
+        ds = xr.concat(dss, dim='sampling')
+        ds.attrs['scalar'] = self.scalar
+
+        self._make_plot(
+            ds, self.output().fn, figsize=(5, 3),
+            legend_ncols=1
         )
+
+    def get_suptitle(self):
+        return None
+
 
 class Suite(luigi.Task):
     base_name = luigi.Parameter(default=None)
