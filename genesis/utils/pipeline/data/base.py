@@ -7,7 +7,7 @@ import yaml
 
 
 DATA_SOURCES = None
-WORKDIR = Path("data")
+_WORKDIR = Path("data")
 
 
 def add_datasource(name, attrs):
@@ -18,8 +18,11 @@ def add_datasource(name, attrs):
 
 
 def set_workdir(path):
-    global WORKDIR
-    WORKDIR = Path(path)
+    global _WORKDIR
+    _WORKDIR = Path(path)
+
+def get_workdir():
+    return _WORKDIR
 
 
 def get_datasources():

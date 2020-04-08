@@ -10,7 +10,7 @@ import numpy as np
 
 from ....utils import calc_flux
 from ... import mask_functions
-from .base import WORKDIR, XArrayTarget, _get_dataset_meta_info
+from .base import get_workdir, XArrayTarget, _get_dataset_meta_info
 
 
 if 'USE_SCHEDULER' in os.environ:
@@ -133,7 +133,7 @@ class ExtractField3D(luigi.Task):
             field_name=self.field_name
         )
 
-        p = WORKDIR/self.base_name/fn
+        p = get_workdir()/self.base_name/fn
 
         t = XArrayTarget(str(p))
 
@@ -174,7 +174,7 @@ class ExtractCrossSection2D(luigi.Task):
             field_name=self.field_name
         )
 
-        p = WORKDIR/self.base_name/"cross_sections"/"runtime_slices"/fn
+        p = get_workdir()/self.base_name/"cross_sections"/"runtime_slices"/fn
 
         return luigi.LocalTarget(str(p))
 

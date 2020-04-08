@@ -6,7 +6,7 @@ import luigi
 from ... import length_scales
 from .extraction import ExtractField3D
 from .masking import MakeMask
-from .base import WORKDIR, XArrayTarget
+from .base import get_workdir, XArrayTarget
 
 
 class ExtractCumulantScaleProfile(luigi.Task):
@@ -70,7 +70,7 @@ class ExtractCumulantScaleProfile(luigi.Task):
             base_name=self.base_name, v1=self.v1, v2=self.v2,
             mask=self.mask or "no_mask"
         )
-        p = WORKDIR/self.base_name/fn
+        p = get_workdir()/self.base_name/fn
         return XArrayTarget(str(p))
 
 
@@ -118,5 +118,5 @@ class ExtractCumulantScaleProfiles(luigi.Task):
             unique_props.encode('utf-8')
         ).hexdigest()
         fn = "cumulant_profile.{}.nc".format(unique_identifier)
-        p = WORKDIR/fn
+        p = get_workdir()/fn
         return XArrayTarget(str(p))

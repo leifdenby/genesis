@@ -11,7 +11,7 @@ import dask_image
 
 from .masking import MakeMask
 from .extraction import ExtractField3D, ExtractCrossSection2D
-from .base import WORKDIR, XArrayTarget, _get_dataset_meta_info
+from .base import get_workdir, XArrayTarget, _get_dataset_meta_info
 from .... import objects
 from ....objects import integral_properties
 from ....utils import find_vertical_grid_spacing
@@ -121,7 +121,7 @@ class IdentifyObjects(luigi.Task):
         fn = objects.identify.OUT_FILENAME_FORMAT.format(
             base_name=self.base_name, objects_name=objects_name
         )
-        p = WORKDIR/self.base_name/fn
+        p = get_workdir()/self.base_name/fn
 
         return XArrayTarget(str(p))
 
@@ -264,7 +264,7 @@ class ComputeObjectScales(luigi.Task):
         if len(fn) > 255:
             fn = "{}.nc".format(hashlib.md5(fn.encode('utf-8')).hexdigest())
 
-        p = WORKDIR/self.base_name/fn
+        p = get_workdir()/self.base_name/fn
         target = XArrayTarget(str(p))
 
         if target.exists():
@@ -368,7 +368,7 @@ class FilterObjectScales(ComputeObjectScales):
             name="object_scales_collection"
         )
 
-        p = WORKDIR/self.base_name/fn
+        p = get_workdir()/self.base_name/fn
         target = XArrayTarget(str(p))
 
         if target.exists():
@@ -489,7 +489,7 @@ class FilterObjects(luigi.Task):
         fn = objects.identify.OUT_FILENAME_FORMAT.format(
             base_name=self.base_name, objects_name=objects_name
         )
-        p = WORKDIR/self.base_name/fn
+        p = get_workdir()/self.base_name/fn
         return XArrayTarget(str(p))
 
 
@@ -528,7 +528,7 @@ class FilterTriggeringThermalsByMask(luigi.Task):
 
     def output(self):
         fn = 'triggering_thermals.mask.nc'
-        p = WORKDIR/self.base_name/fn
+        p = get_workdir()/self.base_name/fn
         return XArrayTarget(str(p))
 
 
@@ -569,7 +569,7 @@ class PerformObjectTracking2D(luigi.Task):
 
         tracking_identifier = self._get_tracking_identifier(meta)
 
-        p_data = WORKDIR
+        p_data = get_workdir()
         cloud_tracking_analysis.cloud_data.ROOT_DIR = str(p_data)
         cloud_data = CloudData(dataset_name, tracking_identifier,
                                dataset_pathname=self.base_name,
@@ -599,7 +599,7 @@ class PerformObjectTracking2D(luigi.Task):
         FN_2D_FORMAT = "{}.out.xy.{}.nc"
 
         fn = FN_2D_FORMAT.format(dataset_name, tracking_identifier)
-        p = WORKDIR/self.base_name/"tracking_output"/fn
+        p = get_workdir()/self.base_name/"tracking_output"/fn
         return luigi.LocalTarget(str(p))
 
 
@@ -637,7 +637,7 @@ class ComputeObjectMinkowskiScales(luigi.Task):
             base_name=self.base_name, objects_name=objects_name
         )
 
-        p = WORKDIR/self.base_name/fn
+        p = get_workdir()/self.base_name/fn
         return XArrayTarget(str(p))
 
 
@@ -695,7 +695,7 @@ class ComputeObjectScale(luigi.Task):
             base_name=self.base_name, objects_name=objects_name,
             name=name
         )
-        p = WORKDIR/self.base_name/fn
+        p = get_workdir()/self.base_name/fn
         return XArrayTarget(str(p))
 
     def run(self):
@@ -790,7 +790,7 @@ class ComputePerObjectProfiles(luigi.Task):
                   ex=self.z_max is None and "" or "_to_z" + str(self.z_max)
                   )
               )
-        p = WORKDIR/self.base_name/fn
+        p = get_workdir()/self.base_name/fn
         target = XArrayTarget(str(p))
         return target
 
@@ -1043,7 +1043,7 @@ class ComputeObjectScaleVsHeightComposition(luigi.Task):
                   )
               )
 
-        p = WORKDIR/self.base_name/fn
+        p = get_workdir()/self.base_name/fn
         target = XArrayTarget(str(p))
         return target
 
@@ -1082,7 +1082,7 @@ class EstimateCharacteristicScales(luigi.Task):
         fn = '{}.{}.exp_fit_scales.nc'.format(
             self.base_name, mask_name
         )
-        p = WORKDIR/self.base_name/fn
+        p = get_workdir()/self.base_name/fn
         target = XArrayTarget(str(p))
         return target
 
@@ -1128,7 +1128,7 @@ class ExtractCloudbaseState(luigi.Task):
             tracking_timerange = matches[2]
             tracking_identifier = "track_{}".format(tracking_timerange)
 
-            p_data = WORKDIR
+            p_data = get_workdir()
             cloud_tracking_analysis.cloud_data.ROOT_DIR = str(p_data)
             cloud_data = CloudData(dataset_name, tracking_identifier,
                                    dataset_pathname=self.base_name)
@@ -1176,7 +1176,7 @@ class ExtractCloudbaseState(luigi.Task):
         fn = "{}.{}.max_t_age__{:.0f}s.cloudbase.xy.nc".format(
             self.base_name, self.field_name, self.cloud_age_max,
         )
-        p = WORKDIR/self.base_name/fn
+        p = get_workdir()/self.base_name/fn
         return XArrayTarget(str(p))
 
 
@@ -1307,5 +1307,5 @@ class MakeMaskWithObjects(MakeMask):
         fn = make_mask.OUT_FILENAME_FORMAT.format(
             base_name=self.base_name, mask_name=mask_name
         )
-        p = WORKDIR/self.base_name/fn
+        p = get_workdir()/self.base_name/fn
         return XArrayTarget(str(p))

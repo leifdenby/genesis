@@ -5,7 +5,7 @@ import xarray as xr
 
 from ... import make_mask
 from .extraction import ExtractField3D
-from .base import WORKDIR, XArrayTarget
+from .base import get_workdir, XArrayTarget
 
 
 class MakeMask(luigi.Task):
@@ -54,7 +54,7 @@ class MakeMask(luigi.Task):
             method_kwargs[v] = xr.open_dataarray(input.fn, decode_times=False)
 
         cwd = os.getcwd()
-        p_data = WORKDIR/self.base_name
+        p_data = get_workdir()/self.base_name
         os.chdir(p_data)
         mask = make_mask.main(
             method=self.method_name, method_kwargs=method_kwargs
@@ -95,5 +95,5 @@ class MakeMask(luigi.Task):
         fn = make_mask.OUT_FILENAME_FORMAT.format(
             base_name=self.base_name, mask_name=mask_name
         )
-        p = WORKDIR/self.base_name/fn
+        p = get_workdir()/self.base_name/fn
         return XArrayTarget(str(p))
