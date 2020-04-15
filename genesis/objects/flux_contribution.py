@@ -8,10 +8,16 @@ import math
 
 class PlotGrid():
     def __init__(self, height=6, ratio=5, space=.4,
-                 dropna=True, xlim=None, ylim=None, size=None):
+                 dropna=True, width=None, xlim=None, ylim=None, size=None):
         # Set up the subplot grid
-        f = plt.figure(figsize=(height, height))
-        gs = plt.GridSpec(ratio + 1, ratio + 1)
+        try:
+            ratio_x, ratio_y = ratio
+        except TypeError:
+            ratio_x = ratio_y = ratio
+        if width is None:
+            width = height
+        f = plt.figure(figsize=(width, height))
+        gs = plt.GridSpec(ratio_y + 1, ratio_x + 1)
 
         ax_joint = f.add_subplot(gs[1:, :-1])
         ax_marg_x = f.add_subplot(gs[0, :-1], sharex=ax_joint)
@@ -61,7 +67,7 @@ def plot(ds, x, v, dx):
 
     bin_centers = 0.5*(bins[1:] + bins[:-1])
     #fig, axes = plt.subplots(ncols=2, nrows=2, sharex="col", sharey="row", figsize=(10,6))
-    g = PlotGrid()
+    g = PlotGrid(ratio=(3, 5), height=6, width=7)
     ds_ = ds.groupby_bins(x, bins=bins, labels=bin_centers)
     da_flux_per_bin = ds_.sum(dim='object_id', dtype=np.float64)[bin_var]/(nx*ny)
     if len(da_flux_per_bin["{}_bins".format(x)]) < 2:
@@ -86,16 +92,16 @@ def plot(ds, x, v, dx):
         else:
             return da_flux*ds.areafrac.sel(sampling=da_flux.sampling)
     da_flux_tot = ds[ref_var].groupby('sampling').apply(scale_flux)
-    da_flux_tot.plot(y='zt', ax=g.ax_marg_y, hue="sampling", marker='+', markersize=10)
+    da_flux_tot.plot(y='zt', ax=g.ax_marg_y, hue="sampling", add_legend=False)
 
     da_inobject_mean_flux = ds.sum(dim='object_id', dtype=np.float64)[bin_var]/(nx*ny)
     da_inobject_mean_flux.attrs['long_name'] = 'horz. mean flux'
     da_inobject_mean_flux.attrs['units'] = ds[bin_var].units
     da_inobject_mean_flux.plot(y='zt', ax=g.ax_marg_y, marker='.')
 
-    # if bin_var == 'qv_flux__sum':
-        # g.ax_marg_y.xaxis.set_ticks([0., 0.01, 0.02])
-        # g.ax_marg_y.set_xlim(0., 0.03)
+    if v == 'qv_flux':
+        g.ax_marg_y.xaxis.set_ticks([0., 0.02, 0.04])
+        g.ax_marg_y.set_xlim(0., 0.05)
 
     g.ax_joint.set_title('')
     g.ax_marg_x.set_title('')
@@ -103,6 +109,9 @@ def plot(ds, x, v, dx):
     g.ax_marg_x.set_xlabel('')
     g.ax_marg_y.set_ylabel('')
     g.ax_joint.set_xlabel(xr.plot.utils.label_from_attrs(ds[x]))
+
+    add_newline = lambda s: s[:s.index('[')] + "\n" + s[s.index('['):]
+    g.ax_marg_y.set_xlabel(add_newline(g.ax_marg_y.get_xlabel()))
 
     return g.ax_joint
 
