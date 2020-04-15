@@ -832,7 +832,7 @@ class ObjectsScaleDist(luigi.Task):
         figsize = [float(v) for v in self.figsize.split(',')]
         N_vars = len(self.var_name.split(','))
         N_basenames = len(self.base_names.split(','))
-        fig, axes = plt.subplots(figsize=(figsize[0]*N_vars, figsize[0]), ncols=N_vars,
+        fig, axes = plt.subplots(figsize=(figsize[0]*N_vars, figsize[1]), ncols=N_vars,
                                  sharey=True)
         if N_vars == 1:
             axes = [axes,]
@@ -857,6 +857,8 @@ class ObjectsScaleDist(luigi.Task):
                 desc = self.get_base_name_labels().get(base_name)
                 if desc is None:
                     desc = base_name.replace('_', ' ').replace('.', ' ')
+                    import ipdb
+                    ipdb.set_trace()
                 desc += " ({} objects)".format(int(da_v.object_id.count()))
                 kws = dict(density=self.as_density)
                 if self.dv is not None:
@@ -896,20 +898,36 @@ class ObjectsScaleDist(luigi.Task):
             ax1.autoscale()
             [ax.set_ylabel('') for ax in axes[1:]]
 
-        s_filters = objects.filter.latex_format(self.object_filters)
-        st = plt.suptitle("{}\n{}".format(self.base_names,s_filters), y=1.1)
+        bbox_extra_artists = []
 
-        sns.despine(right=not self.show_cumsum)
+        sns.despine(fig)
+
+        st_str = self.get_suptitle()
+        if st_str is not None:
+            st = plt.suptitle(st_str, y=1.1)
+            bbox_extra_artists.append(st)
+
         ax_lgd = axes[len(axes)//2]
-        lgd = ax_lgd.legend(
-            loc='upper center', bbox_to_anchor=(0.5, -0.15-0.1*N_basenames),
+        lgd = plt.figlegend(
+            *ax_lgd.get_legend_handles_labels(),
+            loc='lower center',
         )
+        plt.tight_layout()
+
+        plot_types.adjust_fig_to_fit_figlegend(
+            fig=fig, figlegend=lgd, direction='bottom'
+        )
+        bbox_extra_artists.append(lgd)
 
         if self.v_max is not None:
             ax.set_xlim(0., self.v_max)
 
-        plt.tight_layout()
-        plt.savefig(self.output().fn, bbox_inches='tight', bbox_extra_artists=(lgd, st))
+        plt.savefig(self.output().fn, bbox_inches='tight',
+                    bbox_extra_artists=bbox_extra_artists)
+
+    def get_suptitle(self):
+        s_filters = objects.filter.latex_format(self.object_filters)
+        return plt.suptitle("{}\n{}".format(self.base_names,s_filters), y=1.1)
 
     def output(self):
         s_filter = ''

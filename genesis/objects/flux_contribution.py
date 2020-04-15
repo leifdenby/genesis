@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 import math
 
+from ..utils.plot_types import adjust_fig_to_fit_figlegend
+
 
 class PlotGrid():
     def __init__(self, height=6, ratio=5, space=.4,
@@ -115,65 +117,6 @@ def plot(ds, x, v, dx):
 
     return g.ax_joint
 
-def _adjust_fig_to_fit_figlegend(fig, figlegend, direction='bottom'):
-    # Draw the plot to set the bounding boxes correctly
-    fig.draw(fig.canvas.get_renderer())
-
-    if direction == 'right':
-        # Calculate and set the new width of the figure so the legend fits
-        legend_width = figlegend.get_window_extent().width / fig.dpi
-        figure_width = fig.get_figwidth()
-        fig.set_figwidth(figure_width + legend_width)
-
-        # Draw the plot again to get the new transformations
-        fig.draw(fig.canvas.get_renderer())
-
-        # Now calculate how much space we need on the right side
-        legend_width = figlegend.get_window_extent().width / fig.dpi
-        space_needed = legend_width / (figure_width + legend_width) + 0.02
-        # margin = .01
-        # _space_needed = margin + space_needed
-        right = 1 - space_needed
-
-        # Place the subplot axes to give space for the legend
-        fig.subplots_adjust(right=right)
-    elif direction == 'top':
-        # Calculate and set the new width of the figure so the legend fits
-        legend_height = figlegend.get_window_extent().height / fig.dpi
-        figure_height = fig.get_figheight()
-        fig.set_figheight(figure_height + legend_height)
-
-        # Draw the plot again to get the new transformations
-        fig.draw(fig.canvas.get_renderer())
-
-        # Now calculate how much space we need on the right side
-        legend_height = figlegend.get_window_extent().height / fig.dpi
-        space_needed = legend_height / (figure_height + legend_height) + 0.02
-        # margin = .01
-        top = 1 - space_needed
-
-        # Place the subplot axes to give space for the legend
-        fig.subplots_adjust(top=top)
-    elif direction == 'bottom':
-        # Calculate and set the new width of the figure so the legend fits
-        legend_height = figlegend.get_window_extent().height / fig.dpi
-        figure_height = fig.get_figheight()
-        fig.set_figheight(figure_height + legend_height)
-
-        # Draw the plot again to get the new transformations
-        fig.draw(fig.canvas.get_renderer())
-
-        # Now calculate how much space we need on the right side
-        legend_height = figlegend.get_window_extent().height / fig.dpi
-        space_needed = legend_height / (figure_height + legend_height) + 0.02
-        # margin = .01
-        bottom = space_needed
-
-        # Place the subplot axes to give space for the legend
-        fig.subplots_adjust(bottom=bottom)
-    else:
-        raise NotImplementedError(direction)
-
 
 def plot_with_areafrac(ds, figsize=(12, 8), legend_ncols=3):
     """
@@ -233,6 +176,6 @@ def plot_with_areafrac(ds, figsize=(12, 8), legend_ncols=3):
     figlegend = fig.legend(handles, labels, loc='center right', title=hue_label,
                            ncol=legend_ncols)
 
-    _adjust_fig_to_fit_figlegend(fig=fig, figlegend=figlegend, direction='right')
+    adjust_fig_to_fit_figlegend(fig=fig, figlegend=figlegend, direction='right')
 
     return fig, axes

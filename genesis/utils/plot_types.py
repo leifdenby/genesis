@@ -274,3 +274,63 @@ def fixed_bin_hist(v, dv, ax, **kwargs):
         nbins = int((vmax-vmin)/dv)
         vrange = (vmin, vmax)
     ax.hist(v, range=vrange, bins=nbins, **kwargs)
+
+
+def adjust_fig_to_fit_figlegend(fig, figlegend, direction='bottom'):
+    # Draw the plot to set the bounding boxes correctly
+    fig.draw(fig.canvas.get_renderer())
+
+    if direction == 'right':
+        # Calculate and set the new width of the figure so the legend fits
+        legend_width = figlegend.get_window_extent().width / fig.dpi
+        figure_width = fig.get_figwidth()
+        fig.set_figwidth(figure_width + legend_width)
+
+        # Draw the plot again to get the new transformations
+        fig.draw(fig.canvas.get_renderer())
+
+        # Now calculate how much space we need on the right side
+        legend_width = figlegend.get_window_extent().width / fig.dpi
+        space_needed = legend_width / (figure_width + legend_width) + 0.02
+        # margin = .01
+        # _space_needed = margin + space_needed
+        right = 1 - space_needed
+
+        # Place the subplot axes to give space for the legend
+        fig.subplots_adjust(right=right)
+    elif direction == 'top':
+        # Calculate and set the new width of the figure so the legend fits
+        legend_height = figlegend.get_window_extent().height / fig.dpi
+        figure_height = fig.get_figheight()
+        fig.set_figheight(figure_height + legend_height)
+
+        # Draw the plot again to get the new transformations
+        fig.draw(fig.canvas.get_renderer())
+
+        # Now calculate how much space we need on the right side
+        legend_height = figlegend.get_window_extent().height / fig.dpi
+        space_needed = legend_height / (figure_height + legend_height) + 0.02
+        # margin = .01
+        top = 1 - space_needed
+
+        # Place the subplot axes to give space for the legend
+        fig.subplots_adjust(top=top)
+    elif direction == 'bottom':
+        # Calculate and set the new width of the figure so the legend fits
+        legend_height = figlegend.get_window_extent().height / fig.dpi
+        figure_height = fig.get_figheight()
+        fig.set_figheight(figure_height + legend_height)
+
+        # Draw the plot again to get the new transformations
+        fig.draw(fig.canvas.get_renderer())
+
+        # Now calculate how much space we need on the right side
+        legend_height = figlegend.get_window_extent().height / fig.dpi
+        space_needed = legend_height / (figure_height + legend_height) + 0.02
+        # margin = .01
+        bottom = 2*space_needed
+
+        # Place the subplot axes to give space for the legend
+        fig.subplots_adjust(bottom=bottom)
+    else:
+        raise NotImplementedError(direction)
