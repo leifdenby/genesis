@@ -53,7 +53,7 @@ class PlotGrid():
         f.subplots_adjust(hspace=space, wspace=space)
 
 
-def plot(ds, x, v, dx):
+def plot(ds, x, v, dx, mean_profile_components='all'):
     if dx is None:
         bins = np.linspace(ds[x].min(), ds[x].max(), 10)
     else:
@@ -94,12 +94,17 @@ def plot(ds, x, v, dx):
         else:
             return da_flux*ds.areafrac.sel(sampling=da_flux.sampling)
     da_flux_tot = ds[ref_var].groupby('sampling').apply(scale_flux)
-    da_flux_tot.plot(y='zt', ax=g.ax_marg_y, hue="sampling", add_legend=False)
+    if mean_profile_components != "all":
+        da_flux_tot = da_flux_tot.sel(sampling=mean_profile_components)
+    da_flux_tot = da_flux_tot.sortby('sampling', ascending=False)
+    da_flux_tot.attrs['long_name'] = 'horz. mean flux'
+    da_flux_tot.attrs['units'] = ds[bin_var].units
+    da_flux_tot.plot(y='zt', ax=g.ax_marg_y,
+                     hue="sampling", add_legend=True)
+    g.ax_marg_y.get_legend().set_bbox_to_anchor([1.0, 1.2])
 
-    da_inobject_mean_flux = ds.sum(dim='object_id', dtype=np.float64)[bin_var]/(nx*ny)
-    da_inobject_mean_flux.attrs['long_name'] = 'horz. mean flux'
-    da_inobject_mean_flux.attrs['units'] = ds[bin_var].units
-    da_inobject_mean_flux.plot(y='zt', ax=g.ax_marg_y, marker='.')
+    # da_inobject_mean_flux = ds.sum(dim='object_id', dtype=np.float64)[bin_var]/(nx*ny)
+    # da_inobject_mean_flux.plot(y='zt', ax=g.ax_marg_y, marker='.')
 
     if v == 'qv_flux':
         g.ax_marg_y.xaxis.set_ticks([0., 0.02, 0.04])

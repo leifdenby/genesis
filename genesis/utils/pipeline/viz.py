@@ -912,7 +912,6 @@ class ObjectsScaleDist(luigi.Task):
             *ax_lgd.get_legend_handles_labels(),
             loc='lower center',
         )
-        plt.tight_layout()
 
         plot_types.adjust_fig_to_fit_figlegend(
             fig=fig, figlegend=lgd, direction='bottom'
@@ -1184,7 +1183,8 @@ class ObjectScaleVsHeightComposition(luigi.Task):
         import ipdb
         with ipdb.launch_ipdb_on_exception():
             ax = objects.flux_contribution.plot(
-                ds=ds, x=self.x, v=self.field_name, dx=self.dx
+                ds=ds, x=self.x, v=self.field_name, dx=self.dx,
+                mean_profile_components=["full domain", "objects"]
             )
 
         if self.x_max is not None:
