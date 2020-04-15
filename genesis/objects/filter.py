@@ -17,7 +17,6 @@ import cloud_identification
 try:
     import cloud_tracking_analysis
     from cloud_tracking_analysis import CloudData
-    from cloud_tracking_analysis.tracking_utility import TrackingType
     HAS_CLOUD_TRACKING = True
 except ImportError:
     HAS_CLOUD_TRACKING = False

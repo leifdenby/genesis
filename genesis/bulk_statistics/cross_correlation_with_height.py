@@ -2,11 +2,6 @@
 Produce cross-correlation contour plots as function of height and at
 cloud-base.  Regions of highest density percentile are contoured
 """
-if __name__ == "__main__":
-    import matplotlib
-    matplotlib.use("Agg")
-
-import copy
 import os
 import warnings
 
@@ -15,10 +10,9 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 import tqdm
-import numpy as np
 
 try:
-    from cloud_tracking_analysis import CloudData, CloudType, cloud_operations
+    from cloud_tracking_analysis import CloudData, CloudType
     from cloud_tracking_analysis.cloud_mask_methods import cloudbase as get_cloudbase_mask
     from cloud_tracking_analysis.cloud_mask_methods import CloudbaseEstimationMethod
     HAS_CLOUD_TRACKING = True
@@ -31,6 +25,7 @@ from ..utils.plot_types import joint_hist_contoured, JointHistPlotError
 
 Z_LEVELS_DEFAULT = np.arange(12.5, 650., 100.)
 
+
 def get_approximate_cloudbase_height(qc, z_tol=100.):
     z_cloud_underside = qc.zt.where(qc > 0.0).min(dim='zt')
 
@@ -40,14 +35,12 @@ def get_approximate_cloudbase_height(qc, z_tol=100.):
     return z_cb
 
 
-def get_cloudbase_height(cloud_data, t0, t_age_max, z_base_max=700.):
-    if not HAS_CLOUD_TRACKING:
-        raise Exception("cloud_tracking_analysis module isn't available")
+def get_cloudbase_height(ds_tracking, t0, t_age_max, z_base_max=700.):
 
     tn = int(cloud_data.find_closest_timestep(t=t0))
 
     # clouds that are going to do vertical transport
-    cloud_set = cloud_data.all_clouds.filter(
+    cloud_set = ds_tracking.filter(
         cloud_type__in=[CloudType.SINGLE_PULSE, CloudType.ACTIVE],
     ).filter(present=True, _tn=tn)
 
