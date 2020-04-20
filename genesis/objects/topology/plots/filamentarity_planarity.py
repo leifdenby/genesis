@@ -111,10 +111,10 @@ def main(ds, auto_scale=True):
         LABEL_FORMAT = "{name}: {count} objects"
         g.ax_joint.legend(
             labels=[LABEL_FORMAT.format(
-                name=d, 
+                name=d.item(), 
                 count=int(ds.sel(dataset=d).dropna(dim='object_id').object_id.count())
-                ) for d in datasets],
-            bbox_to_anchor=[0.5, -0.4], loc="lower center"
+                ) for d in ds.dataset],
+            bbox_to_anchor=[0.5, -0.2], loc="lower center", ncol=2
         )
 
         plot_reference(

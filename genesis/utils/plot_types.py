@@ -199,7 +199,7 @@ def make_marker_plot(x, y, scale=100., ax=None, marker='o', **kwargs):
     return ax
 
 
-def multi_jointplot(x, y, z, ds, joint_type='pointhist', **kwargs):
+def multi_jointplot(x, y, z, ds, joint_type='pointhist', lgd_ncols=1, **kwargs):
     """
     like seaborn jointplot but making it possible to plot for multiple (up to
     four) datasets
@@ -259,7 +259,7 @@ def multi_jointplot(x, y, z, ds, joint_type='pointhist', **kwargs):
             name=z_,
             count=int(ds.sel(**{z:z_}).dropna(dim='object_id').object_id.count())
             ) for z_ in z_values],
-        bbox_to_anchor=[0.5, -0.4], loc="lower center"
+        bbox_to_anchor=[0.5, -0.25], loc="lower center", ncol=lgd_ncols,
     )
 
     return g

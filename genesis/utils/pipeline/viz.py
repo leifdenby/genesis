@@ -656,13 +656,30 @@ class ObjectScalesComparison(luigi.Task):
 class FilamentarityPlanarityComparison(ObjectScalesComparison):
     def run(self):
         ds = self._load_data()
-        objects.topology.plots.filamentarity_planarity(ds=ds)
 
-        st = plt.suptitle(self.get_suptitle(), y=[1.05, 1.5][self.not_pairgrid])
+        def get_new_dataset_label(da):
+            base_name = da.dataset.item()
+            return xr.DataArray(
+                self.get_base_name_labels().get(base_name, base_name)
+            )
+
+        ds.coords['dataset'] = ds.groupby('dataset').apply(get_new_dataset_label)
+
+        import ipdb
+        with ipdb.launch_ipdb_on_exception():
+            objects.topology.plots.filamentarity_planarity(ds=ds)
+
+        extra_artists = []
+        st_str = self.get_suptitle()
+        if st_str is not None:
+            st = plt.suptitle(st_str, y=[1.05, 1.5][self.not_pairgrid])
+            extra_artists.append(st)
 
         plt.savefig(self.output().fn, bbox_inches='tight',
-                    bbox_extra_artists=(st,))
+                    bbox_extra_artists=extra_artists)
 
+    def get_base_name_labels(self):
+        return {}
 
     def output(self):
         fn_base = super().output().fn
@@ -857,8 +874,6 @@ class ObjectsScaleDist(luigi.Task):
                 desc = self.get_base_name_labels().get(base_name)
                 if desc is None:
                     desc = base_name.replace('_', ' ').replace('.', ' ')
-                    import ipdb
-                    ipdb.set_trace()
                 desc += " ({} objects)".format(int(da_v.object_id.count()))
                 kws = dict(density=self.as_density)
                 if self.dv is not None:
@@ -986,6 +1001,13 @@ class ObjectsScalesJointDist(luigi.Task):
         nbins = int((vmax-vmin)/dv)
         return dict(range=(vmin, vmax), bins=nbins)
 
+    def get_suptitle(self):
+        s_filters = objects.filter.latex_format(self.object_filters)
+        return "{}\n{}".format(self.base_names,s_filters)
+
+    def get_base_name_labels(self):
+        return {}
+
     def make_plot(self):
         inputs = self.input()
 
@@ -999,18 +1021,25 @@ class ObjectsScalesJointDist(luigi.Task):
             if '_' in self.plot_type:
                 kws['joint_type'] = self.plot_type.split('_')[-1]
 
-            def _lab(label, ds_):
-                ds_['dataset'] = label
+            def _lab(base_name, ds_):
+                ds_['dataset'] = self.get_base_name_labels().get(
+                    base_name, base_name
+                )
                 return ds_
+
             dss = [
-                _lab(name, input.open()) for (name, input) in inputs.items()
+                _lab(base_name, input.open())
+                for (base_name, input) 
+                in inputs.items()
             ]
             ds = xr.concat(dss, dim='dataset')
 
-            g = plot_types.multi_jointplot(x=self.x, y=self.y, z='dataset', ds=ds, **kws)
+            g = plot_types.multi_jointplot(x=self.x, y=self.y, z='dataset',
+                                           ds=ds, lgd_ncols=2, **kws)
+            s_title = self.get_suptitle()
+            if s_title is not None:
+                plt.suptitle(s_title, y=1.1)
             ax = g.ax_joint
-            s_filters = objects.filter.latex_format(self.object_filters)
-            plt.suptitle("{}\n{}".format(self.base_names,s_filters), y=1.1)
             if self.plot_aspect is not None:
                 raise Exception("Can't set aspect ratio on jointplot, set limits instead")
         elif self.plot_type in ['scatter', 'scatter_hist']:
