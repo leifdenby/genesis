@@ -90,6 +90,20 @@ def _fix_long_name(da):
         modified = True
     return da, modified
 
+def _fix_time_units(da):
+    modified = False
+    if np.issubdtype(da.dtype, np.datetime64):
+        # already converted since xarray has managed to parse the time in
+        # CF-format
+        pass
+    elif da.attrs['units'].startswith("seconds since 2000-00-00"):
+        da.attrs['units'] = da.attrs['units'].replace(
+            "seconds since 2000-00-00",
+            "seconds since 2000-01-01",
+        )
+        modified = True
+    return da, modified
+
 def extract_field_to_filename(dataset_meta, path_out, field_name, **kwargs):
     field_name_src = _get_uclales_field(field_name)
 
@@ -125,6 +139,13 @@ def extract_field_to_filename(dataset_meta, path_out, field_name, **kwargs):
     da, modified = _fix_long_name(da)
     if modified:
         can_symlink = False
+
+    import ipdb
+    with ipdb.launch_ipdb_on_exception():
+        if 'time' in da.coords:
+            da.coords['time'], modified = _fix_time_units(da['time'])
+            if modified:
+                can_symlink = False
 
     for c in "xt yt zt".split(" "):
         if 'fixes' in dataset_meta:
