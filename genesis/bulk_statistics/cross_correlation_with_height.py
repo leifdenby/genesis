@@ -21,6 +21,7 @@ except ImportError:
 
 from . import get_dataset
 from ..utils.plot_types import joint_hist_contoured, JointHistPlotError
+from ..objects import projected_2d as objs_2d
 
 
 Z_LEVELS_DEFAULT = np.arange(12.5, 650., 100.)
@@ -35,32 +36,41 @@ def get_approximate_cloudbase_height(qc, z_tol=100.):
     return z_cb
 
 
-def get_cloudbase_height(ds_tracking, t0, t_age_max, z_base_max=700.):
+def get_cloudbase_height(ds_tracking, da_cldbase_2d, t0, t_age_max, dx,
+                         z_base_max=700.):
 
-    tn = int(cloud_data.find_closest_timestep(t=t0))
+    da_cldbase_2d_ = da_cldbase_2d.sel(time=t0)
+
+    object_set = objs_2d.ObjectSet(ds=ds_tracking)
 
     # clouds that are going to do vertical transport
-    cloud_set = ds_tracking.filter(
-        cloud_type__in=[CloudType.SINGLE_PULSE, CloudType.ACTIVE],
-    ).filter(present=True, _tn=tn)
+    object_set = object_set.filter(cloud_type__in=[
+        objs_2d.CloudType.SINGLE_PULSE, objs_2d.CloudType.ACTIVE
+    ])
+
+    object_set = object_set.filter(present=True, kwargs=dict(t0=t0))
 
     # avoid mid-level convection clouds
-    cloud_set = cloud_set.filter(
-        cloudbase_max_height_by_histogram_peak__lt=z_base_max, _tn=tn
+    object_set = object_set.filter(
+        cloudbase_max_height_by_histogram_peak__lt=z_base_max,
+        kwargs=dict(t0=t0, dx=dx, da_cldbase=da_cldbase_2d)
     )
 
     # remove clouds that are more than 3min old
-    cloud_set = cloud_set.filter(cloud_age__lt=t_age_max, _tn=tn)
-
-    nrcloud_cloudbase = get_cloudbase_mask(
-        cloud_set=cloud_set, tn=tn, method=CloudbaseEstimationMethod.DEFAULT
+    object_set = object_set.filter(
+        cloud_age__lt=t_age_max, kwargs=dict(t0=t0)
     )
 
-    cldbase = cloud_set.cloud_data.get('cldbase', tn=tn)
+    nrcloud_cloudbase = get_cloudbase_mask(
+        object_set=object_set, t0=t0,
+        method=CloudbaseEstimationMethod.DEFAULT
+    )
+
+    cldbase = object_set.cloud_data.get('cldbase', tn=tn)
     m = nrcloud_cloudbase == 0
     cldbase_heights_2d = cldbase.where(~m)
 
-    cldbase_heights_2d.attrs['num_clouds'] = len(cloud_set)
+    cldbase_heights_2d.attrs['num_clouds'] = len(object_set)
 
     return cldbase_heights_2d
 

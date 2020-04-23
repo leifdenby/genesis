@@ -8,9 +8,10 @@ import luigi
 import xarray as xr
 import numpy as np
 
-from ....utils import calc_flux
+from ....utils import calc_flux, find_vertical_grid_spacing
 from ... import mask_functions
 from .base import get_workdir, XArrayTarget, _get_dataset_meta_info
+from ..data_sources.uclales import _fix_time_units as fix_time_units
 
 
 if 'USE_SCHEDULER' in os.environ:
@@ -148,7 +149,16 @@ class ExtractField3D(luigi.Task):
         return t
 
 
-class ExtractCrossSection2D(luigi.Task):
+class XArrayTarget2DCrossSection(XArrayTarget):
+    def open(self, *args, **kwargs):
+        kwargs['decode_times'] = False
+        da = super().open(*args, **kwargs)
+        da['time'], _ = fix_time_units(da['time'])
+        ds = xr.decode_cf(da.to_dataset())
+        return ds[da.name]
+
+
+class TimeCrossSectionSlices2D(luigi.Task):
     base_name = luigi.Parameter()
     field_name = luigi.Parameter()
 
@@ -162,9 +172,24 @@ class ExtractCrossSection2D(luigi.Task):
 
         assert p_in.exists()
 
-        p_out.parent.mkdir(exist_ok=True, parents=True)
+        da = xr.open_dataarray(p_in, decode_times=False)
 
-        os.symlink(str(p_in.absolute()), str(p_out))
+        modified = False
+        if 'time' in da.coords:
+            da['time'], modified = fix_time_units(da['time'])
+            if modified and meta.get('use_cftime_load_fixer', False):
+                modified = False
+
+        p_out.parent.mkdir(exist_ok=True, parents=True)
+        if modified:
+            file_size = da.size * da.dtype.itemsize
+            if file_size > 5e6:
+                raise Exception("`{}` is too big to make it worth resaving"
+                                " fix the units manually or add"
+                                " `use_cftime_load_fixer` to datasets.yaml")
+            da.to_netcdf(str(p_out))
+        else:
+            os.symlink(str(p_in.absolute()), str(p_out))
 
     def output(self):
         meta = _get_dataset_meta_info(self.base_name)
@@ -174,9 +199,12 @@ class ExtractCrossSection2D(luigi.Task):
             field_name=self.field_name
         )
 
-        p = get_workdir()/self.base_name/"cross_sections"/"runtime_slices"/fn
+        p = get_workdir()/"cross_sections"/"runtime_slices"/fn
 
-        return luigi.LocalTarget(str(p))
+        if meta.get('use_cftime_load_fixer', False):
+            return XArrayTarget2DCrossSection(str(p))
+        else:
+            return XArrayTarget(str(p))
 
     def run(self):
         meta = _get_dataset_meta_info(self.base_name)
@@ -188,3 +216,43 @@ class ExtractCrossSection2D(luigi.Task):
             self._extract_and_symlink_local_file()
         else:
             raise NotImplementedError(fn_out.fn)
+
+
+class ExtractCrossSection2D(luigi.Task):
+    base_name = luigi.Parameter()
+    field_name = luigi.Parameter()
+    reference_field = luigi.Parameter(default='qt')
+
+    FN_FORMAT = "{exp_name}.out.xy.{field_name}.nc"
+
+    def requires(self):
+        return dict(
+            field=TimeCrossSectionSlices2D(
+                base_name=self.base_name,
+                field_name=self.field_name,
+            ),
+            ref_field=ExtractField3D(
+                base_name=self.base_name,
+                field_name=self.reference_field
+            )
+        )
+
+    def run(self):
+        da_timedep = self.input()['field'].open()
+        da_3d_ref = self.input()['ref_field'].open()
+
+        # get time for aggregation from 3D reference field
+        dz = find_vertical_grid_spacing(da_3d_ref)
+        t0 = da_3d_ref.time
+
+        da = da_timedep.sel(time=t0).squeeze()
+        da.attrs['dz'] = dz
+
+        Path(self.output().fn).parent.mkdir(exist_ok=True, parents=True)
+
+        da.to_netcdf(self.output().fn)
+
+    def output(self):
+        fn = "{}.nc".format(self.field_name)
+        p = get_workdir()/self.base_name/"cross_sections"/"runtime_slices"/fn
+        return XArrayTarget(str(p))

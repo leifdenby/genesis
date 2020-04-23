@@ -102,6 +102,26 @@ def _fix_time_units(da):
             "seconds since 2000-01-01",
         )
         modified = True
+    elif da.attrs['units'].startswith("seconds since 0-00-00"):
+        # 2D fields have strange time units...
+        da.attrs['units'] = da.attrs['units'].replace(
+            "seconds since 0-00-00",
+            "seconds since 2000-01-01",
+        )
+        modified = True
+    elif da.attrs['units'].startswith("seconds since 0-0-0"):
+        # 2D fields have strange time units...
+        da.attrs['units'] = da.attrs['units'].replace(
+            "seconds since 0-0-0",
+            "seconds since 2000-01-01",
+        )
+        modified = True
+    elif da.attrs['units'] == "day as %Y%m%d.%f":
+        da.values = (da.values*24*60*60).astype(int)
+        da.attrs['units'] = "seconds since 2000-01-01 00:00:00"
+        modified = True
+    else:
+        raise NotImplementedError(da.attrs['units'])
     return da, modified
 
 def extract_field_to_filename(dataset_meta, path_out, field_name, **kwargs):
@@ -140,12 +160,10 @@ def extract_field_to_filename(dataset_meta, path_out, field_name, **kwargs):
     if modified:
         can_symlink = False
 
-    import ipdb
-    with ipdb.launch_ipdb_on_exception():
-        if 'time' in da.coords:
-            da.coords['time'], modified = _fix_time_units(da['time'])
-            if modified:
-                can_symlink = False
+    if 'time' in da.coords:
+        da.coords['time'], modified = _fix_time_units(da['time'])
+        if modified:
+            can_symlink = False
 
     for c in "xt yt zt".split(" "):
         if 'fixes' in dataset_meta:
