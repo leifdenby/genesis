@@ -2,6 +2,7 @@ import warnings
 import shutil
 import os
 from pathlib import Path
+import re
 
 import luigi
 import xarray as xr
@@ -9,9 +10,12 @@ import numpy as np
 import dask_image.ndmeasure as dmeasure
 
 from .... import objects
-from .extraction import ExtractCrossSection2D, ExtractField3D
-from .extraction import TimeCrossSectionSlices2D
+from .extraction import (
+    ExtractCrossSection2D, ExtractField3D, TimeCrossSectionSlices2D,
+    REGEX_INSTANTENOUS_BASENAME
+)
 from .base import get_workdir, _get_dataset_meta_info, XArrayTarget
+from .base import NumpyDatetimeParameter
 from .masking import MakeMask
 from ....bulk_statistics import cross_correlation_with_height
 from ....utils import find_vertical_grid_spacing
@@ -20,8 +24,6 @@ from ..data_sources import uclales_2d_tracking
 from ..data_sources.uclales_2d_tracking import TrackingType
 from ..data_sources.uclales import _fix_time_units as fix_time_units
 from ....objects.projected_2d import ObjectSet
-
-
 
 class XArrayTargetUCLALES(XArrayTarget):
     def open(self, *args, **kwargs):
@@ -94,6 +96,9 @@ class PerformObjectTracking2D(luigi.Task):
     tn_end = luigi.Parameter(default=None)
 
     def requires(self):
+        if REGEX_INSTANTENOUS_BASENAME.match(self.base_name):
+            raise Exception("Shouldn't pass base_name with timestep suffix"
+                            " (`.tn`) to tracking util")
         required_fields = uclales_2d_tracking.get_required_fields(
             tracking_type=self.tracking_type
         )
@@ -194,34 +199,30 @@ class PerformObjectTracking2D(luigi.Task):
 
 class TrackingLabels2D(luigi.Task):
     base_name = luigi.Parameter()
-    label_var = luigi.Parameter(default='nrcloud')
-    reference_field = luigi.Parameter(default='qt')
+    label_var = luigi.Parameter()
+    time = NumpyDatetimeParameter()
 
     def requires(self):
-        return dict(
-            tracking=PerformObjectTracking2D(
-                base_name=self.base_name,
-                tracking_type=uclales_2d_tracking.TrackingType.CLOUD_CORE,
-            ),
-            ref_field=ExtractField3D(
-                base_name=self.base_name,
-                field_name=self.reference_field
-            )
+        return PerformObjectTracking2D(
+            base_name=self.base_name,
+            tracking_type=uclales_2d_tracking.TrackingType.CLOUD_CORE,
         )
 
     def run(self):
-        da_timedep = self.input()['tracking'].open()
-        da_3d_ref = self.input()['ref_field'].open()
+        da_timedep = self.input().open()
+        # round to nearest second, some of the tracking files are stored as
+        # fraction of a day (...) and so when converting backing to seconds we
+        # sometimes get rounding errors
+        da_timedep['time'] = da_timedep.time.dt.ceil('S')
 
-        t0 = da_3d_ref.time
-
+        t0 = self.time
         da = da_timedep[self.label_var].sel(time=t0).squeeze()
 
         Path(self.output().fn).parent.mkdir(exist_ok=True, parents=True)
         da.to_netcdf(self.output().fn)
 
     def output(self):
-        fn = "{}.nc".format(self.label_var)
+        fn = "{}.{}.nc".format(self.label_var, self.time.isoformat())
         p = get_workdir()/self.base_name/"tracking_labels_2d"/fn
         return XArrayTarget(str(p))
 
@@ -229,20 +230,21 @@ class TrackingLabels2D(luigi.Task):
 class Aggregate2DCrossSectionOnTrackedObjects(luigi.Task):
     field_name = luigi.Parameter()
     base_name = luigi.Parameter()
-    reference_field = luigi.Parameter(default='qt')
-
-    label_var = "nrcloud"
+    time = NumpyDatetimeParameter()
+    dx = luigi.FloatParameter()
+    label_var = luigi.Parameter()
 
     def requires(self):
         return dict(
             tracking_labels=TrackingLabels2D(
                 base_name=self.base_name,
-                reference_field=self.reference_field,
+                time=self.time,
+                label_var=self.label_var,
             ),
             field=ExtractCrossSection2D(
                 base_name=self.base_name,
                 field_name=self.field_name,
-                reference_field=self.reference_field,
+                time=self.time,
             ),
         )
 
@@ -250,10 +252,7 @@ class Aggregate2DCrossSectionOnTrackedObjects(luigi.Task):
         da_values = self.input()['field'].open()
         da_labels = self.input()['tracking_labels'].open().astype(int)
 
-        if self.field_name in ["cldbase", "cldtop"]:
-            dx = da_values.dz
-        else:
-            raise NotImplementedError(self.field_name)
+        dx = self.dx
 
         # set up bins for histogram
         v_min = da_values.min().item()
@@ -302,6 +301,86 @@ class Aggregate2DCrossSectionOnTrackedObjects(luigi.Task):
 
         Path(self.output().fn).parent.mkdir(exist_ok=True, parents=True)
         da_binned.to_netcdf(self.output().fn)
+
+    def output(self):
+        fn = "{}.by_{}.at_{}.nc".format(
+            self.field_name, self.label_var, self.time.isoformat()
+        )
+        p = get_workdir()/self.base_name/"cross_sections"/"aggregated"/fn
+        return XArrayTarget(str(p))
+
+
+class AggregateAll2DCrossSectionOnTrackedObjects(luigi.Task):
+    field_name = luigi.Parameter()
+    base_name = luigi.Parameter()
+    dx = luigi.FloatParameter()
+    label_var = luigi.Parameter()
+    tn_min = luigi.IntParameter(default=20)
+    tn_max = luigi.IntParameter(default=50)
+
+    def requires(self):
+        return TimeCrossSectionSlices2D(
+            base_name=self.base_name,
+            field_name=self.field_name
+        )
+
+    def _build_tasks(self):
+        da_timedep = self.input().open()
+        tasks = []
+        for t in da_timedep.time.values:
+            t = Aggregate2DCrossSectionOnTrackedObjects(
+                field_name=self.field_name,
+                base_name=self.base_name,
+                dx=self.dx,
+                label_var=self.label_var,
+                time=t,
+            )
+            tasks.append(t)
+        return tasks[self.tn_min:self.tn_max]
+
+    def run(self):
+        yield self._build_tasks()
+
+    def output(self):
+        if not self.input().exists():
+            return luigi.LocalTarget('__fake__file__aggregation__')
+        else:
+            return [t.output() for t in self._build_tasks()]
+
+
+class Aggregate2DCrossSectionOnTrackedObjectsBy3DField(luigi.Task):
+    base_name = luigi.Parameter()
+    ref_field_name = luigi.Parameter(default='qt')
+    label_var = luigi.Parameter()
+    field_name = luigi.Parameter()
+
+    def requires(self):
+        assert REGEX_INSTANTENOUS_BASENAME.match(self.base_name)
+
+        return ExtractField3D(
+            base_name=self.base_name,
+            field_name=self.ref_field_name,
+        )
+
+    def run(self):
+        da_3d = self.input().open()
+
+        t0 = da_3d.time
+        dx = find_vertical_grid_spacing(da_3d)
+
+        match = REGEX_INSTANTENOUS_BASENAME.match(self.base_name)
+        base_name_2d = match.groupdict()['base_name_2d']
+
+        output = yield Aggregate2DCrossSectionOnTrackedObjects(
+            field_name=self.field_name,
+            base_name=base_name_2d,
+            time=t0,
+            label_var=self.label_var,
+            dx=dx
+        )
+
+        Path(self.output().fn).parent.mkdir(exist_ok=True, parents=True)
+        os.symlink(output.fn, self.output().fn)
 
     def output(self):
         fn = "{}.by_{}.nc".format(self.field_name, self.label_var)

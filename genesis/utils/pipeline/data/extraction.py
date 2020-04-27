@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 import warnings
 import importlib
+import re
 
 import ipdb
 import luigi
@@ -10,13 +11,18 @@ import numpy as np
 
 from ....utils import calc_flux, find_vertical_grid_spacing
 from ... import mask_functions
-from .base import get_workdir, XArrayTarget, _get_dataset_meta_info
+from .base import (get_workdir, XArrayTarget, _get_dataset_meta_info,
+                   NumpyDatetimeParameter)
 from ..data_sources.uclales import _fix_time_units as fix_time_units
 
 
 if 'USE_SCHEDULER' in os.environ:
     from dask.distributed import Client
     client = Client(threads_per_worker=1)
+
+REGEX_INSTANTENOUS_BASENAME = re.compile(
+    r"(?P<base_name_2d>.*)\.tn(?P<timestep>\d+)"
+)
 
 COMPOSITE_FIELD_METHODS = dict(
     p_stddivs=(mask_functions.calc_scalar_perturbation_in_std_div, []),
@@ -221,38 +227,24 @@ class TimeCrossSectionSlices2D(luigi.Task):
 class ExtractCrossSection2D(luigi.Task):
     base_name = luigi.Parameter()
     field_name = luigi.Parameter()
-    reference_field = luigi.Parameter(default='qt')
+    time = NumpyDatetimeParameter()
 
     FN_FORMAT = "{exp_name}.out.xy.{field_name}.nc"
 
     def requires(self):
-        return dict(
-            field=TimeCrossSectionSlices2D(
-                base_name=self.base_name,
-                field_name=self.field_name,
-            ),
-            ref_field=ExtractField3D(
-                base_name=self.base_name,
-                field_name=self.reference_field
-            )
+        return TimeCrossSectionSlices2D(
+            base_name=self.base_name,
+            field_name=self.field_name,
         )
 
     def run(self):
-        da_timedep = self.input()['field'].open()
-        da_3d_ref = self.input()['ref_field'].open()
-
-        # get time for aggregation from 3D reference field
-        dz = find_vertical_grid_spacing(da_3d_ref)
-        t0 = da_3d_ref.time
-
-        da = da_timedep.sel(time=t0).squeeze()
-        da.attrs['dz'] = dz
+        da_timedep = self.input().open()
+        da = da_timedep.sel(time=self.time).squeeze()
 
         Path(self.output().fn).parent.mkdir(exist_ok=True, parents=True)
-
         da.to_netcdf(self.output().fn)
 
     def output(self):
-        fn = "{}.nc".format(self.field_name)
+        fn = "{}.{}.nc".format(self.field_name, self.time.isoformat())
         p = get_workdir()/self.base_name/"cross_sections"/"runtime_slices"/fn
         return XArrayTarget(str(p))
