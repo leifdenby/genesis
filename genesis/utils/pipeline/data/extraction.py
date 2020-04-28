@@ -9,7 +9,7 @@ import luigi
 import xarray as xr
 import numpy as np
 
-from ....utils import calc_flux, find_vertical_grid_spacing
+from ....utils import calc_flux, find_vertical_grid_spacing, transforms
 from ... import mask_functions
 from .base import (get_workdir, XArrayTarget, _get_dataset_meta_info,
                    NumpyDatetimeParameter)
@@ -126,7 +126,7 @@ class ExtractField3D(luigi.Task):
                 data_loader.extract_field_to_filename(
                     dataset_meta=meta, path_out=p_out,
                     field_name=self.field_name,
-                    **opened_inputs
+                    *opened_inputs
                 )
         else:
             raise NotImplementedError(fn_out.fn)
@@ -156,17 +156,36 @@ class ExtractField3D(luigi.Task):
 
 
 class XArrayTarget2DCrossSection(XArrayTarget):
+    def __init__(self, *args, **kwargs):
+        self.gal_transform = kwargs.pop('gal_transform', {})
+        super().__init__(*args, **kwargs)
+
     def open(self, *args, **kwargs):
         kwargs['decode_times'] = False
         da = super().open(*args, **kwargs)
         da['time'], _ = fix_time_units(da['time'])
+
+        # xr.decode_cf only works on datasets
         ds = xr.decode_cf(da.to_dataset())
-        return ds[da.name]
+        da = ds[da.name]
+
+        if self.gal_transform != {}:
+            U_gal = self.gal_transform['U']
+            tref = self.gal_transform['tref']
+            if tref is None:
+                tref = da.time.isel(time=0)
+            da = da.groupby('time').apply(
+                transforms.offset_gal, U=U_gal, tref=tref,
+                truncate_to_grid=True
+            )
+
+        return da
 
 
 class TimeCrossSectionSlices2D(luigi.Task):
     base_name = luigi.Parameter()
     field_name = luigi.Parameter()
+    remove_gal_transform = luigi.BoolParameter(default=False)
 
     FN_FORMAT = "{exp_name}.out.xy.{field_name}.nc"
 
@@ -207,8 +226,22 @@ class TimeCrossSectionSlices2D(luigi.Task):
 
         p = get_workdir()/"cross_sections"/"runtime_slices"/fn
 
+        gal_transform = {}
+        if self.remove_gal_transform:
+            meta = _get_dataset_meta_info(self.base_name)
+            U_gal = meta.get('U_gal', None)
+            if U_gal is None:
+                raise Exception("To remove the Galilean transformation"
+                                " please define the transform velocity"
+                                " as `U_gal` in datasources.yaml for"
+                                " dataset `{}`".format(self.base_name))
+            gal_transform['U'] = U_gal
+            gal_transform['tref'] = None
+
         if meta.get('use_cftime_load_fixer', False):
-            return XArrayTarget2DCrossSection(str(p))
+            return XArrayTarget2DCrossSection(
+                str(p), gal_transform=gal_transform
+            )
         else:
             return XArrayTarget(str(p))
 
@@ -228,6 +261,7 @@ class ExtractCrossSection2D(luigi.Task):
     base_name = luigi.Parameter()
     field_name = luigi.Parameter()
     time = NumpyDatetimeParameter()
+    remove_gal_transform = luigi.BoolParameter(default=False)
 
     FN_FORMAT = "{exp_name}.out.xy.{field_name}.nc"
 
@@ -235,6 +269,7 @@ class ExtractCrossSection2D(luigi.Task):
         return TimeCrossSectionSlices2D(
             base_name=self.base_name,
             field_name=self.field_name,
+            remove_gal_transform=self.remove_gal_transform
         )
 
     def run(self):
