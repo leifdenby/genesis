@@ -96,6 +96,10 @@ def _fix_time_units(da):
         # already converted since xarray has managed to parse the time in
         # CF-format
         pass
+    elif da.attrs['units'].startswith("seconds since 2000-01-01"):
+        # I fixed UCLALES to CF valid output, this is output from a fixed
+        # version
+        pass
     elif da.attrs['units'].startswith("seconds since 2000-00-00"):
         da.attrs['units'] = da.attrs['units'].replace(
             "seconds since 2000-00-00",
