@@ -6,6 +6,7 @@ import numpy as np
 import xarray as xr
 import luigi
 import yaml
+import dateutil.parser
 
 
 DATA_SOURCES = None
@@ -98,4 +99,7 @@ class NumpyDatetimeParameter(luigi.DateSecondParameter):
             ts = (dt64 - np.datetime64('1970-01-01T00:00:00Z')) / np.timedelta64(1, 's')
             return super().normalize(datetime.utcfromtimestamp(ts))
         else:
-            return super().normalize(x)
+            try:
+                return super().normalize(x)
+            except TypeError:
+                return super().normalize(dateutil.parser.parse(x))

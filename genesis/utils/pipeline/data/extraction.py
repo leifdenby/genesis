@@ -217,6 +217,10 @@ class TimeCrossSectionSlices2D(luigi.Task):
             os.symlink(str(p_in.absolute()), str(p_out))
 
     def output(self):
+        if REGEX_INSTANTENOUS_BASENAME.match(self.base_name):
+            raise Exception("Shouldn't pass base_name with timestep suffix"
+                            " (`.tn`) to tracking util")
+
         meta = _get_dataset_meta_info(self.base_name)
 
         fn = self.FN_FORMAT.format(
@@ -224,7 +228,7 @@ class TimeCrossSectionSlices2D(luigi.Task):
             field_name=self.field_name
         )
 
-        p = get_workdir()/"cross_sections"/"runtime_slices"/fn
+        p = get_workdir()/self.base_name/"cross_sections"/"runtime_slices"/fn
 
         gal_transform = {}
         if self.remove_gal_transform:

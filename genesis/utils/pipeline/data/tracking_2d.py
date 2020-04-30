@@ -43,48 +43,70 @@ class XArrayTargetUCLALESTracking(XArrayTarget):
 
     @staticmethod
     def _fix_datetime(da):
-        assert da.attrs['units'] == "day as %Y%m%d.%f"
-        da.values = (da.values*24*60*60).astype(int)
-        da.attrs['units'] = "seconds since 2000-01-01 00:00:00"
+        if da.attrs['units'] == "day as %Y%m%d.%f":
+            da.values = (da.values*24*60*60).astype(int)
+            da.attrs['units'] = "seconds since 2000-01-01 00:00:00"
+        elif da.attrs['units'] == "seconds since 0-00-00 00:00:00":
+            da.attrs['units'] = "seconds since 2000-01-01 00:00:00"
+        else:
+            raise NotImplementedError(da.attrs['units'])
         return da
 
     @staticmethod
     def _fix_time_and_timedelta(da):
-        assert da.attrs['units'] == "day as %Y%m%d.%f"
-        da.values = (da.values*24*60*60).astype(int)
-        da.attrs['units'] = "seconds"
+        if da.attrs['units'] == "day as %Y%m%d.%f":
+            da.values = (da.values*24*60*60).astype(int)
+            da.attrs['units'] = "seconds"
+        elif da.attrs['units'] == "seconds since 0-00-00 00:00:00":
+            da.attrs['units'] = "seconds"
+        else:
+            raise NotImplementedError(da.attrs['units'])
         return da
 
 
     def open(self, *args, **kwargs):
-        kwargs['decode_times'] = False
-        ds = super().open(*args, **kwargs)
+        try:
+            ds = super().open(*args, **kwargs)
+        except ValueError:
+            kwargs['decode_times'] = False
+            ds = super().open(*args, **kwargs)
 
-        datetime_vars = [
-            "time",
-            "smcloudtmax",
-            "smcloudtmin",
-            "smcoretmin",
-            "smcoretmax",
-        ]
+            datetime_vars = [
+                "time",
+                "smcloudtmax",
+                "smcloudtmin",
+                "smcoretmin",
+                "smcoretmax",
+                "smthrmtmin",
+                "smthrmtmax",
+            ]
 
-        time_and_timedelta_vars = [
-            "smcloudt",
-            "smcoret",
-            "smclouddur",
-            "smcoredur",
-        ]
+            time_and_timedelta_vars = [
+                "smcloudt",
+                "smcoret",
+                "smthrmt",
+                "smclouddur",
+                "smcoredur",
+                "smthrmdur",
+            ]
 
-        for v in datetime_vars:
-            ds[v] = self._fix_datetime(ds[v])
+            for v in datetime_vars:
+                if v in ds:
+                    ds[v] = self._fix_datetime(ds[v])
 
-        for v in time_and_timedelta_vars:
-            ds[v] = self._fix_time_and_timedelta(ds[v])
+            for v in time_and_timedelta_vars:
+                if v in ds:
+                    ds[v] = self._fix_time_and_timedelta(ds[v])
 
-        ds = xr.decode_cf(ds)
+            import ipdb
+            with ipdb.launch_ipdb_on_exception():
+                ds = xr.decode_cf(ds)
 
+        extra_dims = ["smcloud", "smcore", "smthrm"]
         # remove superflous indecies "smcloud" and "smcore"
-        ds = ds.swap_dims(dict(smcloud="smcloudid", smcore="smcoreid"))
+        for d in extra_dims:
+            if d in ds:
+                ds = ds.swap_dims({ d: d+"id" })
 
         return ds
 
@@ -92,13 +114,17 @@ class XArrayTargetUCLALESTracking(XArrayTarget):
 class PerformObjectTracking2D(luigi.Task):
     base_name = luigi.Parameter()
     tracking_type = luigi.EnumParameter(enum=TrackingType)
-    tn_start = luigi.Parameter(default=1)
-    tn_end = luigi.Parameter(default=None)
+    timestep_interval = luigi.ListParameter(default=[])
+    remove_gal_transform = luigi.BoolParameter(default=False)
 
     def requires(self):
+        if self.remove_gal_transform:
+            raise NotImplementedError
+
         if REGEX_INSTANTENOUS_BASENAME.match(self.base_name):
             raise Exception("Shouldn't pass base_name with timestep suffix"
                             " (`.tn`) to tracking util")
+
         required_fields = uclales_2d_tracking.get_required_fields(
             tracking_type=self.tracking_type
         )
@@ -109,87 +135,66 @@ class PerformObjectTracking2D(luigi.Task):
             for field_name in required_fields
         ]
 
-    def _get_tn_end(self):
-        if self.tn_end is None:
-            print(self.input()[0])
-            da_input = self.input()[0].open()
-            # TODO: use more intelligent selection for timesteps to track here
-            tn_end = len(da_input.time)
-        else:
-            tn_end = self.tn_end
-        return tn_end
-
-    def _get_tn_start(self):
-        tn_start = self.tn_start
-        if tn_start != 1:
-            warnings.warn("There is currently a bug in the cloud-tracking "
-                          "code which causes it to crash when not starting "
-                          "at time index 1. Setting tn_start=1")
-            tn_start = 1
-        return tn_start
-
-    def _get_dataset_name(self):
-        meta = _get_dataset_meta_info(self.base_name)
-        return meta['experiment_name']
-
     def run(self):
         meta = _get_dataset_meta_info(self.base_name)
-        # don't use base_name here because that will tie analysis to specific
-        # timestamp, instead use `experiment_name`
+
+        if len(self.timestep_interval) == 0:
+            tn_start = 0
+            da_input = self.input()[0].open()
+            tn_end = len(da_input.time)-1
+        else:
+            tn_start, tn_end = self.timestep_interval
+
+        if tn_start != 0:
+            warnings.warn("There is currently a bug in the cloud-tracking "
+                          "code which causes it to crash when not starting "
+                          "at time index 0 (fortran index 1). Setting "
+                          "tn_start=0")
+            tn_start = 0
+
+        # p_source = Path(meta['path'])
+        # p_source_tracking = p_source/"tracking_output"
+
+        # if 'tracking_2d' in meta:
+            # # tn_start, tn_end = meta['tracking_2d']['interval']
+            # # tracking_type = TrackingType["cloud,core,thermal"]
+            # p_source_tracking = p_source/"tracking_output"/meta['tracking_2d']
+
+            # if p_source_tracking.exists():
+                # Path(self.output().fn).parent.mkdir(parents=True, exist_ok=True)
+                # os.symlink(p_source_tracking, self.output().fn)
+
+            # return
+
         dataset_name = meta['experiment_name']
-
-        p_source = Path(meta['path'])
-        p_source_tracking = p_source/"tracking_output"
-
-        # this shouln't be necessary, but... the fake file stuff below makes it
-        # so
-        if self.output().exists():
-            return
-
-
-        if 'tracking_2d' in meta:
-            # tn_start, tn_end = meta['tracking_2d']['interval']
-            # tracking_type = TrackingType["cloud,core,thermal"]
-            p_source_tracking = p_source/"tracking_output"/meta['tracking_2d']
-
-            if p_source_tracking.exists():
-                Path(self.output().fn).parent.mkdir(parents=True, exist_ok=True)
-                os.symlink(p_source_tracking, self.output().fn)
-
-            return
-
-        tn_start = self._get_tn_start()
-        tn_end = self._get_tn_end()
 
         p_data = Path(self.input()[0].fn).parent
         fn_tracking = uclales_2d_tracking.call(
             data_path=p_data, dataset_name=dataset_name,
-            tn_start=tn_start, tn_end=tn_end,
+            tn_start=tn_start+1, tn_end=tn_end,
             tracking_type=self.tracking_type
         )
 
+        Path(self.output().fn).parent.mkdir(exist_ok=True, parents=True)
         shutil.move(fn_tracking, self.output().fn)
 
     def output(self):
-        # if any([not input.exists() for input in self.input()]):
-            # return luigi.LocalTarget('__fake__file__.nc')
-
         meta = _get_dataset_meta_info(self.base_name)
         type_id = uclales_2d_tracking.TrackingType.make_identifier(
             self.tracking_type
         )
-        # interval_id = "tn{}_to_tn{}".format(
-            # self._get_tn_start(), self._get_tn_end()
-        # )
 
-        interval_id = "__hardcoded_interval__"
+        if len(self.timestep_interval) == 0:
+            interval_id = "__all__"
+        else:
+            tn_start, tn_end = self.timestep_interval
+            interval_id = "{}__{}".format(tn_start, tn_end)
 
-        dataset_name = meta['experiment_name']
-        FN_2D_FORMAT = ("{dataset_name}.tracking.{type_id}"
+        FN_2D_FORMAT = ("{base_name}.tracking.{type_id}"
                         ".{interval_id}.out.xy.nc")
 
         fn = FN_2D_FORMAT.format(
-            dataset_name=dataset_name, type_id=type_id,
+            base_name=self.base_name, type_id=type_id,
             interval_id=interval_id
         )
 
