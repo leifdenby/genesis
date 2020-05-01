@@ -35,6 +35,7 @@ class XArrayTargetUCLALES(XArrayTarget):
         else:
             return xr.decode_cf(da)
 
+
 class XArrayTargetUCLALESTracking(XArrayTarget):
     """
     The tracking file I have for the big RICO simulations have a lot of
@@ -42,65 +43,84 @@ class XArrayTargetUCLALESTracking(XArrayTarget):
     """
 
     @staticmethod
-    def _fix_datetime(da):
-        if da.attrs['units'] == "day as %Y%m%d.%f":
-            da.values = (da.values*24*60*60).astype(int)
-            da.attrs['units'] = "seconds since 2000-01-01 00:00:00"
-        elif da.attrs['units'] == "seconds since 0-00-00 00:00:00":
-            da.attrs['units'] = "seconds since 2000-01-01 00:00:00"
-        else:
-            raise NotImplementedError(da.attrs['units'])
-        return da
+    def _fix_invalid_time_storage(ds):
+        datetime_vars = [
+            "time",
+            "smcloudtmax",
+            "smcloudtmin",
+            "smcoretmin",
+            "smcoretmax",
+            "smthrmtmin",
+            "smthrmtmax",
+        ]
 
-    @staticmethod
-    def _fix_time_and_timedelta(da):
-        if da.attrs['units'] == "day as %Y%m%d.%f":
-            da.values = (da.values*24*60*60).astype(int)
-            da.attrs['units'] = "seconds"
-        elif da.attrs['units'] == "seconds since 0-00-00 00:00:00":
-            da.attrs['units'] = "seconds"
-        else:
-            raise NotImplementedError(da.attrs['units'])
-        return da
+        time_and_timedelta_vars = [
+            "smcloudt",
+            "smcoret",
+            "smthrmt",
+            "smclouddur",
+            "smcoredur",
+            "smthrmdur",
+        ]
 
+        variables_to_fix = [
+            dict(should_be_datetime=True, vars=datetime_vars),
+            dict(should_be_datetime=False, vars=time_and_timedelta_vars),
+        ]
+
+        for to_fix in variables_to_fix:
+            should_be_datetime = to_fix['should_be_datetime']
+            vars = to_fix['vars']
+
+            for v in vars:
+                if v not in ds:
+                    continue
+
+                da_old = ds[v]
+                old_units = da_old.units
+
+                if should_be_datetime:
+                    new_units = "seconds since 2000-01-01 00:00:00"
+                else:
+                    new_units = "seconds"
+
+                if old_units == "day as %Y%m%d.%f":
+                    # round to nearest second, some of the tracking files
+                    # are stored as fraction of a day (...) and so when
+                    # converting backing to seconds we sometimes get
+                    # rounding errors
+                    da_new = np.rint((da_old*24*60*60)).astype(int)
+                elif old_units == "seconds since 0-00-00 00:00:00":
+                    da_new = da_old.copy()
+                else:
+                    raise NotImplementedError(old_units)
+
+                da_new.attrs['units'] = new_units
+
+                if v in ds.coords:
+                    # as of xarray v0.15.1 we must use `assign_coords` instead
+                    # of assigning directly to .values
+                    ds = ds.assign_coords(**{ v: da_new })
+                else:
+                    ds[v] = da_new
+
+        import ipdb
+        with ipdb.launch_ipdb_on_exception():
+            return xr.decode_cf(ds)
 
     def open(self, *args, **kwargs):
         try:
             ds = super().open(*args, **kwargs)
         except ValueError:
+            convert_times = True
+
+        if not np.issubdtype(ds.time.dtype, np.datetime64):
+            convert_times = True
+
+        if convert_times:
             kwargs['decode_times'] = False
             ds = super().open(*args, **kwargs)
-
-            datetime_vars = [
-                "time",
-                "smcloudtmax",
-                "smcloudtmin",
-                "smcoretmin",
-                "smcoretmax",
-                "smthrmtmin",
-                "smthrmtmax",
-            ]
-
-            time_and_timedelta_vars = [
-                "smcloudt",
-                "smcoret",
-                "smthrmt",
-                "smclouddur",
-                "smcoredur",
-                "smthrmdur",
-            ]
-
-            for v in datetime_vars:
-                if v in ds:
-                    ds[v] = self._fix_datetime(ds[v])
-
-            for v in time_and_timedelta_vars:
-                if v in ds:
-                    ds[v] = self._fix_time_and_timedelta(ds[v])
-
-            import ipdb
-            with ipdb.launch_ipdb_on_exception():
-                ds = xr.decode_cf(ds)
+            ds = self._fix_invalid_time_storage(ds=ds)
 
         extra_dims = ["smcloud", "smcore", "smthrm"]
         # remove superflous indecies "smcloud" and "smcore"
@@ -152,31 +172,30 @@ class PerformObjectTracking2D(luigi.Task):
                           "tn_start=0")
             tn_start = 0
 
-        # p_source = Path(meta['path'])
-        # p_source_tracking = p_source/"tracking_output"
 
-        # if 'tracking_2d' in meta:
-            # # tn_start, tn_end = meta['tracking_2d']['interval']
-            # # tracking_type = TrackingType["cloud,core,thermal"]
-            # p_source_tracking = p_source/"tracking_output"/meta['tracking_2d']
+        if 'tracking_2d' in meta:
+            # tn_start, tn_end = meta['tracking_2d']['interval']
+            # tracking_type = TrackingType["cloud,core,thermal"]
 
-            # if p_source_tracking.exists():
-                # Path(self.output().fn).parent.mkdir(parents=True, exist_ok=True)
-                # os.symlink(p_source_tracking, self.output().fn)
+            p_source = Path(meta['path'])
+            p_source_tracking = p_source/"tracking_output"/meta['tracking_2d']
 
-            # return
+            if p_source_tracking.exists():
+                Path(self.output().fn).parent.mkdir(parents=True, exist_ok=True)
+                os.symlink(p_source_tracking, self.output().fn)
 
-        dataset_name = meta['experiment_name']
+        else:
+            dataset_name = meta['experiment_name']
 
-        p_data = Path(self.input()[0].fn).parent
-        fn_tracking = uclales_2d_tracking.call(
-            data_path=p_data, dataset_name=dataset_name,
-            tn_start=tn_start+1, tn_end=tn_end,
-            tracking_type=self.tracking_type
-        )
+            p_data = Path(self.input()[0].fn).parent
+            fn_tracking = uclales_2d_tracking.call(
+                data_path=p_data, dataset_name=dataset_name,
+                tn_start=tn_start+1, tn_end=tn_end,
+                tracking_type=self.tracking_type
+            )
 
-        Path(self.output().fn).parent.mkdir(exist_ok=True, parents=True)
-        shutil.move(fn_tracking, self.output().fn)
+            Path(self.output().fn).parent.mkdir(exist_ok=True, parents=True)
+            shutil.move(fn_tracking, self.output().fn)
 
     def output(self):
         meta = _get_dataset_meta_info(self.base_name)
@@ -215,10 +234,7 @@ class TrackingLabels2D(luigi.Task):
 
     def run(self):
         da_timedep = self.input().open()
-        # round to nearest second, some of the tracking files are stored as
-        # fraction of a day (...) and so when converting backing to seconds we
-        # sometimes get rounding errors
-        da_timedep['time'] = da_timedep.time.dt.ceil('S')
+        da_timedep['time'] = da_timedep.time
 
         t0 = self.time
         da = da_timedep[self.label_var].sel(time=t0).squeeze()
@@ -233,6 +249,10 @@ class TrackingLabels2D(luigi.Task):
 
 
 class Aggregate2DCrossSectionOnTrackedObjects(luigi.Task):
+    """
+    Produce per-tracked-object histogram of 2D variables, binning by for
+    example the number of cells in each cloud `nrcloud`
+    """
     field_name = luigi.Parameter()
     base_name = luigi.Parameter()
     time = NumpyDatetimeParameter()
@@ -262,42 +282,52 @@ class Aggregate2DCrossSectionOnTrackedObjects(luigi.Task):
         # set up bins for histogram
         v_min = da_values.min().item()
         v_max = da_values.max().item()
-        hist_range = (v_min - dx*0.5, v_max + dx*0.5)
-        nbins = int((hist_range[1] - hist_range[0])/dx)
-        v_bins_c = np.linspace(v_min, v_max, nbins)
 
-        # get unique object labels
-        fn_unique_dropna = lambda v: np.unique(v.data[~np.isnan(v.data)])
-        object_ids = fn_unique_dropna(da_labels)[1:]
+        # if the extremes are nan we don't have any non-nan values, so we can't
+        # make a histogram
+        if np.isnan(v_max) or np.isnan(v_min):
+            object_ids = []
+            v_bins_c = []
+            values_binned = [[]]
 
-        histogram = dmeasure.histogram(
-            image=da_values,
-            min=hist_range[0],
-            max=hist_range[1],
-            bins=nbins,
-            label_image=da_labels,
-            index=object_ids
-        ).compute()
+            da_binned = xr.DataArray()
+        else:
+            hist_range = (v_min - dx*0.5, v_max + dx*0.5)
+            nbins = int((hist_range[1] - hist_range[0])/dx)
+            v_bins_c = np.linspace(v_min, v_max, nbins)
 
-        values_binned = np.zeros((len(object_ids), nbins), dtype=int)
-        for n in range(len(object_ids)):
-            n_hist = len(histogram[n])
-            values_binned[n][:n_hist] = histogram[n]
+            # get unique object labels
+            fn_unique_dropna = lambda v: np.unique(v.data[~np.isnan(v.data)])
+            object_ids = fn_unique_dropna(da_labels)[1:]
 
-        bin_var = "{}__bin".format(self.field_name)
+            values_binned = np.zeros((len(object_ids), nbins), dtype=int)
+            if len(object_ids) > 0:
+                histogram = dmeasure.histogram(
+                    image=da_values,
+                    min=hist_range[0],
+                    max=hist_range[1],
+                    bins=nbins,
+                    label_image=da_labels,
+                    index=object_ids
+                ).compute()
 
-        da_binned = xr.DataArray(
-            values_binned,
-            dims=('object_id', bin_var),
-            coords={
-                'object_id': object_ids,
-                bin_var: v_bins_c
-            }
-        )
-        da_binned.coords[bin_var].attrs['units'] = da_values.units
-        if 'longname' in da_values.attrs:
-            # CF-conventions are `long_name` not `longname`
-            da_binned.coords[bin_var].attrs['long_name'] = da_values.longname
+                for n in range(len(object_ids)):
+                    n_hist = len(histogram[n])
+                    values_binned[n][:n_hist] = histogram[n]
+
+            da_binned = xr.DataArray(
+                values_binned,
+                dims=('object_id', bin_var),
+                coords={
+                    'object_id': object_ids,
+                    bin_var: v_bins_c
+                }
+            )
+
+            da_binned.coords[bin_var].attrs['units'] = da_values.units
+            if 'longname' in da_values.attrs:
+                # CF-conventions are `long_name` not `longname`
+                da_binned.coords[bin_var].attrs['long_name'] = da_values.longname
 
         # bah xarray, "unsqueeze" copy over the squeeze again...
         da_binned = da_binned.expand_dims(dict(
@@ -344,13 +374,20 @@ class AggregateAll2DCrossSectionOnTrackedObjects(luigi.Task):
         return tasks[self.tn_min:self.tn_max]
 
     def run(self):
-        yield self._build_tasks()
+        inputs = yield self._build_tasks()
+        ds = xr.open_mfdataset(
+            [input.fn for input in inputs], combine='nested',
+            concat_dim='time'
+        )
+
+        ds.to_netcdf(self.output().fn)
 
     def output(self):
-        if not self.input().exists():
-            return luigi.LocalTarget('__fake__file__aggregation__')
-        else:
-            return [t.output() for t in self._build_tasks()]
+        fn = "{}.by_{}.tn{}_to_tn{}.nc".format(
+            self.field_name, self.label_var, self.tn_min, self.tn_max
+        )
+        p = get_workdir()/self.base_name/"cross_sections"/"aggregated"/fn
+        return XArrayTarget(str(p))
 
 
 class Aggregate2DCrossSectionOnTrackedObjectsBy3DField(luigi.Task):

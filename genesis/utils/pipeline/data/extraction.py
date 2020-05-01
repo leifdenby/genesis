@@ -197,24 +197,8 @@ class TimeCrossSectionSlices2D(luigi.Task):
 
         assert p_in.exists()
 
-        da = xr.open_dataarray(p_in, decode_times=False)
-
-        modified = False
-        if 'time' in da.coords:
-            da['time'], modified = fix_time_units(da['time'])
-            if modified and meta.get('use_cftime_load_fixer', False):
-                modified = False
-
         p_out.parent.mkdir(exist_ok=True, parents=True)
-        if modified:
-            file_size = da.size * da.dtype.itemsize
-            if file_size > 5e6:
-                raise Exception("`{}` is too big to make it worth resaving"
-                                " fix the units manually or add"
-                                " `use_cftime_load_fixer` to datasets.yaml")
-            da.to_netcdf(str(p_out))
-        else:
-            os.symlink(str(p_in.absolute()), str(p_out))
+        os.symlink(str(p_in.absolute()), str(p_out))
 
     def output(self):
         if REGEX_INSTANTENOUS_BASENAME.match(self.base_name):
@@ -242,12 +226,9 @@ class TimeCrossSectionSlices2D(luigi.Task):
             gal_transform['U'] = U_gal
             gal_transform['tref'] = None
 
-        if meta.get('use_cftime_load_fixer', False):
-            return XArrayTarget2DCrossSection(
-                str(p), gal_transform=gal_transform
-            )
-        else:
-            return XArrayTarget(str(p))
+        return XArrayTarget2DCrossSection(
+            str(p), gal_transform=gal_transform
+        )
 
     def run(self):
         meta = _get_dataset_meta_info(self.base_name)
