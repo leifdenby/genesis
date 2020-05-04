@@ -155,20 +155,12 @@ class ExtractField3D(luigi.Task):
         return t
 
 
-class XArrayTarget2DCrossSection(XArrayTarget):
+class GalTransformMixin(object):
     def __init__(self, *args, **kwargs):
         self.gal_transform = kwargs.pop('gal_transform', {})
         super().__init__(*args, **kwargs)
 
-    def open(self, *args, **kwargs):
-        kwargs['decode_times'] = False
-        da = super().open(*args, **kwargs)
-        da['time'], _ = fix_time_units(da['time'])
-
-        # xr.decode_cf only works on datasets
-        ds = xr.decode_cf(da.to_dataset())
-        da = ds[da.name]
-
+    def _perform_gal_transform(self, da):
         if self.gal_transform != {}:
             U_gal = self.gal_transform['U']
             tref = self.gal_transform['tref']
@@ -178,6 +170,20 @@ class XArrayTarget2DCrossSection(XArrayTarget):
                 transforms.offset_gal, U=U_gal, tref=tref,
                 truncate_to_grid=True
             )
+        return da
+
+
+class XArrayTarget2DCrossSection(GalTransformMixin, XArrayTarget):
+    def open(self, *args, **kwargs):
+        kwargs['decode_times'] = False
+        da = super().open(*args, **kwargs)
+        da['time'], _ = fix_time_units(da['time'])
+
+        # xr.decode_cf only works on datasets
+        ds = xr.decode_cf(da.to_dataset())
+        da = ds[da.name]
+
+        da = self._perform_gal_transform(da=da)
 
         return da
 

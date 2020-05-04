@@ -12,7 +12,7 @@ import dask_image.ndmeasure as dmeasure
 from .... import objects
 from .extraction import (
     ExtractCrossSection2D, ExtractField3D, TimeCrossSectionSlices2D,
-    REGEX_INSTANTENOUS_BASENAME
+    REGEX_INSTANTENOUS_BASENAME, GalTransformMixin
 )
 from .base import get_workdir, _get_dataset_meta_info, XArrayTarget
 from .base import NumpyDatetimeParameter
@@ -36,7 +36,7 @@ class XArrayTargetUCLALES(XArrayTarget):
             return xr.decode_cf(da)
 
 
-class XArrayTargetUCLALESTracking(XArrayTarget):
+class XArrayTargetUCLALESTracking(GalTransformMixin, XArrayTarget):
     """
     The tracking file I have for the big RICO simulations have a lot of
     problems before we can load them CF-convention following data
@@ -111,10 +111,9 @@ class XArrayTargetUCLALESTracking(XArrayTarget):
     def open(self, *args, **kwargs):
         try:
             ds = super().open(*args, **kwargs)
+            if not np.issubdtype(ds.time.dtype, np.datetime64):
+                convert_times = True
         except ValueError:
-            convert_times = True
-
-        if not np.issubdtype(ds.time.dtype, np.datetime64):
             convert_times = True
 
         if convert_times:
@@ -127,6 +126,11 @@ class XArrayTargetUCLALESTracking(XArrayTarget):
         for d in extra_dims:
             if d in ds:
                 ds = ds.swap_dims({ d: d+"id" })
+
+        mask_vars = ['nrcloud', 'nrcore', 'nrthrm']
+        for v in mask_vars:
+            # if v in ds:
+            ds[v] = self._perform_gal_transform(da=ds[v])
 
         return ds
 
@@ -217,19 +221,36 @@ class PerformObjectTracking2D(luigi.Task):
             interval_id=interval_id
         )
 
+        gal_transform = {}
+        if self.remove_gal_transform:
+            meta = _get_dataset_meta_info(self.base_name)
+            U_gal = meta.get('U_gal', None)
+            if U_gal is None:
+                raise Exception("To remove the Galilean transformation"
+                                " please define the transform velocity"
+                                " as `U_gal` in datasources.yaml for"
+                                " dataset `{}`".format(self.base_name))
+            gal_transform['U'] = U_gal
+            gal_transform['tref'] = None
+
         p = get_workdir()/self.base_name/"tracking_output"/fn
-        return XArrayTargetUCLALESTracking(str(p))
+        return XArrayTargetUCLALESTracking(
+            str(p), gal_transform=gal_transform
+        )
 
 
 class TrackingLabels2D(luigi.Task):
     base_name = luigi.Parameter()
     label_var = luigi.Parameter()
     time = NumpyDatetimeParameter()
+    remove_gal_transform = luigi.BoolParameter(default=False)
+    tracking_type = luigi.Parameter()
 
     def requires(self):
         return PerformObjectTracking2D(
             base_name=self.base_name,
-            tracking_type=uclales_2d_tracking.TrackingType.CLOUD_CORE,
+            tracking_type=self.tracking_type,
+            remove_gal_transform=self.remove_gal_transform
         )
 
     def run(self):
