@@ -15,13 +15,13 @@ import yaml
 import shutil
 
 # from ...length_scales.plot import cumulant_scale_vs_height
-from ...bulk_statistics import cross_correlation_with_height
-from ... import length_scales
-from ... import objects
-from .. import plot_types, cm_nilearn, figure_metadata
-from ...utils.calc_flux import scale_flux_to_watts
+from ....bulk_statistics import cross_correlation_with_height
+from .... import length_scales
+from .... import objects
+from ... import plot_types, cm_nilearn, figure_metadata
+from ....utils.calc_flux import scale_flux_to_watts
 
-from . import data
+from .. import data
 
 figure_metadata.patch_savefig_for_argv_metadata()
 
