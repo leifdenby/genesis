@@ -12,13 +12,13 @@ import dask_image.ndmeasure as dmeasure
 from .... import objects
 from .extraction import (
     ExtractCrossSection2D, ExtractField3D, TimeCrossSectionSlices2D,
-    REGEX_INSTANTENOUS_BASENAME, GalTransformMixin
+    REGEX_INSTANTENOUS_BASENAME, remove_gal_transform
 )
 from .base import get_workdir, _get_dataset_meta_info, XArrayTarget
 from .base import NumpyDatetimeParameter
 from .masking import MakeMask
 from ....bulk_statistics import cross_correlation_with_height
-from ....utils import find_vertical_grid_spacing, transforms
+from ....utils import find_vertical_grid_spacing
 
 from ..data_sources import uclales_2d_tracking
 from ..data_sources.uclales_2d_tracking import TrackingType
@@ -36,7 +36,7 @@ class XArrayTargetUCLALES(XArrayTarget):
             return xr.decode_cf(da)
 
 
-class XArrayTargetUCLALESTracking(GalTransformMixin, XArrayTarget):
+class XArrayTargetUCLALESTracking(XArrayTarget):
     """
     The tracking file I have for the big RICO simulations have a lot of
     problems before we can load them CF-convention following data
@@ -127,11 +127,6 @@ class XArrayTargetUCLALESTracking(GalTransformMixin, XArrayTarget):
             if d in ds:
                 ds = ds.swap_dims({ d: d+"id" })
 
-        mask_vars = ['nrcloud', 'nrcore', 'nrthrm']
-        for v in mask_vars:
-            # if v in ds:
-            ds[v] = self._perform_gal_transform(da=ds[v])
-
         return ds
 
 
@@ -139,12 +134,8 @@ class PerformObjectTracking2D(luigi.Task):
     base_name = luigi.Parameter()
     tracking_type = luigi.EnumParameter(enum=TrackingType)
     timestep_interval = luigi.ListParameter(default=[])
-    remove_gal_transform = luigi.BoolParameter(default=False)
 
     def requires(self):
-        if self.remove_gal_transform:
-            raise NotImplementedError
-
         if REGEX_INSTANTENOUS_BASENAME.match(self.base_name):
             raise Exception("Shouldn't pass base_name with timestep suffix"
                             " (`.tn`) to tracking util")
@@ -221,21 +212,9 @@ class PerformObjectTracking2D(luigi.Task):
             interval_id=interval_id
         )
 
-        gal_transform = {}
-        if self.remove_gal_transform:
-            meta = _get_dataset_meta_info(self.base_name)
-            U_gal = meta.get('U_gal', None)
-            if U_gal is None:
-                raise Exception("To remove the Galilean transformation"
-                                " please define the transform velocity"
-                                " as `U_gal` in datasources.yaml for"
-                                " dataset `{}`".format(self.base_name))
-            gal_transform['U'] = U_gal
-            gal_transform['tref'] = None
-
         p = get_workdir()/self.base_name/"tracking_output"/fn
         return XArrayTargetUCLALESTracking(
-            str(p), gal_transform=gal_transform
+            str(p)
         )
 
 
@@ -250,7 +229,6 @@ class TrackingLabels2D(luigi.Task):
         return PerformObjectTracking2D(
             base_name=self.base_name,
             tracking_type=self.tracking_type,
-            remove_gal_transform=self.remove_gal_transform
         )
 
     def run(self):
@@ -259,6 +237,12 @@ class TrackingLabels2D(luigi.Task):
 
         t0 = self.time
         da = da_timedep[self.label_var].sel(time=t0).squeeze()
+
+        if self.remove_gal_transform:
+            tref = da_timedep.isel(time=0).time
+            da = remove_gal_transform(da=da, tref=tref,
+                                      base_name=self.base_name)
+
 
         Path(self.output().fn).parent.mkdir(exist_ok=True, parents=True)
         da.to_netcdf(self.output().fn)
@@ -385,6 +369,8 @@ class Aggregate2DCrossSectionOnTrackedObjects(luigi.Task):
                 label_image=da_labels,
                 index=object_ids
             ).compute()
+        else:
+            values = np.nan*np.ones(object_ids.shape)
 
         import ipdb
         with ipdb.launch_ipdb_on_exception():
