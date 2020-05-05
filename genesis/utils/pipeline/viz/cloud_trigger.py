@@ -1,5 +1,7 @@
 import luigi
 import matplotlib.pyplot as plt
+from pathlib import Path
+import numpy as np
 
 from .. import data
 
@@ -12,7 +14,7 @@ class CloudTriggeringCrossSectionAnimationFrame(luigi.Task):
     remove_gal_transform = luigi.BoolParameter(default=False)
 
     def requires(self):
-        return dict(
+        tasks = dict(
             nrcloud=data.tracking_2d.TrackingLabels2D(
                 base_name=self.base_name,
                 tracking_type=data.tracking_2d.TrackingType.CLOUD_CORE_THERMAL,
@@ -37,6 +39,24 @@ class CloudTriggeringCrossSectionAnimationFrame(luigi.Task):
             ),
         )
 
+        for obj_type in ['cloud', 'thrm']:
+            for grid_var in ['xt', 'yt']:
+
+                v = "{}_{}".format(grid_var[0], obj_type)
+                field_name = grid_var
+
+                tasks[v] = data.tracking_2d.Aggregate2DCrossSectionOnTrackedObjects(
+                    base_name=self.base_name,
+                    field_name=field_name,
+                    op='mean',
+                    label_var='nr{}'.format(obj_type),
+                    time=self.time,
+                    remove_gal_transform=self.remove_gal_transform,
+                    tracking_type=data.tracking_2d.TrackingType.CLOUD_CORE_THERMAL,
+                )
+
+        return tasks
+
     def run(self):
         if len(self.center_pt) == 2:
             x_c, y_c = self.center_pt
@@ -49,13 +69,18 @@ class CloudTriggeringCrossSectionAnimationFrame(luigi.Task):
         else:
             kws = {}
 
-        fig, ax = plt.subplots(figsize=(8, 6))
+        fig, ax = plt.subplots(figsize=(16, 12))
 
         da_trctop = self.input()["trctop"].open()
         da_lwp = self.input()["lwp"].open()
 
         da_nrcloud = self.input()['nrcloud'].open()
         da_nrthrm = self.input()['nrthrm'].open()
+
+        da_x_cloud = self.input()['x_cloud'].open()
+        da_y_cloud = self.input()['y_cloud'].open()
+        da_x_thrm = self.input()['x_thrm'].open()
+        da_y_thrm = self.input()['y_thrm'].open()
 
         (
             da_trctop.where(da_trctop > 0)
@@ -70,21 +95,36 @@ class CloudTriggeringCrossSectionAnimationFrame(luigi.Task):
         (
             da_nrthrm.astype(int)
             .sel(**kws)
-            .plot.contour(ax=ax, color='black', levels=[0.5,])
+            .plot.contour(ax=ax, color=['black',], levels=[0.5,])
+        )
+        (
+            da_nrcloud.astype(int)
+            .sel(**kws)
+            .plot.contour(ax=ax, colors=['blue',], levels=[0.5,])
         )
 
-        # import ipdb
-        # with ipdb.launch_ipdb_on_exception():
+        import ipdb
+        with ipdb.launch_ipdb_on_exception():
+            text_bbox = dict(facecolor='white', alpha=0.5, edgecolor='none')
 
-            # therm_ids = np.unique(da_nrthrm)
-            # therm_ids = therm_ids[~np.isnan(therm_ids)]
+            thrm_ids = np.unique(da_nrthrm.sel(**kws))
+            thrm_ids = thrm_ids[~np.isnan(thrm_ids)]
+            for t_id in thrm_ids:
+                x_t = da_x_thrm.sel(object_id=t_id)
+                y_t = da_y_thrm.sel(object_id=t_id)
 
-            # for t_id in therm_ids:
-                # x_t = ds_tracking.sel(smthrmid=t_id).smthrmx
-                # y_t = ds_tracking.sel(smthrmid=t_id).smthrmy
+                ax.scatter(x_t, y_t, marker='x', color='black')
+                ax.text(x_t, y_t, int(t_id), color='black', bbox=text_bbox,
+                        va='bottom')
 
-                # ax.scatter(x_t, y_t, marker='x', color='black')
-                # # ax.text(x_t, y_t, int(t_id))
+            cloud_ids = np.unique(da_nrcloud.sel(**kws))
+            cloud_ids = cloud_ids[~np.isnan(cloud_ids)]
+            for c_id in cloud_ids:
+                x_t = da_x_cloud.sel(object_id=c_id)
+                y_t = da_y_cloud.sel(object_id=c_id)
+
+                ax.scatter(x_t, y_t, marker='x', color='blue')
+                ax.text(x_t, y_t, int(c_id), color='blue', bbox=text_bbox)
 
         if len(self.center_pt) == 2:
             x_c, y_c = self.center_pt

@@ -9,6 +9,25 @@ def _wrap_add(x, y, a, b):
     return x - (b-a)*(x >= b)
 
 
+def offset_gal_single(da_coord, U, tref):
+    """
+    Remove Galilean transform offset with (x, y)-velocity vector `U` and
+    reference time `tref`.
+    """
+
+    if da_coord.name.startswith('x'):
+        n = 0
+    elif da_coord.name.startswith('y'):
+        n = 1
+    else:
+        raise NotImplementedError(da_coord.name)
+
+    dt = (da_coord.time - tref).dt.seconds.item()
+    da_ = da_coord.copy()
+
+    return _wrap_add(da_, dt*U[n], da_.min(), da_.max())
+
+
 def offset_gal(da, U, tref, truncate_to_grid=False):
     """
     Remove Galilean transform offset with (x, y)-velocity vector `U` and

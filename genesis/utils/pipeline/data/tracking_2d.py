@@ -18,7 +18,7 @@ from .base import get_workdir, _get_dataset_meta_info, XArrayTarget
 from .base import NumpyDatetimeParameter
 from .masking import MakeMask
 from ....bulk_statistics import cross_correlation_with_height
-from ....utils import find_vertical_grid_spacing
+from ....utils import find_vertical_grid_spacing, transforms
 
 from ..data_sources import uclales_2d_tracking
 from ..data_sources.uclales_2d_tracking import TrackingType
@@ -244,7 +244,7 @@ class TrackingLabels2D(luigi.Task):
     label_var = luigi.Parameter()
     time = NumpyDatetimeParameter()
     remove_gal_transform = luigi.BoolParameter(default=False)
-    tracking_type = luigi.Parameter()
+    tracking_type = luigi.EnumParameter(enum=TrackingType)
 
     def requires(self):
         return PerformObjectTracking2D(
@@ -264,7 +264,11 @@ class TrackingLabels2D(luigi.Task):
         da.to_netcdf(self.output().fn)
 
     def output(self):
-        fn = "{}.{}.nc".format(self.label_var, self.time.isoformat())
+        fn = "{}.{}_gal_transform.{}.nc".format(
+            self.label_var,
+            ["with", "without"][self.remove_gal_transform],
+            self.time.isoformat(),
+        )
         p = get_workdir()/self.base_name/"tracking_labels_2d"/fn
         return XArrayTarget(str(p))
 
@@ -277,27 +281,37 @@ class Aggregate2DCrossSectionOnTrackedObjects(luigi.Task):
     field_name = luigi.Parameter()
     base_name = luigi.Parameter()
     time = NumpyDatetimeParameter()
-    dx = luigi.FloatParameter()
     label_var = luigi.Parameter()
+    op = luigi.Parameter()
+    tracking_type = luigi.EnumParameter(enum=TrackingType)
+    remove_gal_transform = luigi.BoolParameter(default=False)
+
+    dx = luigi.FloatParameter(default=None)
 
     def requires(self):
-        return dict(
+        if self.op == 'histogram' and self.dx is None:
+            raise Exception("Op `histogram` requires `dx` parameter is set")
+
+        tasks = dict(
             tracking_labels=TrackingLabels2D(
                 base_name=self.base_name,
                 time=self.time,
                 label_var=self.label_var,
-            ),
-            field=ExtractCrossSection2D(
-                base_name=self.base_name,
-                field_name=self.field_name,
-                time=self.time,
+                tracking_type=self.tracking_type,
+                remove_gal_transform=self.remove_gal_transform
             ),
         )
 
-    def run(self):
-        da_values = self.input()['field'].open()
-        da_labels = self.input()['tracking_labels'].open().astype(int)
+        if not self.field_name in ['xt', 'yt']:
+            tasks['field'] = ExtractCrossSection2D(
+                base_name=self.base_name,
+                field_name=self.field_name,
+                time=self.time,
+            )
 
+        return tasks
+
+    def _aggregate_as_hist(self, da_values, da_labels):
         dx = self.dx
 
         # set up bins for histogram
@@ -353,14 +367,81 @@ class Aggregate2DCrossSectionOnTrackedObjects(luigi.Task):
         # bah xarray, "unsqueeze" copy over the squeeze again...
         da_binned = da_binned.expand_dims(dict(
             time=da_values.expand_dims('time').time
-        )).squeeze()
+        ))
+
+        return da_binned
+
+
+    def _aggregate_generic(self, da_values, da_labels, op):
+        # get unique object labels
+        fn_unique_dropna = lambda v: np.unique(v.data[~np.isnan(v.data)])
+        object_ids = fn_unique_dropna(da_labels)[1:]
+
+        if len(object_ids) > 0:
+            fn_op = getattr(dmeasure, op)
+
+            values = fn_op(
+                image=da_values,
+                label_image=da_labels,
+                index=object_ids
+            ).compute()
+
+        import ipdb
+        with ipdb.launch_ipdb_on_exception():
+            da = xr.DataArray(
+                values,
+                dims=('object_id'),
+                coords={
+                    'object_id': object_ids,
+                },
+            )
+
+            if 'long_name' in da_values:
+                da.attrs['long_name'] = da_values.long_name + '__{}'.format(op)
+
+            if 'units' in da_values:
+                da.attrs['units'] = da_values.units
+
+            # include time
+            da = da.expand_dims(dict(
+                time=da_values.expand_dims('time').time
+            ))
+
+        return da
+
+    def run(self):
+        da_labels = self.input()['tracking_labels'].open().astype(int)
+
+        if self.field_name in ['xt', 'yt']:
+            if self.field_name in 'xt':
+                _, da_values = xr.broadcast(da_labels.xt, da_labels.yt)
+            elif self.field_name in 'yt':
+                da_values, _ = xr.broadcast(da_labels.xt, da_labels.yt)
+            else:
+                raise NotImplementedError(self.field_name)
+        else:
+            da_values = self.input()['field'].open()
+
+        if self.op == 'histogram':
+            da_out = self._aggregate_as_hist(
+                da_values=da_values, da_labels=da_labels,
+            )
+        elif self.op == 'mean':
+            da_out = self._aggregate_generic(
+                da_values=da_values, da_labels=da_labels, op=self.op
+            )
+        else:
+            raise NotImplementedError(self.op)
+
 
         Path(self.output().fn).parent.mkdir(exist_ok=True, parents=True)
-        da_binned.to_netcdf(self.output().fn)
+        da_out.to_netcdf(self.output().fn)
 
     def output(self):
-        fn = "{}.by_{}.at_{}.nc".format(
-            self.field_name, self.label_var, self.time.isoformat()
+        fn = "{}__{}.{}_gal_transform.by_{}.at_{}.nc".format(
+            self.field_name, self.op,
+            ["with", "without"][self.remove_gal_transform],
+            self.label_var, self.time.isoformat()
         )
         p = get_workdir()/self.base_name/"cross_sections"/"aggregated"/fn
         return XArrayTarget(str(p))
