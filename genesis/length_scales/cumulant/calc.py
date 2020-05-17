@@ -313,7 +313,7 @@ def covariance_plot(v1, v2, s_N=200, extra_title="", theta_win_N=100,
     fn_line = _get_line_sample_func(C_vv, theta)
 
     ax.plot(*fn_line(mu=mu_l)[0], linestyle='--', color='red')
-    ax.text(0.1, 0.1, r"$\theta_{{princip}}={:.2f}^{{\circ}}$"
+    ax.text(0.1, 0.1, r"$\theta_{{p}}={:.1f}^{{\circ}}$"
               "".format(theta.values*180./pi), transform=ax.transAxes,
               color='red')
 
@@ -565,20 +565,22 @@ def covariance_direction_plot(v1, v2, s_N=200, theta_win_N=100,
 
     mu_l, C_vv_l = _line_sample(data=C_vv, theta=theta, max_dist=max_dist)
 
-    line_1, = ax.plot(mu_l, C_vv_l, label=r'$\theta=\theta_{princip}$')
+    line_1, = ax.plot(mu_l, C_vv_l, label=r"$\theta_{{p}}={:.1f}^{{\circ}}$"
+          "".format(theta.values*180./pi)
+    )
     width = width_func(C_vv, theta)
     ax.axvline(-0.5*width, linestyle='--', color=line_1.get_color())
     ax.axvline(0.5*width, linestyle='--', color=line_1.get_color())
 
     mu_l, C_vv_l = _line_sample(data=C_vv, theta=theta+pi/2., max_dist=max_dist)
-    line_2, = ax.plot(mu_l, C_vv_l, label=r'$\theta=\theta_{princip} + 90^{\circ}$')
+    line_2, = ax.plot(mu_l, C_vv_l, label=r'$\theta_\bot=\theta_p + 90^{\circ}$')
     width = width_func(C_vv, theta+pi/2.)
     ax.axvline(-0.5*width, linestyle='--', color=line_2.get_color())
     ax.axvline(0.5*width, linestyle='--', color=line_2.get_color())
 
     if with_45deg_sample:
         mu_l, C_vv_l = _line_sample(data=C_vv, theta=theta+pi/4., max_dist=max_dist)
-        line_2, = ax.plot(mu_l, C_vv_l, label=r'$\theta=\theta_{princip} + 45^{\circ}$')
+        line_2, = ax.plot(mu_l, C_vv_l, label=r'$\theta=\theta_{p} + 45^{\circ}$')
         width = _find_width(C_vv, theta+pi/2., width_peak_fraction)
         ax.axvline(-0.5*width, linestyle='--', color=line_2.get_color())
         ax.axvline(0.5*width, linestyle='--', color=line_2.get_color())
@@ -586,8 +588,8 @@ def covariance_direction_plot(v1, v2, s_N=200, theta_win_N=100,
     ax.legend(loc='upper right')
     ax.set_xlabel('distance [m]')
     ax.set_ylabel('covariance [{}]'.format(C_vv.units))
-    ax.text(0.05, 0.8, r"$\theta_{{princip}}={:.2f}^{{\circ}}$"
-              "".format(theta.values*180./pi), transform=ax.transAxes)
+    # ax.text(0.05, 0.8, r"$\theta_{{p}}={:.1f}^{{\circ}}$"
+              # "".format(theta.values*180./pi), transform=ax.transAxes)
 
     try:
         v1.zt
