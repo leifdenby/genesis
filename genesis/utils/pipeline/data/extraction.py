@@ -126,7 +126,7 @@ class ExtractField3D(luigi.Task):
                 data_loader.extract_field_to_filename(
                     dataset_meta=meta, path_out=p_out,
                     field_name=self.field_name,
-                    *opened_inputs
+                    **opened_inputs
                 )
         else:
             raise NotImplementedError(fn_out.fn)
