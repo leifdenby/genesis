@@ -54,12 +54,16 @@ class PlotGrid():
 
 
 def plot(ds, x, v, dx, mean_profile_components='all'):
+    def _only_finite(vals):
+        return vals[~np.logical_or(np.isnan(vals), np.isinf(vals))]
+
+    x_min, x_max = _only_finite(ds[x]).min(), _only_finite(ds[x]).max()
     if dx is None:
-        bins = np.linspace(ds[x].min(), ds[x].max(), 10)
+        bins = np.linspace(x_min, x_max, 10)
     else:
         bins = np.arange(
-            math.floor(ds[x].min()/dx)*dx,
-            math.ceil(ds[x].max()/dx)*dx,
+            math.floor(x_min/dx)*dx,
+            math.ceil(x_max/dx)*dx,
         dx)
 
     nx = ds.nx
