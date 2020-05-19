@@ -916,12 +916,12 @@ class ComputeObjectScaleVsHeightComposition(luigi.Task):
                  )
             )
         fn = ("{base_name}.{mask_name}.{field_name}__by__{x}"
-              "{s_filter}.{filetype}".format(
+              "{s_filter}.by_z_per_object{ex}.{filetype}".format(
                   base_name=self.base_name, mask_name=mask_name,
                   field_name=self.field_name, x=self.x, filetype="nc",
                   s_filter=s_filter,
-                  )
-              )
+                  ex=self.z_max is None and "" or "_to_z" + str(self.z_max)
+              ))
 
         p = get_workdir()/self.base_name/fn
         target = XArrayTarget(str(p))
