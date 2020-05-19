@@ -82,8 +82,7 @@ def plot(ds, x, v, dx, mean_profile_components='all'):
                         "`{x}`".format(x=x))
     da_flux_per_bin.plot(y='zt', ax=g.ax_joint, add_colorbar=False, robust=True)
 
-    # ds.r_equiv.plot.hist(bins=bins, histtype='step', ax=g.ax_marg_x)
-    Nobj_bin_counts, _, _= ds[bin_var].plot.hist(bins=bins, histtype='step',
+    Nobj_bin_counts, _, _= ds[x].plot.hist(bins=bins, histtype='step',
                                            ax=g.ax_marg_x)
     g.ax_marg_x.set_ylabel('num objects [1]')
     g.ax_marg_x.set_yscale('log')
