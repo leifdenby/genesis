@@ -17,6 +17,7 @@ FIELD_NAME_MAPPING = dict(
     cvrxp='cvrxp',
     p='p',
     theta_l_v='theta_l_v',
+    theta_l_v_hack='theta_l_v_hack',
     qv='qv',
 )
 
@@ -38,6 +39,7 @@ UNITS_FORMAT = {
 DERIVED_FIELDS = dict(
     T=('qc', 'theta_l', 'p'),
     theta_l_v=('theta_l', 'qv', 'qc', 'qr'),
+    theta_l_v_hack=('theta_l', 'qv', 'qc', ),
     qv=('qt', 'qc', 'qr'),
 )
 
@@ -147,6 +149,9 @@ def extract_field_to_filename(dataset_meta, path_out, field_name, **kwargs):
     elif field_name == 'theta_l_v':
         da = _calc_theta_l_v(**kwargs)
         can_symlink = False
+    elif field_name == 'theta_l_v_hack':
+        da = _calc_theta_l_v_hack(**kwargs)
+        can_symlink = False
     elif field_name == 'qv':
         da = _calc_qv(**kwargs)
         can_symlink = False
@@ -200,6 +205,20 @@ def _calc_theta_l_v(theta_l, qv, qc, qr):
     theta_l_v.attrs['units'] = 'K'
     theta_l_v.attrs['long_name'] = 'virtual liquid potential temperature'
     theta_l_v.name = "theta_l_v"
+    return theta_l_v
+
+def _calc_theta_l_v_hack(theta_l, qv, qc):
+    assert qv.units.lower() == 'g/kg' and qv.max() > 1.0
+    assert theta_l.units == 'K'
+
+    # qc here refers to q "cloud", the total condensate is qc+qr (here
+    # forgetting about ice...)
+    eps = 0.608
+    theta_l_v = theta_l*(1.0 + 1.0e-3*(eps*qv - (qc)))
+
+    theta_l_v.attrs['units'] = 'K'
+    theta_l_v.attrs['long_name'] = 'virtual liquid potential temperature'
+    theta_l_v.name = "theta_l_v_hack"
     return theta_l_v
 
 def _calc_qv(qt, qc, qr):
