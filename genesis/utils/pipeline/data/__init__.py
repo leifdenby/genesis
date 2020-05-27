@@ -8,4 +8,7 @@ from .objects import (
     ComputeObjectScaleVsHeightComposition,
     ComputeObjectScales
 )
+from .cumulants import (
+    ExtractCumulantScaleProfiles
+)
 from .masking import MakeMask

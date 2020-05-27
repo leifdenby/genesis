@@ -1194,6 +1194,8 @@ class ObjectScaleVsHeightComposition(luigi.Task):
     filetype = luigi.Parameter(default='png')
     x_max = luigi.FloatParameter(default=None)
 
+    scale_by = luigi.OptionalParameter(default=None)
+
     def requires(self):
         return data.ComputeObjectScaleVsHeightComposition(
             base_name=self.base_name,
@@ -1209,12 +1211,21 @@ class ObjectScaleVsHeightComposition(luigi.Task):
     def run(self):
         ds = self.input().open()
 
-        import ipdb
-        with ipdb.launch_ipdb_on_exception():
-            ax = objects.flux_contribution.plot(
-                ds=ds, x=self.x, v=self.field_name, dx=self.dx,
-                mean_profile_components=["full domain", "objects"]
-            )
+        if self.scale_by is not None:
+            scaling_factors = {}
+            if ":" in self.scale_by:
+                raise NotImplementedError
+            else:
+                for dim in ds.dims:
+                    scaling_factors[dim] = float(self.scale_by)
+
+        # import ipdb
+        # with ipdb.launch_ipdb_on_exception():
+        ax = objects.flux_contribution.plot(
+            ds=ds, x=self.x, v=self.field_name, dx=self.dx,
+            mean_profile_components=["full domain", "objects"],
+            # scaling_factors=scaling_factors
+        )
 
         if self.x_max is not None:
             ax.set_xlim(0., self.x_max)

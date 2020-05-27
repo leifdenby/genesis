@@ -3,7 +3,7 @@ import hashlib
 import xarray as xr
 import luigi
 
-from ... import length_scales
+from .... import length_scales
 from .extraction import ExtractField3D
 from .masking import MakeMask
 from .base import get_workdir, XArrayTarget
