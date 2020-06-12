@@ -134,6 +134,7 @@ class PerformObjectTracking2D(luigi.Task):
     base_name = luigi.Parameter()
     tracking_type = luigi.EnumParameter(enum=TrackingType)
     timestep_interval = luigi.ListParameter(default=[])
+    U_offset = luigi.ListParameter(default=[])
 
     def requires(self):
         if REGEX_INSTANTENOUS_BASENAME.match(self.base_name):
@@ -186,7 +187,8 @@ class PerformObjectTracking2D(luigi.Task):
             fn_tracking = uclales_2d_tracking.call(
                 data_path=p_data, dataset_name=dataset_name,
                 tn_start=tn_start+1, tn_end=tn_end,
-                tracking_type=self.tracking_type
+                tracking_type=self.tracking_type,
+                U_offset=self.U_offset,
             )
 
             Path(self.output().fn).parent.mkdir(exist_ok=True, parents=True)
@@ -204,12 +206,17 @@ class PerformObjectTracking2D(luigi.Task):
             tn_start, tn_end = self.timestep_interval
             interval_id = "{}__{}".format(tn_start, tn_end)
 
+        if self.U_offset:
+            offset_s = "u{}_v{}_offset".format(*self.U_offset)
+        else:
+            offset_s = "no_offset"
+
         FN_2D_FORMAT = ("{base_name}.tracking.{type_id}"
-                        ".{interval_id}.out.xy.nc")
+                        ".{interval_id}.{offset}.out.xy.nc")
 
         fn = FN_2D_FORMAT.format(
             base_name=self.base_name, type_id=type_id,
-            interval_id=interval_id
+            interval_id=interval_id, offset=offset_s
         )
 
         p = get_workdir()/self.base_name/"tracking_output"/fn
