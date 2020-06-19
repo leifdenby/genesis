@@ -82,7 +82,8 @@ class JointDistProfile(luigi.Task):
     data_only = luigi.BoolParameter(default=False)
     cloud_age_max = luigi.FloatParameter(default=200.)
     cumulative_contours = luigi.Parameter(default="10,90")
-    add_mean_ref = luigi.BoolParameter(default=True)
+    add_mean_ref = luigi.BoolParameter(default=False)
+    add_cloudbase_peak_ref = luigi.BoolParameter(default=False)
 
     def requires(self):
         reqs = dict(
@@ -159,31 +160,35 @@ class JointDistProfile(luigi.Task):
                 ds_3d_levels.attrs['mask_desc'] = mask.long_name
             ds_3d_levels.to_netcdf(self.output().fn)
         else:
-            ax = plt.gca()
-            if self.add_mean_ref:
-                ax.axvline(x=ds_3d[self.v1].mean(), color='grey', alpha=0.4)
-                ax.axhline(y=ds_3d[self.v2].mean(), color='grey', alpha=0.4)
-
-            normed_levels = [int(v) for v in self.cumulative_contours.split(',')]
-            ax, _ = cross_correlation_with_height.main(ds_3d=ds_3d_levels,
-                ds_cb=ds_cb,
-                normed_levels=normed_levels, ax=ax
-            )
-
-            title = ax.get_title()
-            title = "{}\n{}".format(self.base_name, title)
-            if 'mask' in self.input():
-                title += "\nmasked by {}".format(mask.long_name)
-            ax.set_title(title)
-
-            if self.plot_limits:
-                x_min, x_max, y_min, y_max = self.plot_limits
-
-                ax.set_xlim(x_min, x_max)
-                ax.set_ylim(y_min, y_max)
-
+            self.make_plot(ds_3d=ds_3d, ds_cb=ds_cb, ds_3d_levels=ds_3d_levels)
             plt.savefig(self.output().fn, bbox_inches='tight')
 
+    def make_plot(self, ds_3d, ds_cb, ds_3d_levels):
+        ax = plt.gca()
+        if self.add_mean_ref:
+            ax.axvline(x=ds_3d[self.v1].mean(), color='grey', alpha=0.4)
+            ax.axhline(y=ds_3d[self.v2].mean(), color='grey', alpha=0.4)
+
+        normed_levels = [int(v) for v in self.cumulative_contours.split(',')]
+        ax, _ = cross_correlation_with_height.main(ds_3d=ds_3d_levels,
+            ds_cb=ds_cb,
+            normed_levels=normed_levels, ax=ax,
+            add_cb_peak_ref_line=self.add_cloudbase_peak_ref
+        )
+
+        title = ax.get_title()
+        title = "{}\n{}".format(self.base_name, title)
+        if 'mask' in self.input():
+            title += "\nmasked by {}".format(mask.long_name)
+        ax.set_title(title)
+
+        if self.plot_limits:
+            x_min, x_max, y_min, y_max = self.plot_limits
+
+            ax.set_xlim(x_min, x_max)
+            ax.set_ylim(y_min, y_max)
+
+        return ax
 
 def _textwrap(s, l):
     lines = []

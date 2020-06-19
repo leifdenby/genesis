@@ -96,7 +96,7 @@ def get_cloudbase_data(cloud_data, v, t0, t_age_max=200., z_base_max=700.):
     return v__belowcloud.where(m, drop=True)
 
 
-def main(ds_3d, ds_cb=None, normed_levels = [10, 90], ax=None):
+def main(ds_3d, ds_cb=None, normed_levels = [10, 90], ax=None, add_cb_peak_ref_line=False):
     colors = iter(sns.color_palette("cubehelix", len(ds_3d.zt)))
     sns.set_color_codes()
 
@@ -136,6 +136,7 @@ def main(ds_3d, ds_cb=None, normed_levels = [10, 90], ax=None):
                 normed_levels=normed_levels,
                 ax=ax
             )
+
             for n, l in enumerate(cnt.collections):
                 l.set_color(c)
                 if n == 0:
@@ -160,9 +161,17 @@ def main(ds_3d, ds_cb=None, normed_levels = [10, 90], ax=None):
                 yd = ds_cb[v2].values.flatten()*yscale
                 yd = yd[~np.isnan(yd)]
 
-                _, _, cnt = joint_hist_contoured(
-                    xd=xd, yd=yd, normed_levels=normed_levels, ax=ax
+                (x_bins, y_bins), bin_counts, cnt = joint_hist_contoured(
+                    xd=xd, yd=yd, normed_levels=normed_levels, ax=ax,
                 )
+
+                if add_cb_peak_ref_line:
+                    idx_max = np.argmax(bin_counts)
+                    x_ref = x_bins.flatten()[idx_max]
+                    y_ref = y_bins.flatten()[idx_max]
+                    kwargs = dict(linestyle='--', alpha=0.3, color='grey')
+                    ax.axhline(y_ref, **kwargs)
+                    ax.axvline(x_ref, **kwargs)
 
                 if 0.0 in cnt.levels or len(cnt.levels) != len(normed_levels):
                     ax.scatter(xd.mean(), yd.mean(), marker='.', color='red')
