@@ -96,7 +96,8 @@ def get_cloudbase_data(cloud_data, v, t0, t_age_max=200., z_base_max=700.):
     return v__belowcloud.where(m, drop=True)
 
 
-def main(ds_3d, ds_cb=None, normed_levels = [10, 90], ax=None, add_cb_peak_ref_line=False):
+def main(ds_3d, ds_cb=None, normed_levels = [10, 90], ax=None, add_cb_peak_ref_line=False,
+         add_legend=True):
     colors = iter(sns.color_palette("cubehelix", len(ds_3d.zt)))
     sns.set_color_codes()
 
@@ -190,22 +191,13 @@ def main(ds_3d, ds_cb=None, normed_levels = [10, 90], ax=None, add_cb_peak_ref_l
             else:
                 warnings.warn("Skipping cloud base plot, missing one or more variables")
 
-    #plt.figlegend(handles=lines, labels=[l.get_label() for l in lines], loc='right')
-
-    # Shrink current axis by 20%
-    #box = ax.get_position()
-    #ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
-
-    # Put a legend to the right of the current axis
-    #ax.legend(lines=lines, loc='center left', bbox_to_anchor=(1, 0.5))
-
-    #plt.legend()
-
-    if ax is None:
-        plt.subplots_adjust(right=0.75)
-        ax = plt.gca()
-        # ax.legend()
-        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    if add_legend:
+        x_loc = 1.04
+        if add_legend == "far_right":
+            x_loc = 1.2
+        ax.legend(handles=lines, labels=[l.get_label() for l in lines], 
+                  loc='center left', bbox_to_anchor=(x_loc, 0.5,),
+                  borderaxespad=0)
 
     sns.despine()
 
@@ -217,10 +209,6 @@ def main(ds_3d, ds_cb=None, normed_levels = [10, 90], ax=None, add_cb_peak_ref_l
     else:
         ax.set_title("t={}".format(ds_.time.values))
 
-    # XXX: TODO
-    fix_axis(ax.set_xlim, v1)
-    fix_axis(ax.set_ylim, v2)
-
     if axis_lims_spans_zero(ax.get_xlim()):
         ax.axvline(0.0, linestyle='--', alpha=0.2, color='black')
     if axis_lims_spans_zero(ax.get_ylim()):
@@ -231,17 +219,6 @@ def main(ds_3d, ds_cb=None, normed_levels = [10, 90], ax=None, add_cb_peak_ref_l
 
 def axis_lims_spans_zero(lims):
     return np.sign(lims[0]) != np.sign(lims[1])
-
-def fix_axis(lim_fn, v):
-    pass
-    # if v == 'q':
-        # lim_fn(14.3, 16.8)
-    # elif v == 't':
-        # lim_fn(297.6, 298.2)
-    # if v == 'q':
-        # lim_fn(12.5, 16.5)
-    # elif v == 't':
-        # lim_fn(297.7, 301.4)
 
 if __name__ == "__main__":
     import argparse

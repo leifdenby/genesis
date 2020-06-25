@@ -86,6 +86,15 @@ def _raw_calc_joint_hist(xd, yd, bins=None):
     if bins is None:
         bins = _estimate_bin_count(xd=xd)
 
+    # add bins at edges we are certain will have zero counts, this will ensure
+    # that when we contour around bins later that there are enough sample
+    # points that the contouring will produce closed contours
+    dx = (x_range[1] - x_range[0])/bins
+    dy = (y_range[1] - y_range[0])/bins
+    x_range = (x_range[0] - dx, x_range[1] + dx)
+    y_range = (y_range[0] - dy, y_range[1] + dy)
+    bins += 2
+
     bin_counts, x_bins, y_bins = np.histogram2d(
         xd, yd, bins=bins, range=(x_range, y_range)
     )

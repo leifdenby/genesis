@@ -84,6 +84,7 @@ class JointDistProfile(luigi.Task):
     cumulative_contours = luigi.Parameter(default="10,90")
     add_mean_ref = luigi.BoolParameter(default=False)
     add_cloudbase_peak_ref = luigi.BoolParameter(default=False)
+    add_legend = luigi.BoolParameter(default=True)
 
     def requires(self):
         reqs = dict(
@@ -147,6 +148,7 @@ class JointDistProfile(luigi.Task):
         else:
             ds_cb = None
 
+        mask = None
         if 'mask' in self.input():
             mask = self.input()["mask"].open()
             ds_3d = ds_3d.where(mask)
@@ -160,11 +162,14 @@ class JointDistProfile(luigi.Task):
                 ds_3d_levels.attrs['mask_desc'] = mask.long_name
             ds_3d_levels.to_netcdf(self.output().fn)
         else:
-            self.make_plot(ds_3d=ds_3d, ds_cb=ds_cb, ds_3d_levels=ds_3d_levels)
+            self.make_plot(ds_3d=ds_3d, ds_cb=ds_cb, ds_3d_levels=ds_3d_levels,
+                           mask=mask)
             plt.savefig(self.output().fn, bbox_inches='tight')
 
-    def make_plot(self, ds_3d, ds_cb, ds_3d_levels):
-        ax = plt.gca()
+    def make_plot(self, ds_3d, ds_cb, ds_3d_levels, mask):
+        fig_w, fig_h = 4., 3.
+
+        fig, ax = plt.subplots(figsize=(fig_w, fig_h))
         if self.add_mean_ref:
             ax.axvline(x=ds_3d[self.v1].mean(), color='grey', alpha=0.4)
             ax.axhline(y=ds_3d[self.v2].mean(), color='grey', alpha=0.4)
@@ -173,7 +178,8 @@ class JointDistProfile(luigi.Task):
         ax, _ = cross_correlation_with_height.main(ds_3d=ds_3d_levels,
             ds_cb=ds_cb,
             normed_levels=normed_levels, ax=ax,
-            add_cb_peak_ref_line=self.add_cloudbase_peak_ref
+            add_cb_peak_ref_line=self.add_cloudbase_peak_ref,
+            add_legend=self.add_legend,
         )
 
         title = ax.get_title()
