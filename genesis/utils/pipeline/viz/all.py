@@ -1206,21 +1206,72 @@ class ObjectScaleVsHeightComposition(luigi.Task):
     x_max = luigi.FloatParameter(default=None)
 
     scale_by = luigi.OptionalParameter(default=None)
+    object_filters = luigi.Parameter(default=None)
+
+    # make it possible to add an extra profile for filtered objects
+    ref_profile_object_filters = luigi.Parameter(default=None)
+
+    add_profile_legend = luigi.BoolParameter(default=True)
+    include_mask_profile = luigi.BoolParameter(default=True)
 
     def requires(self):
-        return data.ComputeObjectScaleVsHeightComposition(
+        kwargs = dict(
             base_name=self.base_name,
             mask_method=self.mask_method,
             mask_method_extra_args=self.mask_method_extra_args,
             object_splitting_scalar=self.object_splitting_scalar,
             field_name=self.field_name,
-            object_filters=self.object_filters,
             z_max=self.z_max,
             x=self.x,
         )
 
+        reqs = dict(
+            base=data.ComputeObjectScaleVsHeightComposition(
+                object_filters=self.object_filters,
+                **kwargs,
+            )
+        )
+
+        if self.ref_profile_object_filters is not None:
+            reqs['extra_ref'] = data.ComputeObjectScaleVsHeightComposition(
+                object_filters=self.ref_profile_object_filters,
+                **kwargs
+            )
+
+        return reqs
+
     def run(self):
-        ds = self.input().open()
+        if self.ref_profile_object_filters is None:
+            ds = self.input()['base'].open()
+            mean_profile_components=["full domain", "objects"]
+        else:
+            ds_base = self.input()['base'].open()
+
+            sampling_labels = [
+                d if not d == 'objects' else 'all objects' for d in ds_base.sampling.values
+            ]
+            ds_mean_base = (
+                ds_base.drop_dims(['object_id'])
+                       .assign_coords(sampling=sampling_labels)
+            )
+
+            ds_objects = ds_base.drop_dims(['sampling'])
+
+            s_filters = objects.filter.latex_format(self.ref_profile_object_filters)
+            ds_mean_filtered = (
+                self.input()['extra_ref'].open()
+                    .sel(sampling="objects")
+                    .assign_coords(sampling=[f'{s_filters} objects'])
+                    .drop_dims(['object_id'])
+            )
+
+            ds_mean = xr.concat([ds_mean_base, ds_mean_filtered], dim='sampling')
+            mean_profile_components = ds_mean.sampling.values.tolist()
+            ds = xr.merge([ds_mean, ds_objects])
+            ds.attrs.update(ds_base.attrs)
+
+        if not self.include_mask_profile:
+            mean_profile_components.remove('mask')
 
         if self.scale_by is not None:
             scaling_factors = {}
@@ -1230,13 +1281,14 @@ class ObjectScaleVsHeightComposition(luigi.Task):
                 for dim in ds.dims:
                     scaling_factors[dim] = float(self.scale_by)
 
-        # import ipdb
-        # with ipdb.launch_ipdb_on_exception():
-        ax = objects.flux_contribution.plot(
-            ds=ds, x=self.x, v=self.field_name, dx=self.dx,
-            mean_profile_components=["full domain", "objects"],
-            # scaling_factors=scaling_factors
-        )
+        import ipdb
+        with ipdb.launch_ipdb_on_exception():
+            ax = objects.flux_contribution.plot(
+                ds=ds, x=self.x, v=self.field_name, dx=self.dx,
+                mean_profile_components=mean_profile_components,
+                add_profile_legend=self.add_profile_legend
+                # scaling_factors=scaling_factors
+            )
 
         if self.x_max is not None:
             ax.set_xlim(0., self.x_max)
