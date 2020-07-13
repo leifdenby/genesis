@@ -21,6 +21,7 @@ except ImportError:
 
 from . import get_dataset
 from ..utils.plot_types import joint_hist_contoured, JointHistPlotError
+from ..objects import projected_2d as objs_2d
 
 
 Z_LEVELS_DEFAULT = np.arange(12.5, 650., 100.)
@@ -35,32 +36,41 @@ def get_approximate_cloudbase_height(qc, z_tol=100.):
     return z_cb
 
 
-def get_cloudbase_height(ds_tracking, t0, t_age_max, z_base_max=700.):
+def get_cloudbase_height(ds_tracking, da_cldbase_2d, t0, t_age_max, dx,
+                         z_base_max=700.):
 
-    tn = int(cloud_data.find_closest_timestep(t=t0))
+    da_cldbase_2d_ = da_cldbase_2d.sel(time=t0)
+
+    object_set = objs_2d.ObjectSet(ds=ds_tracking)
 
     # clouds that are going to do vertical transport
-    cloud_set = ds_tracking.filter(
-        cloud_type__in=[CloudType.SINGLE_PULSE, CloudType.ACTIVE],
-    ).filter(present=True, _tn=tn)
+    object_set = object_set.filter(cloud_type__in=[
+        objs_2d.CloudType.SINGLE_PULSE, objs_2d.CloudType.ACTIVE
+    ])
+
+    object_set = object_set.filter(present=True, kwargs=dict(t0=t0))
 
     # avoid mid-level convection clouds
-    cloud_set = cloud_set.filter(
-        cloudbase_max_height_by_histogram_peak__lt=z_base_max, _tn=tn
+    object_set = object_set.filter(
+        cloudbase_max_height_by_histogram_peak__lt=z_base_max,
+        kwargs=dict(t0=t0, dx=dx, da_cldbase=da_cldbase_2d)
     )
 
     # remove clouds that are more than 3min old
-    cloud_set = cloud_set.filter(cloud_age__lt=t_age_max, _tn=tn)
-
-    nrcloud_cloudbase = get_cloudbase_mask(
-        cloud_set=cloud_set, tn=tn, method=CloudbaseEstimationMethod.DEFAULT
+    object_set = object_set.filter(
+        cloud_age__lt=t_age_max, kwargs=dict(t0=t0)
     )
 
-    cldbase = cloud_set.cloud_data.get('cldbase', tn=tn)
+    nrcloud_cloudbase = get_cloudbase_mask(
+        object_set=object_set, t0=t0,
+        method=CloudbaseEstimationMethod.DEFAULT
+    )
+
+    cldbase = object_set.cloud_data.get('cldbase', tn=tn)
     m = nrcloud_cloudbase == 0
     cldbase_heights_2d = cldbase.where(~m)
 
-    cldbase_heights_2d.attrs['num_clouds'] = len(cloud_set)
+    cldbase_heights_2d.attrs['num_clouds'] = len(object_set)
 
     return cldbase_heights_2d
 
@@ -86,7 +96,8 @@ def get_cloudbase_data(cloud_data, v, t0, t_age_max=200., z_base_max=700.):
     return v__belowcloud.where(m, drop=True)
 
 
-def main(ds_3d, ds_cb=None, normed_levels = [10, 90], ax=None):
+def main(ds_3d, ds_cb=None, normed_levels = [10, 90], ax=None, add_cb_peak_ref_line=False,
+         add_legend=True):
     colors = iter(sns.color_palette("cubehelix", len(ds_3d.zt)))
     sns.set_color_codes()
 
@@ -126,6 +137,7 @@ def main(ds_3d, ds_cb=None, normed_levels = [10, 90], ax=None):
                 normed_levels=normed_levels,
                 ax=ax
             )
+
             for n, l in enumerate(cnt.collections):
                 l.set_color(c)
                 if n == 0:
@@ -150,9 +162,17 @@ def main(ds_3d, ds_cb=None, normed_levels = [10, 90], ax=None):
                 yd = ds_cb[v2].values.flatten()*yscale
                 yd = yd[~np.isnan(yd)]
 
-                _, _, cnt = joint_hist_contoured(
-                    xd=xd, yd=yd, normed_levels=normed_levels, ax=ax
+                (x_bins, y_bins), bin_counts, cnt = joint_hist_contoured(
+                    xd=xd, yd=yd, normed_levels=normed_levels, ax=ax,
                 )
+
+                if add_cb_peak_ref_line:
+                    idx_max = np.argmax(bin_counts)
+                    x_ref = x_bins.flatten()[idx_max]
+                    y_ref = y_bins.flatten()[idx_max]
+                    kwargs = dict(linestyle='--', alpha=0.3, color='grey')
+                    ax.axhline(y_ref, **kwargs)
+                    ax.axvline(x_ref, **kwargs)
 
                 if 0.0 in cnt.levels or len(cnt.levels) != len(normed_levels):
                     ax.scatter(xd.mean(), yd.mean(), marker='.', color='red')
@@ -171,22 +191,13 @@ def main(ds_3d, ds_cb=None, normed_levels = [10, 90], ax=None):
             else:
                 warnings.warn("Skipping cloud base plot, missing one or more variables")
 
-    #plt.figlegend(handles=lines, labels=[l.get_label() for l in lines], loc='right')
-
-    # Shrink current axis by 20%
-    #box = ax.get_position()
-    #ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
-
-    # Put a legend to the right of the current axis
-    #ax.legend(lines=lines, loc='center left', bbox_to_anchor=(1, 0.5))
-
-    #plt.legend()
-
-    if ax is None:
-        plt.subplots_adjust(right=0.75)
-        ax = plt.gca()
-        # ax.legend()
-        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    if add_legend:
+        x_loc = 1.04
+        if add_legend == "far_right":
+            x_loc = 1.2
+        ax.legend(handles=lines, labels=[l.get_label() for l in lines], 
+                  loc='center left', bbox_to_anchor=(x_loc, 0.5,),
+                  borderaxespad=0)
 
     sns.despine()
 
@@ -198,10 +209,6 @@ def main(ds_3d, ds_cb=None, normed_levels = [10, 90], ax=None):
     else:
         ax.set_title("t={}".format(ds_.time.values))
 
-    # XXX: TODO
-    fix_axis(ax.set_xlim, v1)
-    fix_axis(ax.set_ylim, v2)
-
     if axis_lims_spans_zero(ax.get_xlim()):
         ax.axvline(0.0, linestyle='--', alpha=0.2, color='black')
     if axis_lims_spans_zero(ax.get_ylim()):
@@ -212,17 +219,6 @@ def main(ds_3d, ds_cb=None, normed_levels = [10, 90], ax=None):
 
 def axis_lims_spans_zero(lims):
     return np.sign(lims[0]) != np.sign(lims[1])
-
-def fix_axis(lim_fn, v):
-    pass
-    # if v == 'q':
-        # lim_fn(14.3, 16.8)
-    # elif v == 't':
-        # lim_fn(297.6, 298.2)
-    # if v == 'q':
-        # lim_fn(12.5, 16.5)
-    # elif v == 't':
-        # lim_fn(297.7, 301.4)
 
 if __name__ == "__main__":
     import argparse

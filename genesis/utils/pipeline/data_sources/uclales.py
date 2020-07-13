@@ -17,6 +17,7 @@ FIELD_NAME_MAPPING = dict(
     cvrxp='cvrxp',
     p='p',
     theta_l_v='theta_l_v',
+    theta_l_v_hack='theta_l_v_hack',
     qv='qv',
 )
 
@@ -38,6 +39,7 @@ UNITS_FORMAT = {
 DERIVED_FIELDS = dict(
     T=('qc', 'theta_l', 'p'),
     theta_l_v=('theta_l', 'qv', 'qc', 'qr'),
+    theta_l_v_hack=('theta_l', 'qv', 'qc', ),
     qv=('qt', 'qc', 'qr'),
 )
 
@@ -90,6 +92,44 @@ def _fix_long_name(da):
         modified = True
     return da, modified
 
+def _fix_time_units(da):
+    modified = False
+    if np.issubdtype(da.dtype, np.datetime64):
+        # already converted since xarray has managed to parse the time in
+        # CF-format
+        pass
+    elif da.attrs['units'].startswith("seconds since 2000-01-01"):
+        # I fixed UCLALES to CF valid output, this is output from a fixed
+        # version
+        pass
+    elif da.attrs['units'].startswith("seconds since 2000-00-00"):
+        da.attrs['units'] = da.attrs['units'].replace(
+            "seconds since 2000-00-00",
+            "seconds since 2000-01-01",
+        )
+        modified = True
+    elif da.attrs['units'].startswith("seconds since 0-00-00"):
+        # 2D fields have strange time units...
+        da.attrs['units'] = da.attrs['units'].replace(
+            "seconds since 0-00-00",
+            "seconds since 2000-01-01",
+        )
+        modified = True
+    elif da.attrs['units'].startswith("seconds since 0-0-0"):
+        # 2D fields have strange time units...
+        da.attrs['units'] = da.attrs['units'].replace(
+            "seconds since 0-0-0",
+            "seconds since 2000-01-01",
+        )
+        modified = True
+    elif da.attrs['units'] == "day as %Y%m%d.%f":
+        da.values = (da.values*24*60*60).astype(int)
+        da.attrs['units'] = "seconds since 2000-01-01 00:00:00"
+        modified = True
+    else:
+        raise NotImplementedError(da.attrs['units'])
+    return da, modified
+
 def extract_field_to_filename(dataset_meta, path_out, field_name, **kwargs):
     field_name_src = _get_uclales_field(field_name)
 
@@ -109,6 +149,9 @@ def extract_field_to_filename(dataset_meta, path_out, field_name, **kwargs):
     elif field_name == 'theta_l_v':
         da = _calc_theta_l_v(**kwargs)
         can_symlink = False
+    elif field_name == 'theta_l_v_hack':
+        da = _calc_theta_l_v_hack(**kwargs)
+        can_symlink = False
     elif field_name == 'qv':
         da = _calc_qv(**kwargs)
         can_symlink = False
@@ -125,6 +168,11 @@ def extract_field_to_filename(dataset_meta, path_out, field_name, **kwargs):
     da, modified = _fix_long_name(da)
     if modified:
         can_symlink = False
+
+    if 'time' in da.coords:
+        da.coords['time'], modified = _fix_time_units(da['time'])
+        if modified:
+            can_symlink = False
 
     for c in "xt yt zt".split(" "):
         if 'fixes' in dataset_meta:
@@ -157,6 +205,20 @@ def _calc_theta_l_v(theta_l, qv, qc, qr):
     theta_l_v.attrs['units'] = 'K'
     theta_l_v.attrs['long_name'] = 'virtual liquid potential temperature'
     theta_l_v.name = "theta_l_v"
+    return theta_l_v
+
+def _calc_theta_l_v_hack(theta_l, qv, qc):
+    assert qv.units.lower() == 'g/kg' and qv.max() > 1.0
+    assert theta_l.units == 'K'
+
+    # qc here refers to q "cloud", the total condensate is qc+qr (here
+    # forgetting about ice...)
+    eps = 0.608
+    theta_l_v = theta_l*(1.0 + 1.0e-3*(eps*qv - (qc)))
+
+    theta_l_v.attrs['units'] = 'K'
+    theta_l_v.attrs['long_name'] = 'virtual liquid potential temperature'
+    theta_l_v.name = "theta_l_v_hack"
     return theta_l_v
 
 def _calc_qv(qt, qc, qr):

@@ -36,7 +36,8 @@ def plot(datasets, var_names, est_method = WidthEstimationMethod.MASS_WEIGHTED):
 
     v1, v2 = var_names
 
-    fig, axes = plt.subplots(ncols=len(datasets)*2, nrows=len(z), figsize=(6*len(datasets), 2*len(z)))
+    fig, axes = plt.subplots(ncols=len(datasets)*2, nrows=len(z),
+                    figsize=(7.*len(datasets), 2.3*len(z)))
 
     loc_x = plticker.MultipleLocator(base=200)
 

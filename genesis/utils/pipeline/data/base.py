@@ -1,9 +1,12 @@
 import re
 from pathlib import Path
+from datetime import datetime
 
+import numpy as np
 import xarray as xr
 import luigi
 import yaml
+import dateutil.parser
 
 
 DATA_SOURCES = None
@@ -86,3 +89,17 @@ class XArrayTarget(luigi.target.FileSystemTarget):
     @property
     def fn(self):
         return self.path
+
+
+class NumpyDatetimeParameter(luigi.DateSecondParameter):
+    def normalize(self, x):
+        if hasattr(x, 'dtype') and np.issubdtype(x.dtype, np.datetime64):
+            dt64 = x
+            # https://stackoverflow.com/a/13704307/271776
+            ts = (dt64 - np.datetime64('1970-01-01T00:00:00Z')) / np.timedelta64(1, 's')
+            return super().normalize(datetime.utcfromtimestamp(ts))
+        else:
+            try:
+                return super().normalize(x)
+            except TypeError:
+                return super().normalize(dateutil.parser.parse(x))

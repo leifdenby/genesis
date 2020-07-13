@@ -5,13 +5,21 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 import math
 
+from ..utils.plot_types import adjust_fig_to_fit_figlegend
+
 
 class PlotGrid():
     def __init__(self, height=6, ratio=5, space=.4,
-                 dropna=True, xlim=None, ylim=None, size=None):
+                 dropna=True, width=None, xlim=None, ylim=None, size=None):
         # Set up the subplot grid
-        f = plt.figure(figsize=(height, height))
-        gs = plt.GridSpec(ratio + 1, ratio + 1)
+        try:
+            ratio_x, ratio_y = ratio
+        except TypeError:
+            ratio_x = ratio_y = ratio
+        if width is None:
+            width = height
+        f = plt.figure(figsize=(width, height))
+        gs = plt.GridSpec(ratio_y + 1, ratio_x + 1)
 
         ax_joint = f.add_subplot(gs[1:, :-1])
         ax_marg_x = f.add_subplot(gs[0, :-1], sharex=ax_joint)
@@ -45,13 +53,17 @@ class PlotGrid():
         f.subplots_adjust(hspace=space, wspace=space)
 
 
-def plot(ds, x, v, dx):
+def plot(ds, x, v, dx, mean_profile_components='all'):
+    def _only_finite(vals):
+        return vals[~np.logical_or(np.isnan(vals), np.isinf(vals))]
+
+    x_min, x_max = _only_finite(ds[x]).min(), _only_finite(ds[x]).max()
     if dx is None:
-        bins = np.linspace(ds[x].min(), ds[x].max(), 10)
+        bins = np.linspace(x_min, x_max, 10)
     else:
         bins = np.arange(
-            math.floor(ds[x].min()/dx)*dx,
-            math.ceil(ds[x].max()/dx)*dx,
+            math.floor(x_min/dx)*dx,
+            math.ceil(x_max/dx)*dx,
         dx)
 
     nx = ds.nx
@@ -61,7 +73,7 @@ def plot(ds, x, v, dx):
 
     bin_centers = 0.5*(bins[1:] + bins[:-1])
     #fig, axes = plt.subplots(ncols=2, nrows=2, sharex="col", sharey="row", figsize=(10,6))
-    g = PlotGrid()
+    g = PlotGrid(ratio=(3, 5), height=6, width=7)
     ds_ = ds.groupby_bins(x, bins=bins, labels=bin_centers)
     da_flux_per_bin = ds_.sum(dim='object_id', dtype=np.float64)[bin_var]/(nx*ny)
     if len(da_flux_per_bin["{}_bins".format(x)]) < 2:
@@ -70,8 +82,7 @@ def plot(ds, x, v, dx):
                         "`{x}`".format(x=x))
     da_flux_per_bin.plot(y='zt', ax=g.ax_joint, add_colorbar=False, robust=True)
 
-    # ds.r_equiv.plot.hist(bins=bins, histtype='step', ax=g.ax_marg_x)
-    Nobj_bin_counts, _, _= ds[bin_var].plot.hist(bins=bins, histtype='step',
+    Nobj_bin_counts, _, _= ds[x].plot.hist(bins=bins, histtype='step',
                                            ax=g.ax_marg_x)
     g.ax_marg_x.set_ylabel('num objects [1]')
     g.ax_marg_x.set_yscale('log')
@@ -86,16 +97,21 @@ def plot(ds, x, v, dx):
         else:
             return da_flux*ds.areafrac.sel(sampling=da_flux.sampling)
     da_flux_tot = ds[ref_var].groupby('sampling').apply(scale_flux)
-    da_flux_tot.plot(y='zt', ax=g.ax_marg_y, hue="sampling", marker='+', markersize=10)
+    if mean_profile_components != "all":
+        da_flux_tot = da_flux_tot.sel(sampling=mean_profile_components)
+    da_flux_tot = da_flux_tot.sortby('sampling', ascending=False)
+    da_flux_tot.attrs['long_name'] = 'horz. mean flux'
+    da_flux_tot.attrs['units'] = ds[bin_var].units
+    da_flux_tot.plot(y='zt', ax=g.ax_marg_y,
+                     hue="sampling", add_legend=True)
+    g.ax_marg_y.get_legend().set_bbox_to_anchor([1.0, 1.2])
 
-    da_inobject_mean_flux = ds.sum(dim='object_id', dtype=np.float64)[bin_var]/(nx*ny)
-    da_inobject_mean_flux.attrs['long_name'] = 'horz. mean flux'
-    da_inobject_mean_flux.attrs['units'] = ds[bin_var].units
-    da_inobject_mean_flux.plot(y='zt', ax=g.ax_marg_y, marker='.')
+    # da_inobject_mean_flux = ds.sum(dim='object_id', dtype=np.float64)[bin_var]/(nx*ny)
+    # da_inobject_mean_flux.plot(y='zt', ax=g.ax_marg_y, marker='.')
 
-    # if bin_var == 'qv_flux__sum':
-        # g.ax_marg_y.xaxis.set_ticks([0., 0.01, 0.02])
-        # g.ax_marg_y.set_xlim(0., 0.03)
+    if v == 'qv_flux':
+        g.ax_marg_y.xaxis.set_ticks([0., 0.02, 0.04])
+        g.ax_marg_y.set_xlim(0., 0.05)
 
     g.ax_joint.set_title('')
     g.ax_marg_x.set_title('')
@@ -104,66 +120,10 @@ def plot(ds, x, v, dx):
     g.ax_marg_y.set_ylabel('')
     g.ax_joint.set_xlabel(xr.plot.utils.label_from_attrs(ds[x]))
 
+    add_newline = lambda s: s[:s.index('[')] + "\n" + s[s.index('['):]
+    g.ax_marg_y.set_xlabel(add_newline(g.ax_marg_y.get_xlabel()))
+
     return g.ax_joint
-
-def _adjust_fig_to_fit_figlegend(fig, figlegend, direction='bottom'):
-    # Draw the plot to set the bounding boxes correctly
-    fig.draw(fig.canvas.get_renderer())
-
-    if direction == 'right':
-        # Calculate and set the new width of the figure so the legend fits
-        legend_width = figlegend.get_window_extent().width / fig.dpi
-        figure_width = fig.get_figwidth()
-        fig.set_figwidth(figure_width + legend_width)
-
-        # Draw the plot again to get the new transformations
-        fig.draw(fig.canvas.get_renderer())
-
-        # Now calculate how much space we need on the right side
-        legend_width = figlegend.get_window_extent().width / fig.dpi
-        space_needed = legend_width / (figure_width + legend_width) + 0.02
-        # margin = .01
-        # _space_needed = margin + space_needed
-        right = 1 - space_needed
-
-        # Place the subplot axes to give space for the legend
-        fig.subplots_adjust(right=right)
-    elif direction == 'top':
-        # Calculate and set the new width of the figure so the legend fits
-        legend_height = figlegend.get_window_extent().height / fig.dpi
-        figure_height = fig.get_figheight()
-        fig.set_figheight(figure_height + legend_height)
-
-        # Draw the plot again to get the new transformations
-        fig.draw(fig.canvas.get_renderer())
-
-        # Now calculate how much space we need on the right side
-        legend_height = figlegend.get_window_extent().height / fig.dpi
-        space_needed = legend_height / (figure_height + legend_height) + 0.02
-        # margin = .01
-        top = 1 - space_needed
-
-        # Place the subplot axes to give space for the legend
-        fig.subplots_adjust(top=top)
-    elif direction == 'bottom':
-        # Calculate and set the new width of the figure so the legend fits
-        legend_height = figlegend.get_window_extent().height / fig.dpi
-        figure_height = fig.get_figheight()
-        fig.set_figheight(figure_height + legend_height)
-
-        # Draw the plot again to get the new transformations
-        fig.draw(fig.canvas.get_renderer())
-
-        # Now calculate how much space we need on the right side
-        legend_height = figlegend.get_window_extent().height / fig.dpi
-        space_needed = legend_height / (figure_height + legend_height) + 0.02
-        # margin = .01
-        bottom = space_needed
-
-        # Place the subplot axes to give space for the legend
-        fig.subplots_adjust(bottom=bottom)
-    else:
-        raise NotImplementedError(direction)
 
 
 def plot_with_areafrac(ds, figsize=(12, 8), legend_ncols=3):
@@ -224,6 +184,6 @@ def plot_with_areafrac(ds, figsize=(12, 8), legend_ncols=3):
     figlegend = fig.legend(handles, labels, loc='center right', title=hue_label,
                            ncol=legend_ncols)
 
-    _adjust_fig_to_fit_figlegend(fig=fig, figlegend=figlegend, direction='right')
+    adjust_fig_to_fit_figlegend(fig=fig, figlegend=figlegend, direction='right')
 
     return fig, axes

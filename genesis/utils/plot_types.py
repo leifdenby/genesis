@@ -86,6 +86,15 @@ def _raw_calc_joint_hist(xd, yd, bins=None):
     if bins is None:
         bins = _estimate_bin_count(xd=xd)
 
+    # add bins at edges we are certain will have zero counts, this will ensure
+    # that when we contour around bins later that there are enough sample
+    # points that the contouring will produce closed contours
+    dx = (x_range[1] - x_range[0])/bins
+    dy = (y_range[1] - y_range[0])/bins
+    x_range = (x_range[0] - dx, x_range[1] + dx)
+    y_range = (y_range[0] - dy, y_range[1] + dy)
+    bins += 2
+
     bin_counts, x_bins, y_bins = np.histogram2d(
         xd, yd, bins=bins, range=(x_range, y_range)
     )
@@ -199,7 +208,7 @@ def make_marker_plot(x, y, scale=100., ax=None, marker='o', **kwargs):
     return ax
 
 
-def multi_jointplot(x, y, z, ds, joint_type='pointhist', **kwargs):
+def multi_jointplot(x, y, z, ds, joint_type='pointhist', lgd_ncols=1, **kwargs):
     """
     like seaborn jointplot but making it possible to plot for multiple (up to
     four) datasets
@@ -259,7 +268,7 @@ def multi_jointplot(x, y, z, ds, joint_type='pointhist', **kwargs):
             name=z_,
             count=int(ds.sel(**{z:z_}).dropna(dim='object_id').object_id.count())
             ) for z_ in z_values],
-        bbox_to_anchor=[0.5, -0.4], loc="lower center"
+        bbox_to_anchor=[0.5, -0.25], loc="lower center", ncol=lgd_ncols,
     )
 
     return g
@@ -274,3 +283,63 @@ def fixed_bin_hist(v, dv, ax, **kwargs):
         nbins = int((vmax-vmin)/dv)
         vrange = (vmin, vmax)
     ax.hist(v, range=vrange, bins=nbins, **kwargs)
+
+
+def adjust_fig_to_fit_figlegend(fig, figlegend, direction='bottom'):
+    # Draw the plot to set the bounding boxes correctly
+    fig.draw(fig.canvas.get_renderer())
+
+    if direction == 'right':
+        # Calculate and set the new width of the figure so the legend fits
+        legend_width = figlegend.get_window_extent().width / fig.dpi
+        figure_width = fig.get_figwidth()
+        fig.set_figwidth(figure_width + legend_width)
+
+        # Draw the plot again to get the new transformations
+        fig.draw(fig.canvas.get_renderer())
+
+        # Now calculate how much space we need on the right side
+        legend_width = figlegend.get_window_extent().width / fig.dpi
+        space_needed = legend_width / (figure_width + legend_width) + 0.02
+        # margin = .01
+        # _space_needed = margin + space_needed
+        right = 1 - space_needed
+
+        # Place the subplot axes to give space for the legend
+        fig.subplots_adjust(right=right)
+    elif direction == 'top':
+        # Calculate and set the new width of the figure so the legend fits
+        legend_height = figlegend.get_window_extent().height / fig.dpi
+        figure_height = fig.get_figheight()
+        fig.set_figheight(figure_height + legend_height)
+
+        # Draw the plot again to get the new transformations
+        fig.draw(fig.canvas.get_renderer())
+
+        # Now calculate how much space we need on the right side
+        legend_height = figlegend.get_window_extent().height / fig.dpi
+        space_needed = legend_height / (figure_height + legend_height) + 0.02
+        # margin = .01
+        top = 1 - space_needed
+
+        # Place the subplot axes to give space for the legend
+        fig.subplots_adjust(top=top)
+    elif direction == 'bottom':
+        # Calculate and set the new width of the figure so the legend fits
+        legend_height = figlegend.get_window_extent().height / fig.dpi
+        figure_height = fig.get_figheight()
+        fig.set_figheight(figure_height + legend_height)
+
+        # Draw the plot again to get the new transformations
+        fig.draw(fig.canvas.get_renderer())
+
+        # Now calculate how much space we need on the right side
+        legend_height = figlegend.get_window_extent().height / fig.dpi
+        space_needed = legend_height / (figure_height + legend_height) + 0.02
+        # margin = .01
+        bottom = 2*space_needed
+
+        # Place the subplot axes to give space for the legend
+        fig.subplots_adjust(bottom=bottom)
+    else:
+        raise NotImplementedError(direction)

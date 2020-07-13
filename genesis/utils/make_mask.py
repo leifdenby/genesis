@@ -68,6 +68,9 @@ def build_method_kwargs(method, kwargs):
 
     missing_kwargs = []
 
+    if 'base_name' in kwargs and 'base_name' not in needed_vars:
+        del kwargs['base_name']
+
     # we iterator over the functions required arguments and check if they've
     # been passed in
     for v in needed_vars:

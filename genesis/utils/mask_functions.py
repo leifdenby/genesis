@@ -280,6 +280,5 @@ def rad_tracer_thermals(base_name, cvrxp, num_std_div=1.0):
 rad_tracer_thermals.description = r"radioactive tracer-based envelope ($\phi' > {num_std_div} \sigma(\phi)$)"
 
 
-def clouds(l, l_crit=0.1e-3):
-    return l > l_crit
-moist_updrafts.description = 'cloudy-regions (l > {l_crit} kg/kg)'
+def clouds(qc, qc_crit=0.1e-3):
+    return qc > qc_crit

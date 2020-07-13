@@ -15,13 +15,13 @@ import yaml
 import shutil
 
 # from ...length_scales.plot import cumulant_scale_vs_height
-from ...bulk_statistics import cross_correlation_with_height
-from ... import length_scales
-from ... import objects
-from .. import plot_types, cm_nilearn, figure_metadata
-from ...utils.calc_flux import scale_flux_to_watts
+from ....bulk_statistics import cross_correlation_with_height
+from .... import length_scales
+from .... import objects
+from ... import plot_types, cm_nilearn, figure_metadata
+from ....utils.calc_flux import scale_flux_to_watts
 
-from . import data
+from .. import data
 
 figure_metadata.patch_savefig_for_argv_metadata()
 
@@ -82,7 +82,9 @@ class JointDistProfile(luigi.Task):
     data_only = luigi.BoolParameter(default=False)
     cloud_age_max = luigi.FloatParameter(default=200.)
     cumulative_contours = luigi.Parameter(default="10,90")
-    add_mean_ref = luigi.BoolParameter(default=True)
+    add_mean_ref = luigi.BoolParameter(default=False)
+    add_cloudbase_peak_ref = luigi.BoolParameter(default=False)
+    add_legend = luigi.BoolParameter(default=True)
 
     def requires(self):
         reqs = dict(
@@ -146,6 +148,7 @@ class JointDistProfile(luigi.Task):
         else:
             ds_cb = None
 
+        mask = None
         if 'mask' in self.input():
             mask = self.input()["mask"].open()
             ds_3d = ds_3d.where(mask)
@@ -159,31 +162,39 @@ class JointDistProfile(luigi.Task):
                 ds_3d_levels.attrs['mask_desc'] = mask.long_name
             ds_3d_levels.to_netcdf(self.output().fn)
         else:
-            ax = plt.gca()
-            if self.add_mean_ref:
-                ax.axvline(x=ds_3d[self.v1].mean(), color='grey', alpha=0.4)
-                ax.axhline(y=ds_3d[self.v2].mean(), color='grey', alpha=0.4)
-
-            normed_levels = [int(v) for v in self.cumulative_contours.split(',')]
-            ax, _ = cross_correlation_with_height.main(ds_3d=ds_3d_levels,
-                ds_cb=ds_cb,
-                normed_levels=normed_levels, ax=ax
-            )
-
-            title = ax.get_title()
-            title = "{}\n{}".format(self.base_name, title)
-            if 'mask' in self.input():
-                title += "\nmasked by {}".format(mask.long_name)
-            ax.set_title(title)
-
-            if self.plot_limits:
-                x_min, x_max, y_min, y_max = self.plot_limits
-
-                ax.set_xlim(x_min, x_max)
-                ax.set_ylim(y_min, y_max)
-
+            self.make_plot(ds_3d=ds_3d, ds_cb=ds_cb, ds_3d_levels=ds_3d_levels,
+                           mask=mask)
             plt.savefig(self.output().fn, bbox_inches='tight')
 
+    def make_plot(self, ds_3d, ds_cb, ds_3d_levels, mask):
+        fig_w, fig_h = 4., 3.
+
+        fig, ax = plt.subplots(figsize=(fig_w, fig_h))
+        if self.add_mean_ref:
+            ax.axvline(x=ds_3d[self.v1].mean(), color='grey', alpha=0.4)
+            ax.axhline(y=ds_3d[self.v2].mean(), color='grey', alpha=0.4)
+
+        normed_levels = [int(v) for v in self.cumulative_contours.split(',')]
+        ax, _ = cross_correlation_with_height.main(ds_3d=ds_3d_levels,
+            ds_cb=ds_cb,
+            normed_levels=normed_levels, ax=ax,
+            add_cb_peak_ref_line=self.add_cloudbase_peak_ref,
+            add_legend=self.add_legend,
+        )
+
+        title = ax.get_title()
+        title = "{}\n{}".format(self.base_name, title)
+        if 'mask' in self.input():
+            title += "\nmasked by {}".format(mask.long_name)
+        ax.set_title(title)
+
+        if self.plot_limits:
+            x_min, x_max, y_min, y_max = self.plot_limits
+
+            ax.set_xlim(x_min, x_max)
+            ax.set_ylim(y_min, y_max)
+
+        return ax
 
 def _textwrap(s, l):
     lines = []
@@ -656,13 +667,30 @@ class ObjectScalesComparison(luigi.Task):
 class FilamentarityPlanarityComparison(ObjectScalesComparison):
     def run(self):
         ds = self._load_data()
-        objects.topology.plots.filamentarity_planarity(ds=ds)
 
-        st = plt.suptitle(self.get_suptitle(), y=[1.05, 1.5][self.not_pairgrid])
+        def get_new_dataset_label(da):
+            base_name = da.dataset.item()
+            return xr.DataArray(
+                self.get_base_name_labels().get(base_name, base_name)
+            )
+
+        ds.coords['dataset'] = ds.groupby('dataset').apply(get_new_dataset_label)
+
+        import ipdb
+        with ipdb.launch_ipdb_on_exception():
+            objects.topology.plots.filamentarity_planarity(ds=ds)
+
+        extra_artists = []
+        st_str = self.get_suptitle()
+        if st_str is not None:
+            st = plt.suptitle(st_str, y=[1.05, 1.5][self.not_pairgrid])
+            extra_artists.append(st)
 
         plt.savefig(self.output().fn, bbox_inches='tight',
-                    bbox_extra_artists=(st,))
+                    bbox_extra_artists=extra_artists)
 
+    def get_base_name_labels(self):
+        return {}
 
     def output(self):
         fn_base = super().output().fn
@@ -832,7 +860,7 @@ class ObjectsScaleDist(luigi.Task):
         figsize = [float(v) for v in self.figsize.split(',')]
         N_vars = len(self.var_name.split(','))
         N_basenames = len(self.base_names.split(','))
-        fig, axes = plt.subplots(figsize=(figsize[0]*N_vars, figsize[0]), ncols=N_vars,
+        fig, axes = plt.subplots(figsize=(figsize[0]*N_vars, figsize[1]), ncols=N_vars,
                                  sharey=True)
         if N_vars == 1:
             axes = [axes,]
@@ -896,20 +924,35 @@ class ObjectsScaleDist(luigi.Task):
             ax1.autoscale()
             [ax.set_ylabel('') for ax in axes[1:]]
 
-        s_filters = objects.filter.latex_format(self.object_filters)
-        st = plt.suptitle("{}\n{}".format(self.base_names,s_filters), y=1.1)
+        bbox_extra_artists = []
 
-        sns.despine(right=not self.show_cumsum)
+        sns.despine(fig)
+
+        st_str = self.get_suptitle()
+        if st_str is not None:
+            st = plt.suptitle(st_str, y=1.1)
+            bbox_extra_artists.append(st)
+
         ax_lgd = axes[len(axes)//2]
-        lgd = ax_lgd.legend(
-            loc='upper center', bbox_to_anchor=(0.5, -0.15-0.1*N_basenames),
+        lgd = plt.figlegend(
+            *ax_lgd.get_legend_handles_labels(),
+            loc='lower center',
         )
+
+        plot_types.adjust_fig_to_fit_figlegend(
+            fig=fig, figlegend=lgd, direction='bottom'
+        )
+        bbox_extra_artists.append(lgd)
 
         if self.v_max is not None:
             ax.set_xlim(0., self.v_max)
 
-        plt.tight_layout()
-        plt.savefig(self.output().fn, bbox_inches='tight', bbox_extra_artists=(lgd, st))
+        plt.savefig(self.output().fn, bbox_inches='tight',
+                    bbox_extra_artists=bbox_extra_artists)
+
+    def get_suptitle(self):
+        s_filters = objects.filter.latex_format(self.object_filters)
+        return plt.suptitle("{}\n{}".format(self.base_names,s_filters), y=1.1)
 
     def output(self):
         s_filter = ''
@@ -969,6 +1012,13 @@ class ObjectsScalesJointDist(luigi.Task):
         nbins = int((vmax-vmin)/dv)
         return dict(range=(vmin, vmax), bins=nbins)
 
+    def get_suptitle(self):
+        s_filters = objects.filter.latex_format(self.object_filters)
+        return "{}\n{}".format(self.base_names,s_filters)
+
+    def get_base_name_labels(self):
+        return {}
+
     def make_plot(self):
         inputs = self.input()
 
@@ -982,18 +1032,25 @@ class ObjectsScalesJointDist(luigi.Task):
             if '_' in self.plot_type:
                 kws['joint_type'] = self.plot_type.split('_')[-1]
 
-            def _lab(label, ds_):
-                ds_['dataset'] = label
+            def _lab(base_name, ds_):
+                ds_['dataset'] = self.get_base_name_labels().get(
+                    base_name, base_name
+                )
                 return ds_
+
             dss = [
-                _lab(name, input.open()) for (name, input) in inputs.items()
+                _lab(base_name, input.open())
+                for (base_name, input) 
+                in inputs.items()
             ]
             ds = xr.concat(dss, dim='dataset')
 
-            g = plot_types.multi_jointplot(x=self.x, y=self.y, z='dataset', ds=ds, **kws)
+            g = plot_types.multi_jointplot(x=self.x, y=self.y, z='dataset',
+                                           ds=ds, lgd_ncols=2, **kws)
+            s_title = self.get_suptitle()
+            if s_title is not None:
+                plt.suptitle(s_title, y=1.1)
             ax = g.ax_joint
-            s_filters = objects.filter.latex_format(self.object_filters)
-            plt.suptitle("{}\n{}".format(self.base_names,s_filters), y=1.1)
             if self.plot_aspect is not None:
                 raise Exception("Can't set aspect ratio on jointplot, set limits instead")
         elif self.plot_type in ['scatter', 'scatter_hist']:
@@ -1148,6 +1205,8 @@ class ObjectScaleVsHeightComposition(luigi.Task):
     filetype = luigi.Parameter(default='png')
     x_max = luigi.FloatParameter(default=None)
 
+    scale_by = luigi.OptionalParameter(default=None)
+
     def requires(self):
         return data.ComputeObjectScaleVsHeightComposition(
             base_name=self.base_name,
@@ -1163,11 +1222,21 @@ class ObjectScaleVsHeightComposition(luigi.Task):
     def run(self):
         ds = self.input().open()
 
-        import ipdb
-        with ipdb.launch_ipdb_on_exception():
-            ax = objects.flux_contribution.plot(
-                ds=ds, x=self.x, v=self.field_name, dx=self.dx
-            )
+        if self.scale_by is not None:
+            scaling_factors = {}
+            if ":" in self.scale_by:
+                raise NotImplementedError
+            else:
+                for dim in ds.dims:
+                    scaling_factors[dim] = float(self.scale_by)
+
+        # import ipdb
+        # with ipdb.launch_ipdb_on_exception():
+        ax = objects.flux_contribution.plot(
+            ds=ds, x=self.x, v=self.field_name, dx=self.dx,
+            mean_profile_components=["full domain", "objects"],
+            # scaling_factors=scaling_factors
+        )
 
         if self.x_max is not None:
             ax.set_xlim(0., self.x_max)

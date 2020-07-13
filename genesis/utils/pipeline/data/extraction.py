@@ -2,20 +2,27 @@ import os
 from pathlib import Path
 import warnings
 import importlib
+import re
 
 import ipdb
 import luigi
 import xarray as xr
 import numpy as np
 
-from ....utils import calc_flux
+from ....utils import calc_flux, find_vertical_grid_spacing, transforms
 from ... import mask_functions
-from .base import get_workdir, XArrayTarget, _get_dataset_meta_info
+from .base import (get_workdir, XArrayTarget, _get_dataset_meta_info,
+                   NumpyDatetimeParameter)
+from ..data_sources.uclales import _fix_time_units as fix_time_units
 
 
 if 'USE_SCHEDULER' in os.environ:
     from dask.distributed import Client
     client = Client(threads_per_worker=1)
+
+REGEX_INSTANTENOUS_BASENAME = re.compile(
+    r"(?P<base_name_2d>.*)\.tn(?P<timestep>\d+)"
+)
 
 COMPOSITE_FIELD_METHODS = dict(
     p_stddivs=(mask_functions.calc_scalar_perturbation_in_std_div, []),
@@ -148,7 +155,20 @@ class ExtractField3D(luigi.Task):
         return t
 
 
-class ExtractCrossSection2D(luigi.Task):
+class XArrayTarget2DCrossSection(XArrayTarget):
+    def open(self, *args, **kwargs):
+        kwargs['decode_times'] = False
+        da = super().open(*args, **kwargs)
+        da['time'], _ = fix_time_units(da['time'])
+
+        # xr.decode_cf only works on datasets
+        ds = xr.decode_cf(da.to_dataset())
+        da = ds[da.name]
+
+        return da
+
+
+class TimeCrossSectionSlices2D(luigi.Task):
     base_name = luigi.Parameter()
     field_name = luigi.Parameter()
 
@@ -163,10 +183,13 @@ class ExtractCrossSection2D(luigi.Task):
         assert p_in.exists()
 
         p_out.parent.mkdir(exist_ok=True, parents=True)
-
         os.symlink(str(p_in.absolute()), str(p_out))
 
     def output(self):
+        if REGEX_INSTANTENOUS_BASENAME.match(self.base_name):
+            raise Exception("Shouldn't pass base_name with timestep suffix"
+                            " (`.tn`) to tracking util")
+
         meta = _get_dataset_meta_info(self.base_name)
 
         fn = self.FN_FORMAT.format(
@@ -176,7 +199,7 @@ class ExtractCrossSection2D(luigi.Task):
 
         p = get_workdir()/self.base_name/"cross_sections"/"runtime_slices"/fn
 
-        return luigi.LocalTarget(str(p))
+        return XArrayTarget2DCrossSection(str(p))
 
     def run(self):
         meta = _get_dataset_meta_info(self.base_name)
@@ -188,3 +211,58 @@ class ExtractCrossSection2D(luigi.Task):
             self._extract_and_symlink_local_file()
         else:
             raise NotImplementedError(fn_out.fn)
+
+
+def remove_gal_transform(da, tref, base_name):
+    gal_transform = {}
+
+    meta = _get_dataset_meta_info(base_name)
+    U_gal = meta.get('U_gal', None)
+    if U_gal is None:
+        raise Exception("To remove the Galilean transformation"
+                        " please define the transform velocity"
+                        " as `U_gal` in datasources.yaml for"
+                        " dataset `{}`".format(base_name))
+
+    kws = dict(U=U_gal, tref=tref, truncate_to_grid=True)
+    if da.time.count() > 1:
+        return da.groupby('time').apply(transforms.offset_gal, **kws)
+    else:
+        return transforms.offset_gal(da=da, **kws)
+
+
+class ExtractCrossSection2D(luigi.Task):
+    base_name = luigi.Parameter()
+    field_name = luigi.Parameter()
+    time = NumpyDatetimeParameter()
+    remove_gal_transform = luigi.BoolParameter(default=False)
+
+    FN_FORMAT = "{exp_name}.out.xy.{field_name}.nc"
+
+    def requires(self):
+        return TimeCrossSectionSlices2D(
+            base_name=self.base_name,
+            field_name=self.field_name,
+        )
+
+    def run(self):
+        da_timedep = self.input().open()
+        da = da_timedep.sel(time=self.time).squeeze()
+
+        if self.remove_gal_transform:
+            tref = da_timedep.isel(time=0).time
+            da = remove_gal_transform(da=da, tref=tref,
+                                      base_name=self.base_name)
+
+
+        Path(self.output().fn).parent.mkdir(exist_ok=True, parents=True)
+        da.to_netcdf(self.output().fn)
+
+    def output(self):
+        fn = "{}.{}_gal_transform.{}.nc".format(
+            self.field_name, 
+            ["with", "without"][self.remove_gal_transform],
+            self.time.isoformat()
+        )
+        p = get_workdir()/self.base_name/"cross_sections"/"runtime_slices"/fn
+        return XArrayTarget(str(p))

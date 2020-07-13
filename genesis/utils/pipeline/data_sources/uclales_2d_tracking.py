@@ -54,7 +54,7 @@ def get_required_fields(tracking_type):
 
 
 def call(data_path, dataset_name, tn_start, tn_end,
-         tracking_type=TrackingType.CLOUD_CORE):
+         tracking_type=TrackingType.CLOUD_CORE, U_offset=None):
     """
     Call the UCLALES cloud tracking library using data in `data_path` with
     `dataset_name` in time-step interval `tn_start`:`tn_end` tracking only the
@@ -70,6 +70,9 @@ def call(data_path, dataset_name, tn_start, tn_end,
         os.chdir(data_path)
         args = [UCLALES_TRACKING_BIN_PATH, dataset_name, str(tn_start),
                 str(tn_end), tracking_type.value]
+
+        if U_offset is not None:
+            args += U_offset
 
         print(data_path)
         print((" ".join(args)))
