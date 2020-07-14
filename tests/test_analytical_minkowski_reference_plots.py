@@ -47,8 +47,9 @@ def test_mink_scales_near_spherical(shape):
     assert np.allclose(V_approx, mink_functionals[0])
     assert np.allclose(A_approx, mink_functionals[1] * 6.0)
 
-    # according to F. Gruy 2017 "Chord Length Distribution"
-    V2_approx = 4.0 * pi * l0 / 3.0
+    # for a sphere kappa1 = kappa2 = 1/r, so the integrated mean curvature is
+    # 4*pi*r
+    V2_approx = 1.0 / (3.0 * pi) * (4.0 * pi * l0)
     assert np.allclose(V2_approx, mink_functionals[2])
     assert mink_functionals[3] == 1
     assert np.allclose(L, W)
@@ -73,8 +74,7 @@ SPHEROID_SOLUTIONS = [
 ]
 
 
-# @pytest.mark.parametrize("shape", ["spheroid", "ellipsoid"])
-@pytest.mark.parametrize("shape", ["spheroid",])
+@pytest.mark.parametrize("shape", ["spheroid", "ellipsoid"])
 @pytest.mark.parametrize("solution", SPHEROID_SOLUTIONS)
 def test_mink_spheroid_solutions(shape, solution):
     kwargs = {}
