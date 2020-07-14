@@ -16,6 +16,7 @@ def plot_reference(
     y_pos=0.6,
     scale=0.4,
     lm_diagram=2.5,
+    include_shape_diagram=True,
     **kwargs
 ):
     try:
@@ -23,57 +24,63 @@ def plot_reference(
     except AttributeError:
         raise NotImplementedError(shape)
 
-    ds = minkowski_analytical.calc_analytical_scales(shape=shape)
-    if lm_range is not None:
-        ds = ds.swap_dims(dict(i="lm")).sel(lm=lm_range).swap_dims(dict(lm="i"))
+    # for the spheroid and cylinder shapes, lambda (lm) is calculated by the
+    # method, whereas it is a parameter for the ellipsoid shape as separate
+    # lines are draw for each value of lambda for the ellipsoid shape
 
-    F = ds.filamentarity
-    P = ds.planarity
+    for alpha in alpha_:
+        ds = minkowski_analytical.calc_analytical_scales(shape=shape)
+        if lm_range is not None:
+            ds = ds.swap_dims(dict(i="lm")).sel(lm=lm_range).swap_dims(dict(lm="i"))
 
-    (line,) = ax.plot(P, F, linestyle=linestyle, label="spheroid", **kwargs)
+        F = ds.filamentarity
+        P = ds.planarity
 
-    if not "color" in kwargs:
-        kwargs["color"] = line.get_color()
+        (line,) = ax.plot(P, F, linestyle=linestyle, label=shape, **kwargs)
 
-    for i in ds.i.values:
-        ds_ = ds.sel(i=i)
-        x_, y_ = ds_.planarity, ds_.filamentarity
-        lm = ds_.lm.values
+        if "color" not in kwargs:
+            kwargs["color"] = line.get_color()
 
-        lm_max = int(ds.lm.values.max())
+        for i in ds.i.values:
+            ds_ = ds.sel(i=i)
+            x_, y_ = ds_.planarity, ds_.filamentarity
+            lm = ds_.lm.values
 
-        if int(lm) == lm or int(1.0 / lm) == 1.0 / lm:
-            ax.plot(x_, y_, marker=marker, label="", **kwargs)
-            if lm >= 1:
-                s = "{:.0f}".format(lm)
-                dx, dy = -4, 0
-                ha = "right"
-            else:
-                s = "1/{:.0f}".format(1.0 / lm)
-                dx, dy = 0, -14
-                ha = "center"
-            if lm == lm_max:
-                s = r"$\lambda=$" + s
-            ax.annotate(
-                s,
-                (x_, y_),
-                color=line.get_color(),
-                xytext=(dx, dy),
-                textcoords="offset points",
-                ha=ha,
-            )
+            lm_max = int(ds.lm.values.max())
 
-    l = scale / 2.0
+            if int(lm) == lm or int(1.0 / lm) == 1.0 / lm:
+                ax.plot(x_, y_, marker=marker, label="", **kwargs)
+                if lm >= 1:
+                    s = "{:.0f}".format(lm)
+                    dx, dy = -4, 0
+                    ha = "right"
+                else:
+                    s = "1/{:.0f}".format(1.0 / lm)
+                    dx, dy = 0, -14
+                    ha = "center"
+                if lm == lm_max:
+                    s = r"$\lambda=$" + s
+                ax.annotate(
+                    s,
+                    (x_, y_),
+                    color=line.get_color(),
+                    xytext=(dx, dy),
+                    textcoords="offset points",
+                    ha=ha,
+                )
 
-    fn(
-        ax,
-        x_pos,
-        y_pos,
-        l=l,
-        r=l / lm_diagram,
-        color=line.get_color(),
-        h_label=r"$\lambda r$",
-    )
+    if include_shape_diagram:
+        l = scale / 2.0
+
+        fn(
+            ax,
+            x_pos,
+            y_pos,
+            l=l,
+            r=l / lm_diagram,
+            color=line.get_color(),
+            h_label=r"$\lambda r$",
+        )
 
     xlabel = ax.get_xlabel()
     if xlabel:

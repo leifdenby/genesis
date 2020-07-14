@@ -4,11 +4,11 @@ from scipy.special import ellipkinc, ellipeinc
 
 
 @np.vectorize
-def spheroid_minkowski_functionals(a, b, c):
-    """https://arxiv.org/abs/1104.5145
+def calc_minkowski_functionals(a, b, c):
+    """
+    https://arxiv.org/abs/1104.5145
     """
     a, b, c = np.sort([a, b, c])[::-1]
-    print(a, b, c)
 
     V0 = 4.0 * pi / 3.0 * a * b * c
 
@@ -37,11 +37,12 @@ def spheroid_minkowski_functionals(a, b, c):
     phi = arccos(c / a)
     temp = ellipeinc(phi, m) * sin(phi) ** 2 + ellipkinc(phi, m) * cos(phi) ** 2
     S = 2 * pi * (c ** 2 + a * b * temp / sin(phi))
-    V1 = S
+    V1 = S / 6.0
 
     # mean curvature, eqn. 15 in Poelaert et al 2011
     H = a * c / b
-    V2 = H ** 4.0 / (a ** 2.0 * b ** 2.0 * c ** 2.0)
+    C = H ** 4.0 / (a ** 2.0 * b ** 2.0 * c ** 2.0)
+    V2 = C / (6*pi)
 
     # no holes,
     V3 = 1.0

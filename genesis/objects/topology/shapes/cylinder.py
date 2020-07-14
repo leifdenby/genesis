@@ -3,7 +3,7 @@ import numpy as np
 
 
 @np.vectorize
-def calc_minkowski_scales(h, r):
+def calc_minkowski_functionals(h, r):
     # h = lm*r
     # => lm = h/r
     lm = h / r
