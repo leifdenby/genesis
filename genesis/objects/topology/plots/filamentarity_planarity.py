@@ -3,7 +3,6 @@ from genesis.objects.topology import minkowski_analytical
 from genesis.utils.plot_types import multi_jointplot
 
 import seaborn as sns
-import numpy as np
 
 
 def plot_reference(
@@ -28,55 +27,54 @@ def plot_reference(
     # method, whereas it is a parameter for the ellipsoid shape as separate
     # lines are draw for each value of lambda for the ellipsoid shape
 
-    for alpha in alpha_:
-        ds = minkowski_analytical.calc_analytical_scales(shape=shape)
-        if lm_range is not None:
-            ds = ds.swap_dims(dict(i="lm")).sel(lm=lm_range).swap_dims(dict(lm="i"))
+    ds = minkowski_analytical.calc_analytical_scales(shape=shape)
+    if lm_range is not None:
+        ds = ds.swap_dims(dict(i="lm")).sel(lm=lm_range).swap_dims(dict(lm="i"))
 
-        F = ds.filamentarity
-        P = ds.planarity
+    F = ds.filamentarity
+    P = ds.planarity
 
-        (line,) = ax.plot(P, F, linestyle=linestyle, label=shape, **kwargs)
+    (line,) = ax.plot(P, F, linestyle=linestyle, label=shape, **kwargs)
 
-        if "color" not in kwargs:
-            kwargs["color"] = line.get_color()
+    if "color" not in kwargs:
+        kwargs["color"] = line.get_color()
 
-        for i in ds.i.values:
-            ds_ = ds.sel(i=i)
-            x_, y_ = ds_.planarity, ds_.filamentarity
-            lm = ds_.lm.values
+    for i in ds.i.values:
+        ds_ = ds.sel(i=i)
+        x_, y_ = ds_.planarity, ds_.filamentarity
+        lm = ds_.lm.values
 
-            lm_max = int(ds.lm.values.max())
+        lm_max = int(ds.lm.values.max())
 
-            if int(lm) == lm or int(1.0 / lm) == 1.0 / lm:
-                ax.plot(x_, y_, marker=marker, label="", **kwargs)
-                if lm >= 1:
-                    s = "{:.0f}".format(lm)
-                    dx, dy = -4, 0
-                    ha = "right"
-                else:
-                    s = "1/{:.0f}".format(1.0 / lm)
-                    dx, dy = 0, -14
-                    ha = "center"
-                if lm == lm_max:
-                    s = r"$\lambda=$" + s
-                ax.annotate(
-                    s,
-                    (x_, y_),
-                    color=line.get_color(),
-                    xytext=(dx, dy),
-                    textcoords="offset points",
-                    ha=ha,
-                )
+        if int(lm) == lm or int(1.0 / lm) == 1.0 / lm:
+            ax.plot(x_, y_, marker=marker, label="", **kwargs)
+            if lm >= 1:
+                s = "{:.0f}".format(lm)
+                dx, dy = -4, 0
+                ha = "right"
+            else:
+                s = "1/{:.0f}".format(1.0 / lm)
+                dx, dy = 0, -14
+                ha = "center"
+            if lm == lm_max:
+                s = r"$\lambda=$" + s
+            ax.annotate(
+                s,
+                (x_, y_),
+                color=line.get_color(),
+                xytext=(dx, dy),
+                textcoords="offset points",
+                ha=ha,
+            )
 
     if include_shape_diagram:
-        l = scale / 2.0
+        l = scale / 2.0  # noqa
 
         fn(
             ax,
             x_pos,
             y_pos,
-            l=l,
+            l=l,  # noqa
             r=l / lm_diagram,
             color=line.get_color(),
             h_label=r"$\lambda r$",
@@ -127,7 +125,7 @@ def fp_plot(ds, lm_range=None):
 def main(ds, auto_scale=True):
     """
     Create a filamentarity-planarity joint plot using the `dataset` attribute
-    of `ds` for the hue 
+    of `ds` for the hue
     """
     x = "planarity"
     y = "filamentarity"
@@ -135,10 +133,7 @@ def main(ds, auto_scale=True):
     assert x in ds
     assert y in ds
 
-    xlim = np.array([ds[x].min(), ds[x].max()])
-    ylim = np.array([ds[y].min(), ds[y].max()])
-
-    if not "dataset" in ds:
+    if "dataset" not in ds:
         g = fp_plot(ds)
     else:
 
