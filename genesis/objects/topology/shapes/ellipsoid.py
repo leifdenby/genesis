@@ -3,6 +3,8 @@ from scipy.constants import pi
 from scipy.special import ellipkinc, ellipeinc
 from scipy import integrate
 
+import math
+
 
 @np.vectorize
 def calc_minkowski_functionals(a, b, c):
@@ -34,58 +36,101 @@ def calc_minkowski_functionals(a, b, c):
     arccos = np.arccos
     sin = np.sin
     cos = np.cos
-    sqrt = np.sqrt
 
     phi = arccos(c / a)
     temp = ellipeinc(phi, m) * sin(phi) ** 2 + ellipkinc(phi, m) * cos(phi) ** 2
     S = 2 * pi * (c ** 2 + a * b * temp / sin(phi))
     V1 = S / 6.0
 
-    # I couldn't find an integral expression for the mean curvature so we will
-    # do a numerical integral here
-
-    # Poelaert eqn 2
-    def R(phi, theta):
-        return sqrt(
-            a ** 2.0 * cos(theta) ** 2.0
-            + b ** 2.0 * sin(theta) ** 2.0 * cos(phi) ** 2.0
-            + c ** 2.0 * sin(theta) ** 2.0 * sin(phi) ** 2.0
-        )
-
-    # Poelaert eqn 3
-    def H(phi, theta):
-        return (a * b * c) / sqrt(
-            b ** 2.0 * c ** 2.0 * cos(theta) ** 2.0
-            + c ** 2.0 * a ** 2.0 * sin(theta) ** 2.0 * cos(phi) ** 2.0
-            + a ** 2.0 * b ** 2.0 * sin(theta) ** 2.0 * sin(phi) ** 2.0
-        )
-
-    def integral(phi, theta):
-        # area element from Poelaert eqn 5, cancels with terms in mean
-        # curvature equation 15, cancelling terms to reduce computation
-        #
-        # dS = sin(theta)*sqrt(
-        #     (b*c)**2.0*cos(theta)**2.
-        #     + (a*c)**2.0*sin(theta)**2.*cos(phi)**2.
-        #     + (a*b)**2.0*sin(theta)**2.*sin(phi)**2.
-        # )
-
-        return (
-            0.5
-            * H(theta=theta, phi=phi) ** 2.0
-            * (
-                (a ** 2.0 + b ** 2.0 + c ** 2.0 - R(theta=theta, phi=phi) ** 2.0)
-                / (a * b * c)
-            )
-            * sin(theta)
-        )
-
-    #        integrate.dblquad(f(y, x) , x0, x1, lambda x: y0, lambda x: y1)
-    #        integrate.dblquad(f(phi, theta), theta0, theta1, lambda theta: phi0, lambda theta: phi1)
-    mc_int = integrate.dblquad(integral, 0.0, pi, lambda x: 0.0, lambda x: 2.0 * pi)[0]
-    V2 = mc_int / (3.0 * pi)
+    V2 = _calc_mean_curvature_integral(a=a, b=b, c=c) / (3.0 * pi)
 
     # no holes,
     V3 = 1.0
 
     return V0, V1, V2, V3
+
+
+try:
+    from numba import njit
+
+    cos = math.cos
+    sin = math.sin
+
+    @njit
+    def _integral(phi, theta, a, b, c):
+        cos_t = cos(theta)
+        sin_t = sin(theta)
+        cos_p = cos(phi)
+        sin_p = sin(phi)
+
+        Rsq = (
+            a * a * cos_t * cos_t
+            + b * b * sin_t * sin_t * cos_p * cos_p
+            + c * c * sin_t * sin_t * sin_p * sin_p
+        )
+        Hsq_less_abc = (a * b * c) / (
+            b * b * c * c * cos_t * cos_t
+            + c * c * a * a * sin_t * sin_t * cos_p * cos_p
+            + a * a * b * b * sin_t * sin_t * sin_p * sin_p
+        )
+
+        return 0.5 * Hsq_less_abc * ((a * a + b * b + c * c - Rsq)) * sin_t
+
+    def _calc_mean_curvature_integral(a, b, c):
+        return integrate.dblquad(
+            _integral, 0.0, pi, lambda x: 0.0, lambda x: 2.0 * pi, args=(a, b, c)
+        )[0]
+
+
+except ImportError:
+    import warnings
+    warnings.warn("numba not available to using slow fall-back for ellipsoid mean curvature calculation")
+
+    def _calc_mean_curvature_integral(a, b, c):
+        # I couldn't find an integral expression for the mean curvature so we will
+        # do a numerical integral here
+        sin = np.sin
+        cos = np.cos
+        sqrt = np.sqrt
+
+        # Poelaert eqn 2
+        def R(phi, theta):
+            return sqrt(
+                a ** 2.0 * cos(theta) ** 2.0
+                + b ** 2.0 * sin(theta) ** 2.0 * cos(phi) ** 2.0
+                + c ** 2.0 * sin(theta) ** 2.0 * sin(phi) ** 2.0
+            )
+
+        # Poelaert eqn 3
+        def H(phi, theta):
+            return (a * b * c) / sqrt(
+                b ** 2.0 * c ** 2.0 * cos(theta) ** 2.0
+                + c ** 2.0 * a ** 2.0 * sin(theta) ** 2.0 * cos(phi) ** 2.0
+                + a ** 2.0 * b ** 2.0 * sin(theta) ** 2.0 * sin(phi) ** 2.0
+            )
+
+        def integral(phi, theta):
+            # area element from Poelaert eqn 5, cancels with terms in mean
+            # curvature equation 15, cancelling terms to reduce computation
+            #
+            # dS = sin(theta)*sqrt(
+            #     (b*c)**2.0*cos(theta)**2.
+            #     + (a*c)**2.0*sin(theta)**2.*cos(phi)**2.
+            #     + (a*b)**2.0*sin(theta)**2.*sin(phi)**2.
+            # )
+
+            return (
+                0.5
+                * H(theta=theta, phi=phi) ** 2.0
+                * (
+                    (a ** 2.0 + b ** 2.0 + c ** 2.0 - R(theta=theta, phi=phi) ** 2.0)
+                    / (a * b * c)
+                )
+                * sin(theta)
+            )
+
+        #        integrate.dblquad(f(y, x) , x0, x1, lambda x: y0, lambda x: y1)
+        #        integrate.dblquad(f(phi, theta), theta0, theta1, lambda theta: phi0, lambda theta: phi1)
+        return integrate.dblquad(integral, 0.0, pi, lambda x: 0.0, lambda x: 2.0 * pi)[
+            0
+        ]
