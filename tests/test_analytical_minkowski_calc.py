@@ -13,6 +13,9 @@ def test_reference_scales_calc(shape):
         kwargs["lm"] = 0.5
     ds_scales = minkowski_analytical.calc_analytical_scales(shape=shape, **kwargs)
 
+    # all the example shapes shown should have the same volume
+    assert np.allclose(ds_scales.v0.max(), ds_scales.v0.min())
+
     assert "filamentarity" in ds_scales.data_vars
 
 

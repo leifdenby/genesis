@@ -9,6 +9,8 @@ def calc_minkowski_functionals(a, c):
     Schmalzing et al 1999 (https://arxiv.org/abs/astro-ph/9904384v2)
 
     NOTE: the expression for V1 is missing a factor of lambda
+
+    Spheroid with two axis length a=r and one with length c=lambda*r
     """
     # c = lm*r
     # a = r

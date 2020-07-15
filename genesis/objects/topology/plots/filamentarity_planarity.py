@@ -3,6 +3,7 @@ from genesis.objects.topology import minkowski_analytical
 from genesis.utils.plot_types import multi_jointplot
 
 import seaborn as sns
+import numpy as np
 
 
 def plot_reference(
@@ -16,6 +17,7 @@ def plot_reference(
     scale=0.4,
     lm_diagram=2.5,
     include_shape_diagram=True,
+    calc_kwargs={},
     **kwargs
 ):
     try:
@@ -27,7 +29,7 @@ def plot_reference(
     # method, whereas it is a parameter for the ellipsoid shape as separate
     # lines are draw for each value of lambda for the ellipsoid shape
 
-    ds = minkowski_analytical.calc_analytical_scales(shape=shape)
+    ds = minkowski_analytical.calc_analytical_scales(shape=shape, **calc_kwargs)
     if lm_range is not None:
         ds = ds.swap_dims(dict(i="lm")).sel(lm=lm_range).swap_dims(dict(lm="i"))
 
@@ -39,33 +41,41 @@ def plot_reference(
     if "color" not in kwargs:
         kwargs["color"] = line.get_color()
 
-    for i in ds.i.values:
-        ds_ = ds.sel(i=i)
+    # calculate the lambda values to highlight
+    def _find_fractions_of_two(v):
+        return 2.**np.array(list(set(np.log2(v).astype(int))))
+
+    def _find_integer_values(v):
+        return np.array(list(set(v))).astype(int)
+
+    lm_ = _find_integer_values(ds.lm.values)
+    lm_ = _find_fractions_of_two(ds.lm.values)
+
+    for lm_pt in lm_:
+        ds_ = ds.swap_dims(dict(i="lm")).sel(lm=lm_pt, method='nearest')
         x_, y_ = ds_.planarity, ds_.filamentarity
-        lm = ds_.lm.values
 
         lm_max = int(ds.lm.values.max())
 
-        if int(lm) == lm or int(1.0 / lm) == 1.0 / lm:
-            ax.plot(x_, y_, marker=marker, label="", **kwargs)
-            if lm >= 1:
-                s = "{:.0f}".format(lm)
-                dx, dy = -4, 0
-                ha = "right"
-            else:
-                s = "1/{:.0f}".format(1.0 / lm)
-                dx, dy = 0, -14
-                ha = "center"
-            if lm == lm_max:
-                s = r"$\lambda=$" + s
-            ax.annotate(
-                s,
-                (x_, y_),
-                color=line.get_color(),
-                xytext=(dx, dy),
-                textcoords="offset points",
-                ha=ha,
-            )
+        ax.plot(x_, y_, marker=marker, label="", **kwargs)
+        if lm_pt >= 1:
+            s = "{:.0f}".format(lm_pt)
+            dx, dy = -4, 0
+            ha = "right"
+        else:
+            s = "1/{:.0f}".format(1.0 / lm_pt)
+            dx, dy = 0, -14
+            ha = "center"
+        if lm_pt == lm_max:
+            s = r"$\lambda=$" + s
+        ax.annotate(
+            s,
+            (x_, y_),
+            color=kwargs["color"],
+            xytext=(dx, dy),
+            textcoords="offset points",
+            ha=ha,
+        )
 
     if include_shape_diagram:
         l = scale / 2.0  # noqa
