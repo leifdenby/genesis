@@ -74,6 +74,13 @@ def spheroid(ax, x_c, y_c, l, r, color, r_label="r", h_label="h", render_back=Tr
     ln_kwargs = dict(transform=ax.transAxes, color=color,)
 
     w = 2 * r
+
+    # add background white oval incase there are some lines behind
+    b_pad = 0.05
+    bckgrnd_patch = Ellipse((x_c, y_c), w + b_pad, l * 2 + b_pad, facecolor='white', transform=ax.transAxes, alpha=0.9)
+    ax.add_patch(bckgrnd_patch)
+    print("hello")
+
     w_yz = w / 3.0
     # yz-plane arc
     if render_back:

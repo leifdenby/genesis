@@ -60,8 +60,17 @@ def _calc_ellipsoid_scales(lm, r0=300.0, N_points=100):
       a = r0**3/(b*c)
     """
     # c = lm*r0
-    r1 = r0*(1.0/lm)**(1./3.)
-    b = np.linspace(r1, r1 * lm, N_points)
+    r1 = r0 * (1.0 / lm)**(1. / 3.)
+
+    # make a non-linear spacing for the points, we need more a lower radius
+    # values, so instead of
+    #   b = np.linspace(r1, r1 * lm, N_points)
+    # we use the expression below
+    def scaling_fn(x):
+        c = 5.0
+        return (np.exp(x * c) - 1.0) / (np.exp(c) - 1.0)
+    b = r1 + (r1*lm - r1) * scaling_fn(np.linspace(0., 1.0, N_points))
+
     c = lm * r1
     a = r0**3.0 / (b * c)
 

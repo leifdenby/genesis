@@ -20,14 +20,17 @@ def plot_reference(
     calc_kwargs={},
     **kwargs
 ):
+    # the ellipsoid lines are plotted using the spheroid lambda values and so
+    # we show the spheroid lines too
+    plot_ellipsoid_lines = False
+    if shape == 'ellipsoid':
+        shape = 'spheroid'
+        plot_ellipsoid_lines = True
+
     try:
         fn = getattr(plot_shapes, shape)
     except AttributeError:
         raise NotImplementedError(shape)
-
-    # for the spheroid and cylinder shapes, lambda (lm) is calculated by the
-    # method, whereas it is a parameter for the ellipsoid shape as separate
-    # lines are draw for each value of lambda for the ellipsoid shape
 
     ds = minkowski_analytical.calc_analytical_scales(shape=shape, **calc_kwargs)
     if lm_range is not None:
@@ -46,9 +49,8 @@ def plot_reference(
         return 2.**np.array(list(set(np.log2(v).astype(int))))
 
     def _find_integer_values(v):
-        return np.array(list(set(v))).astype(int)
+        return np.sort(np.array(list(set(v.astype(int)))))
 
-    lm_ = _find_integer_values(ds.lm.values)
     lm_ = _find_fractions_of_two(ds.lm.values)
 
     for lm_pt in lm_:
@@ -76,6 +78,31 @@ def plot_reference(
             textcoords="offset points",
             ha=ha,
         )
+
+    N_points_calc = calc_kwargs.get('N_points', 100)
+    if plot_ellipsoid_lines:
+        for lm_pt in lm_[lm_ > 1.0]:
+            calc_kwargs['N_points'] = int(N_points_calc/5 * int(lm_pt**0.4))
+            kwargs['linestyle'] = ":"
+            ds_ellip = minkowski_analytical.calc_analytical_scales(shape="ellipsoid", lm=lm_pt, **calc_kwargs)
+            ax.plot(ds_ellip.planarity, ds_ellip.filamentarity, zorder=0.9, **kwargs)
+
+            alpha = _find_integer_values(ds_ellip.alpha.values)
+            for n, a_ in enumerate(alpha[alpha > 1.0]):
+                ds_ = ds_ellip.swap_dims(dict(i="alpha")).sel(alpha=a_, method='nearest')
+                ax.plot(ds_.planarity, ds_.filamentarity, marker='.', zorder=0.9, **kwargs)
+
+                if n > 3:
+                    break
+                if lm_pt == lm_[lm_ > 1.0][-1]:
+                    ax.annotate(
+                        fr"$\alpha={int(a_)}$",
+                        (ds_.planarity, ds_.filamentarity),
+                        color=kwargs["color"], zorder=1.0,
+                        xytext=(0, 5),
+                        textcoords="offset points",
+                        horizontalalignment="center",
+                    )
 
     if include_shape_diagram:
         l = scale / 2.0  # noqa
