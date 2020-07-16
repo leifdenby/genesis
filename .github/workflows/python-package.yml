@@ -32,6 +32,7 @@ jobs:
     - name: Install dependencies
       run: |
         conda env create -n genesis -f environment.yml
+        conda init bash
         conda activate genesis
         pip install flake8 pytest
     - name: Lint with flake8
