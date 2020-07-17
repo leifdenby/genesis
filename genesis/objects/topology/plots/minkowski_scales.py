@@ -1,10 +1,10 @@
-
 # coding: utf-8
 
 # In[1]:
 
 if __name__ == "__main__":
     import matplotlib
+
     matplotlib.use("Agg")
 
 
@@ -15,14 +15,15 @@ import math
 
 from genesis.objects import get_data
 
-def main(ds, min_thickness=None, as_pairgrid=False, exclude_thin=False,
-         sharex=False):
+
+def main(ds, min_thickness=None, as_pairgrid=False, exclude_thin=False, sharex=False):
     N_objects_orig = int(ds.object_id.count())
-    ds = ds.dropna('object_id')
+    ds = ds.dropna("object_id")
     N_objects_nonan = int(ds.object_id.count())
-    print("{} objects out of {} remain after ones with nan for length, width"
-          " or thickness have been remove".format(N_objects_nonan,
-          N_objects_orig))
+    print(
+        "{} objects out of {} remain after ones with nan for length, width"
+        " or thickness have been remove".format(N_objects_nonan, N_objects_orig)
+    )
 
     if min_thickness:
         hue_label = "thickness > {}m".format(min_thickness)
@@ -33,9 +34,10 @@ def main(ds, min_thickness=None, as_pairgrid=False, exclude_thin=False,
     else:
         hue_label = None
 
-
     if as_pairgrid:
-        g = sns.pairplot(ds.to_dataframe(), vars=["length", "width", "thickness"], hue=hue_label)
+        g = sns.pairplot(
+            ds.to_dataframe(), vars=["length", "width", "thickness"], hue=hue_label
+        )
     else:
         fig, axes = plt.subplots(ncols=3, figsize=(12, 4))
 
@@ -55,17 +57,18 @@ def main(ds, min_thickness=None, as_pairgrid=False, exclude_thin=False,
     if sharex:
         [ax.set_xlim(0, ds.length.max()) for ax in g.axes.flatten()]
 
+
 if __name__ == "__main__":
     import argparse
 
     argparser = argparse.ArgumentParser(__doc__)
-    argparser.add_argument('base_name')
-    argparser.add_argument('--objects', default='*')
-    argparser.add_argument('--frac', default=0.9)
-    argparser.add_argument('--min-thickness', default=None, type=float)
-    argparser.add_argument('--exclude-thin', default=False, action="store_true")
-    argparser.add_argument('--sharex', default=False, action="store_true")
-    argparser.add_argument('--as-pairgrid', default=False, action="store_true")
+    argparser.add_argument("base_name")
+    argparser.add_argument("--objects", default="*")
+    argparser.add_argument("--frac", default=0.9)
+    argparser.add_argument("--min-thickness", default=None, type=float)
+    argparser.add_argument("--exclude-thin", default=False, action="store_true")
+    argparser.add_argument("--sharex", default=False, action="store_true")
+    argparser.add_argument("--as-pairgrid", default=False, action="store_true")
 
     args = argparser.parse_args()
 
