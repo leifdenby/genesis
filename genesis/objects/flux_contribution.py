@@ -100,6 +100,8 @@ def plot(ds, x, v, dx, mean_profile_components='all', include_x_mean=True,
     g = PlotGrid(ratio=(2, 5), height=fig_height, width=7, extra_x_marg=True)
     ds_ = ds.groupby_bins(x, bins=bins, labels=bin_centers)
     da_flux_per_bin = ds_.sum(dim='object_id', dtype=np.float64)[bin_var]/(nx*ny)
+    # put in zeroes so that we don't get empty parts of the plots
+    da_flux_per_bin = da_flux_per_bin.fillna(0.0)
     if len(da_flux_per_bin["{}_bins".format(x)]) < 2:
         raise Exception("Please set a smaller bin size on `{x}`, currently"
                         "there's only one bin with the range of values in "
