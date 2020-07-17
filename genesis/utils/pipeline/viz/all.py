@@ -663,8 +663,9 @@ class ObjectScalesComparison(luigi.Task):
         )
         return luigi.LocalTarget(fn)
 
-
 class FilamentarityPlanarityComparison(ObjectScalesComparison):
+    reference_shape = luigi.Parameter(default='spheroid')
+
     def run(self):
         ds = self._load_data()
 
@@ -678,16 +679,19 @@ class FilamentarityPlanarityComparison(ObjectScalesComparison):
 
         import ipdb
         with ipdb.launch_ipdb_on_exception():
-            objects.topology.plots.filamentarity_planarity(ds=ds)
+            g = objects.topology.plots.filamentarity_planarity(ds=ds, reference_shape=self.reference_shape)
 
-        extra_artists = []
+            g.ax_joint.set_ylim(0., 0.95)
+
+        extra_artists = g.fig.get_default_bbox_extra_artists()
         st_str = self.get_suptitle()
         if st_str is not None:
             st = plt.suptitle(st_str, y=[1.05, 1.5][self.not_pairgrid])
             extra_artists.append(st)
 
-        plt.savefig(self.output().fn, bbox_inches='tight',
-                    bbox_extra_artists=extra_artists)
+        # NOTE: using bbox_extra_artists is disabled because that removes the
+        # legend on the joint plot...
+        plt.savefig(self.output().fn, bbox_inches='tight',)
 
     def get_base_name_labels(self):
         return {}

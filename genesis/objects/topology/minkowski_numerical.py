@@ -7,6 +7,7 @@ import os
 import tqdm
 import numpy as np
 import xarray as xr
+import seaborn as sns
 from collections import OrderedDict
 import matplotlib.pyplot as plt
 import scipy.integrate
@@ -189,7 +190,7 @@ def apply_all(ds, fn, dims=None):
         if da is not None:
             for k, v in kwargs.items():
                 da.coords[k] = v
-            da = da.expand_dims(kwargs.keys())
+            da = da.expand_dims(list(kwargs.keys()))
         return da
 
     data = [process(**dict(zip(dims, a))) for a in tqdm.tqdm(args)]
@@ -308,10 +309,10 @@ def example2():
     print("Wrote {}".format(fn))
 
 
-def example3():
+def example3(output_fn, reference_shape='ellipsoid'):
     fig, ax = plt.subplots(figsize=(5, 5))
     ax.set_aspect(1)
-    plot_fp_ref(ax=ax, shape="spheroid", lm_range=slice(1.0 / 4.0, 8))
+    plot_fp_ref(ax=ax, shape=reference_shape, lm_range=slice(1.0 / 4.0, 9), calc_kwargs=dict(N_points=400))
 
     ds_study = xr.Dataset(
         coords=dict(
@@ -354,14 +355,14 @@ def example3():
         # label=r"$l_s$={}".format(format_length(l_shear)),
         # ax=ax)
 
-    plt.xlim(-0.01, 0.25)
-    plt.ylim(-0.01, 0.5)
+    ax.set_xlim(-0.01, 0.25)
+    ax.set_ylim(-0.01, 0.55)
     ax.set_aspect(0.5)
-    fig.legend()
+    sns.despine()
+    ax.legend(loc='upper right')
 
-    fn = "fp-plot-numerical-2.png"
-    fig.savefig(fn, dpi=400)
-    print("Wrote {}".format(fn))
+    fig.savefig(output_fn, dpi=400)
+    print("Wrote {}".format(output_fn))
 
 
 if __name__ == "__main__":

@@ -18,6 +18,7 @@ def plot_reference(
     lm_diagram=2.5,
     include_shape_diagram=True,
     calc_kwargs={},
+    lm_label_sel=lambda lm: lm != 1.0,  # usually outside since lm=1 is at the origin
     **kwargs
 ):
     # the ellipsoid lines are plotted using the spheroid lambda values and so
@@ -33,6 +34,7 @@ def plot_reference(
         raise NotImplementedError(shape)
 
     ds = minkowski_analytical.calc_analytical_scales(shape=shape, **calc_kwargs)
+
     if lm_range is not None:
         ds = ds.swap_dims(dict(i="lm")).sel(lm=lm_range).swap_dims(dict(lm="i"))
 
@@ -68,7 +70,7 @@ def plot_reference(
             s = "1/{:.0f}".format(1.0 / lm_pt)
             dx, dy = 0, -14
             ha = "center"
-        if lm_pt == lm_max:
+        if lm_label_sel(lm_pt):
             s = r"$\lambda=$" + s
         ax.annotate(
             s,
@@ -94,7 +96,7 @@ def plot_reference(
 
                 if n > 3:
                     break
-                if lm_pt == lm_[lm_ > 1.0][-1]:
+                if lm_pt == lm_[lm_ >= 1.0][-1]:
                     ax.annotate(
                         fr"$\alpha={int(a_)}$",
                         (ds_.planarity, ds_.filamentarity),
@@ -132,8 +134,8 @@ def plot_reference(
         ax.set_ylabel("filamentarity")
 
 
-def fp_plot(ds, lm_range=None):
-    g = sns.jointplot("planarity", "filamentarity", data=ds, stat_func=None, marker=".")
+def fp_plot(ds, lm_range=None, reference_shape='spheroid'):
+    g = sns.jointplot('planarity', 'filamentarity', data=ds, stat_func=None, marker='.')
 
     g.plot_joint(sns.kdeplot, cmap="Blues", zorder=0)
     ax = g.ax_joint
@@ -146,20 +148,15 @@ def fp_plot(ds, lm_range=None):
         bbox=dict(facecolor="white", alpha=0.8, edgecolor="none"),
     )
     plot_reference(
-        ax=ax,
-        shape="spheroid",
-        lm_range=lm_range,
-        color="red",
-        linestyle="--",
-        marker=".",
-        x_pos=0.9,
+        ax=ax, shape=reference_shape, lm_range=lm_range, color='red', linestyle='--',
+        marker='.', x_pos=0.9
     )
     ax.set_ylim(-0.01, ds.filamentarity.max())
     ax.set_xlim(-0.01, ds.planarity.max())
     return g
 
 
-def main(ds, auto_scale=True):
+def main(ds, auto_scale=True, reference_shape='spheroid'):
     """
     Create a filamentarity-planarity joint plot using the `dataset` attribute
     of `ds` for the hue
@@ -175,7 +172,7 @@ def main(ds, auto_scale=True):
     else:
 
         g = multi_jointplot(
-            x="planarity", y="filamentarity", z="dataset", ds=ds, joint_type="kde"
+            x="planarity", y="filamentarity", z="dataset", ds=ds, joint_type="kde",
         )
 
         LABEL_FORMAT = "{name}: {count} objects"
@@ -194,8 +191,11 @@ def main(ds, auto_scale=True):
             ncol=2,
         )
 
-        plot_reference(ax=g.ax_joint, shape="spheroid", color="black")
+        plot_reference(ax=g.ax_joint, shape=reference_shape, color="black",
+                       lm_label_sel=lambda lm: lm > 2.0,)
 
     if auto_scale:
         g.ax_joint.set_xlim(-0.0, 0.45)
         g.ax_joint.set_ylim(-0.0, 0.9)
+
+    return g
