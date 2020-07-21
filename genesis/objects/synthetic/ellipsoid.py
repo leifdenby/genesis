@@ -109,8 +109,7 @@ def find_ellipsoid_scales(da_mask):
     return la, v, (a, b, c), np.array([np.rad2deg(calc_angles(v[n]))
                                        for n in range(3)])
 
-
-def test_plot_shape_mask():
+def _make_test_grid():
     lx, ly, lz = 100, 100, 100
 
     x_ = np.arange(-lx/2, lx/2, 1)
@@ -120,6 +119,16 @@ def test_plot_shape_mask():
     ds = xr.Dataset(coords=dict(x=x_, y=y_, z=z_))
 
     ds['x_3d'], ds['y_3d'], ds['z_3d'] = xr.broadcast(ds.x, ds.y, ds.z)
+    ds.atrs['lx'] = lx
+    ds.atrs['ly'] = ly
+    ds.atrs['lz'] = lz
+
+    return ds
+
+def test_plot_shape_mask():
+    ds = _make_test_grid()
+    lx = ds.lx
+    ly = ds.ly
 
     a, b = lx/4., lx/2.
     ds['mask'] = ds.x**2./a**2. + ds.y**2./b**2. + ds.z**2. <  1.0
@@ -135,6 +144,10 @@ def test_plot_shape_mask():
 
 
 def test_make_ellipsoid_mask():
+    ds = _make_test_grid()
+    lx = ds.lx
+    ly = ds.ly
+
     a = lx/4.
     b = lx/2.
     c = a

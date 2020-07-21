@@ -1379,7 +1379,7 @@ class FluxFractionCarried(luigi.Task):
         )
         suptitle = self.get_suptitle()
         if suptitle:
-            plt.suptitle(get_suptitle(), y=1.1)
+            plt.suptitle(self.get_suptitle(), y=1.1)
         fig.savefig(output_fn, bbox_inches='tight')
 
     def output(self):

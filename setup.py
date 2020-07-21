@@ -6,7 +6,7 @@ exec(open('genesis/version.py').read())
 setup(
     name='genesis',
     packages=find_packages(exclude=['contrib', 'tests', 'docs']),
-    version=__version__,
+    version=__version__,  # noqa
     description='GENESIS toolkit for analysing coherent structures in atmospheric flows',
     author='Leif Denby',
     author_email='leifdenby@gmail.com',

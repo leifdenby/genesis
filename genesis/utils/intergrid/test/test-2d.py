@@ -1,7 +1,7 @@
 # test-2d.py: interpolate data on a productgrid x, y -> another productgrid xnew, ynew
 # 2013-12-04 dec
 
-from __future__ import division
+
 import sys
 import numpy as np
 from scipy import __version__
@@ -37,13 +37,13 @@ exec( "\n".join( sys.argv[1:] ))
 np.set_printoptions( 1, threshold=100, edgeitems=10, suppress=True )
 np.random.seed(seed)
 
-print "versions: numpy %s  scipy %s  python %s  maxint %x" % (
-    np.__version__, __version__, sys.version.split()[0], sys.maxint )
+print("versions: numpy %s  scipy %s  python %s  maxint %x" % (
+    np.__version__, __version__, sys.version.split()[0], sys.maxsize ))
 
 title = "intergrid:  Nx %d Ny %d  Nxnew %d Nynew %d  ncycle %d " % (
     Nx, Ny, Nxnew, Nynew, ncycle )
-print 80 * "-"
-print title
+print(80 * "-")
+print(title)
 
     # data grid: a random box grid (error >> smoothly varying) --
 x = np.sort( np.r_[ 0, np.random.random( Nx - 2 ), 1 ])
@@ -63,7 +63,7 @@ def func( X ):  # ncycle
     # exact func on new grid, to compare with interpolated --
 func_exact = func_at( func, newgrid ) .reshape(Nxnew, Nynew)
 func0 = func_exact[:20,0]
-print "func[:20,0]", func0 .round().astype(int), "\n"
+print("func[:20,0]", func0 .round().astype(int), "\n")
 
 #...............................................................................
 Data = func_at( func, datagrid ).astype(np.float32)  # 1d, Nx * Ny
@@ -77,8 +77,8 @@ interfunc = intergrid.Intergrid(
 interpolateddata = interfunc( newgrid ) .reshape(Nxnew, Nynew)
 
 diff = interpolateddata - func_exact
-print "order %d  prefilter %.2g  %s  |f - intergrid|: %s \n" % (
-    order, prefilter, interpolateddata.dtype, avmax( np.fabs(diff) ))
+print("order %d  prefilter %.2g  %s  |f - intergrid|: %s \n" % (
+    order, prefilter, interpolateddata.dtype, avmax( np.fabs(diff) )))
 
 if plot:
     import pylab as pl

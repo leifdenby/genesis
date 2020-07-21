@@ -1,7 +1,7 @@
 # interpol/test/test-4d.py 11mar
 # http://stackoverflow.com/questions/14119892/python-4d-linear-interpolation-on-a-rectangular-grid
 
-from __future__ import division
+
 import sys
 import numpy as np
 import scipy
@@ -9,8 +9,8 @@ import scipy
 from intergrid import Intergrid
 import util as ut
 
-print "versions: numpy %s  scipy %s  python %s" % (
-    np.__version__, scipy.__version__, sys.version.split()[0] )
+print("versions: numpy %s  scipy %s  python %s" % (
+    np.__version__, scipy.__version__, sys.version.split()[0] ))
 
 dim = 5  # > 4: add shape 1
 scale = 3  # 361 * 720 * 47 * 8 = 98M  / scale^3
@@ -40,8 +40,8 @@ hi = np.r_[ lats[-1], lons[-1], alts[-1], times[-1], (dim - 4) * [1] ]
 griddata = np.arange( ngrid, dtype=dtype ).reshape(shape)
     # order=1 must be exact for linear
 query_points = lo + np.random.uniform( size=(nquery, dim) ).astype(dtype) * (hi - lo)
-print "shape %s  %.2gM * %d  nquery %d" % (
-    shape, ngrid / 1e6, griddata.itemsize, nquery )
+print("shape %s  %.2gM * %d  nquery %d" % (
+    shape, ngrid / 1e6, griddata.itemsize, nquery ))
 
 linmaps = []
 # print "linmaps:"
@@ -60,7 +60,7 @@ for maps in [[], linmaps]:
     # print "intergrid at lo %s: = %.3g" % (lo, intergrid(lo))
     # print "intergrid at hi %s: = %.3g" % (hi, intergrid(hi))
 
-print "|no maps - pwl maps|:" ,
+print("|no maps - pwl maps|:", end=' ')
 ut.avmaxdiff( out[0], out[1], query_points )
 
 # versions: numpy 1.6.2  scipy 0.11.0  python 2.7.3  2.5 GHz iMac

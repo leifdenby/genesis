@@ -321,6 +321,7 @@ class Aggregate2DCrossSectionOnTrackedObjects(luigi.Task):
             hist_range = (v_min - dx*0.5, v_max + dx*0.5)
             nbins = int((hist_range[1] - hist_range[0])/dx)
             v_bins_c = np.linspace(v_min, v_max, nbins)
+            bin_var = da_values.name
 
             # get unique object labels
             fn_unique_dropna = lambda v: np.unique(v.data[~np.isnan(v.data)])

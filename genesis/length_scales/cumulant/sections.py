@@ -94,7 +94,7 @@ if __name__ == "__main__":
 
     import ipdb
     with ipdb.launch_ipdb_on_exception():
-        main(datasets, var_names)
+        plot(datasets, var_names)
 
     fn = FN_FORMAT_PLOT.format(v1=var_names[0], v2=var_names[1], filetype='pdf')
 

@@ -66,13 +66,14 @@ def get_cloudbase_height(ds_tracking, da_cldbase_2d, t0, t_age_max, dx,
         method=CloudbaseEstimationMethod.DEFAULT
     )
 
-    cldbase = object_set.cloud_data.get('cldbase', tn=tn)
-    m = nrcloud_cloudbase == 0
-    cldbase_heights_2d = cldbase.where(~m)
+    raise NotImplementedError
+    # cldbase = object_set.cloud_data.get('cldbase', tn=tn)
+    # m = nrcloud_cloudbase == 0
+    # cldbase_heights_2d = cldbase.where(~m)
 
-    cldbase_heights_2d.attrs['num_clouds'] = len(object_set)
+    # cldbase_heights_2d.attrs['num_clouds'] = len(object_set)
 
-    return cldbase_heights_2d
+    # return cldbase_heights_2d
 
 
 def extract_from_3d_at_heights_in_2d(da_3d, z_2d):
@@ -84,8 +85,9 @@ def extract_from_3d_at_heights_in_2d(da_3d, z_2d):
     return v.max(dim='zt')
 
 def get_cloudbase_data(cloud_data, v, t0, t_age_max=200., z_base_max=700.):
+    raise NotImplementedError
 
-    v__belowcloud = cloud_data.get_from_3d(var_name=v, z=z_slice, t=t0)
+    # v__belowcloud = cloud_data.get_from_3d(var_name=v, z=z_slice, t=t0)
 
     # dx = cloud_set.cloud_data.dx
     # try:
@@ -93,7 +95,7 @@ def get_cloudbase_data(cloud_data, v, t0, t_age_max=200., z_base_max=700.):
     # except:
         # pass
 
-    return v__belowcloud.where(m, drop=True)
+    # return v__belowcloud.where(m, drop=True)
 
 
 def main(ds_3d, ds_cb=None, normed_levels = [10, 90], ax=None, add_cb_peak_ref_line=False,

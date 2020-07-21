@@ -146,6 +146,7 @@ def _plot_3d_data_indicators(dataset_name):
         x_, y_ = data_3d.time/60./60., np.zeros_like(data_3d.time)
         plot.plot(x_, y_, marker='o', linestyle='', color='red')
 
+        ax = plot.gca()
         for tn_, (x__, y__) in enumerate(zip(x_, y_)):
             ax.annotate(
                 tn_, xy=(x__, y__),

@@ -29,13 +29,13 @@ if __name__ == "__main__":
 
     object_file = args.objects_file.replace('.nc', '')
 
-    if not 'objects' in object_file:
+    if 'objects' not in object_file:
         raise Exception()
 
     base_name, objects_mask = object_file.split('.objects.')
 
     out_filename = FN_FORMAT.format(
-        base_name=base_name, objects_name=object_mask
+        base_name=base_name, objects_name=objects_mask
     )
 
     fn_objects = "{}.nc".format(object_file)

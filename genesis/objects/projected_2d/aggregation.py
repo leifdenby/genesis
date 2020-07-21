@@ -19,29 +19,31 @@ def cloudbase_max_height_by_histogram_peak(object_labels_2d, da_2d, dx):
     class MultilevelCloudbaseException(Exception):
         pass
 
-    z_clb_points = da_cldbase.sel(time=t0).squeeze()
-    nrcloud = da_nrcloud.sel(time=t0).squeeze().astype(int)
+    raise NotImplementedError
 
-    z_min = z_clb_points.min().item()
-    z_max = z_clb_points.max().item()
-    hist_range = (z_min - dx*0.5, z_max + dx*0.5)
-    nbins = int((hist_range[1] - hist_range[0])/dx)
-    z_bins_c = np.arange(z_min, z_max, nbins)
+    # z_clb_points = da_cldbase.sel(time=t0).squeeze()
+    # nrcloud = da_nrcloud.sel(time=t0).squeeze().astype(int)
 
-    fn_unique_dropna = lambda v: np.unique(v.data[~np.isnan(v.data)])
-    cloud_ids = fn_unique_dropna(nrcloud)[1:]
+    # z_min = z_clb_points.min().item()
+    # z_max = z_clb_points.max().item()
+    # hist_range = (z_min - dx*0.5, z_max + dx*0.5)
+    # nbins = int((hist_range[1] - hist_range[0])/dx)
+    # z_bins_c = np.arange(z_min, z_max, nbins)
 
-    histogram = dmeasure.histogram(
-        image=z_clb_points,
-        min=hist_range[0],
-        max=hist_range[1],
-        bins=nbins,
-        label_image=nrcloud,
-        index=cloud_ids
-    ).compute()
+    # fn_unique_dropna = lambda v: np.unique(v.data[~np.isnan(v.data)])
+    # cloud_ids = fn_unique_dropna(nrcloud)[1:]
 
-    import ipdb
-    ipdb.set_trace()
+    # histogram = dmeasure.histogram(
+        # image=z_clb_points,
+        # min=hist_range[0],
+        # max=hist_range[1],
+        # bins=nbins,
+        # label_image=nrcloud,
+        # index=cloud_ids
+    # ).compute()
+
+    # import ipdb
+    # ipdb.set_trace()
 
 
 def cloudbase_max_height_by_histogram_peak(ds, t0, da_nrcloud, da_cldbase, dx):
@@ -62,67 +64,69 @@ def cloudbase_max_height_by_histogram_peak(ds, t0, da_nrcloud, da_cldbase, dx):
     class MultilevelCloudbaseException(Exception):
         pass
 
-    z_clb_points = da_cldbase.sel(time=t0).squeeze()
-    nrcloud = da_nrcloud.sel(time=t0).squeeze().astype(int)
+    raise NotImplementedError
 
-    z_min = z_clb_points.min().item()
-    z_max = z_clb_points.max().item()
-    hist_range = (z_min - dx*0.5, z_max + dx*0.5)
-    nbins = int((hist_range[1] - hist_range[0])/dx)
-    z_bins_c = np.arange(z_min, z_max, nbins)
+    # z_clb_points = da_cldbase.sel(time=t0).squeeze()
+    # nrcloud = da_nrcloud.sel(time=t0).squeeze().astype(int)
 
-    fn_unique_dropna = lambda v: np.unique(v.data[~np.isnan(v.data)])
-    cloud_ids = fn_unique_dropna(nrcloud)[1:]
+    # z_min = z_clb_points.min().item()
+    # z_max = z_clb_points.max().item()
+    # hist_range = (z_min - dx*0.5, z_max + dx*0.5)
+    # nbins = int((hist_range[1] - hist_range[0])/dx)
+    # z_bins_c = np.arange(z_min, z_max, nbins)
 
-    histogram = dmeasure.histogram(
-        image=z_clb_points,
-        min=hist_range[0],
-        max=hist_range[1],
-        bins=nbins,
-        label_image=nrcloud,
-        index=cloud_ids
-    ).compute()
+    # fn_unique_dropna = lambda v: np.unique(v.data[~np.isnan(v.data)])
+    # cloud_ids = fn_unique_dropna(nrcloud)[1:]
 
-    import ipdb
-    ipdb.set_trace()
+    # histogram = dmeasure.histogram(
+        # image=z_clb_points,
+        # min=hist_range[0],
+        # max=hist_range[1],
+        # bins=nbins,
+        # label_image=nrcloud,
+        # index=cloud_ids
+    # ).compute()
+
+    # import ipdb
+    # ipdb.set_trace()
 
 
 
-    z_base_max = np.zeros(cloud_ids.shape)
-    for n, c_id in enumerate(cloud_id(ds)):
-        try:
-            bin_counts = histogram[n]
+    # z_base_max = np.zeros(cloud_ids.shape)
+    # for n, c_id in enumerate(cloud_id(ds)):
+        # try:
+            # bin_counts = histogram[n]
 
-            # insert zero number of cells at ends so that ends can be peaks too
-            n_ext = np.append(np.insert(bin_counts, 0, 0), 0)
+            # # insert zero number of cells at ends so that ends can be peaks too
+            # n_ext = np.append(np.insert(bin_counts, 0, 0), 0)
 
-            is_peak = np.logical_and(
-                n_ext[0:-2] < n_ext[1:-1],
-                n_ext[1:-1] > n_ext[2:]
-            )
+            # is_peak = np.logical_and(
+                # n_ext[0:-2] < n_ext[1:-1],
+                # n_ext[1:-1] > n_ext[2:]
+            # )
 
-            peaks = np.nonzero(is_peak)[0]
+            # peaks = np.nonzero(is_peak)[0]
 
-            if len(peaks) == 0:
-                raise InSuficientPointsException("Couldn't find a peak in the"
-                                                 " cldbase points histogram")
+            # if len(peaks) == 0:
+                # raise InSuficientPointsException("Couldn't find a peak in the"
+                                                 # " cldbase points histogram")
 
-            first_peak = peaks[0]
+            # first_peak = peaks[0]
 
-            # include up to twice the peak index height as part of the cloud base
-            try:
-                z_base_lim = z_bins_c[first_peak*2]
-            except IndexError:
-                raise TopheavyCloudException
+            # # include up to twice the peak index height as part of the cloud base
+            # try:
+                # z_base_lim = z_bins_c[first_peak*2]
+            # except IndexError:
+                # raise TopheavyCloudException
 
-            # Is there a second peak nearby?
-            if len(peaks) > 1 and first_peak*2 > peaks[1]:
-                raise MultilevelCloudbaseException
+            # # Is there a second peak nearby?
+            # if len(peaks) > 1 and first_peak*2 > peaks[1]:
+                # raise MultilevelCloudbaseException
 
-            z_base_max[n] = z_base_lim
+            # z_base_max[n] = z_base_lim
 
-        except (InSuficientPointsException, TopheavyCloudException,
-                MultilevelCloudbaseException) as e:
-            z_base_max[n] = np.nan
+        # except (InSuficientPointsException, TopheavyCloudException,
+                # MultilevelCloudbaseException) as e:
+            # z_base_max[n] = np.nan
 
-    return z_base_max
+    # return z_base_max

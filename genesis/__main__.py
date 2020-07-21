@@ -10,8 +10,8 @@ def package_contents():
             yield __package__ + '.' + path
 
 
-print "Available modules:"
-print
+print("Available modules:")
+print()
 
 for module in package_contents():
-    print "\t" + module
+    print("\t" + module)

@@ -100,7 +100,7 @@ def plot_angles(data, marker='.', linestyle='', z_max=None, cumulants=[],
 
     axes = []
 
-    data.principle_axis.values = np.rad2deg(_wrap_angles(
+    data.principle_axis.values = np.rad2deg(wrap_angles(
         np.deg2rad(data.principle_axis)
     ))
 
@@ -296,11 +296,11 @@ if __name__ == "__main__":
         do_full_suite_plot = False
 
     cumulants = [
-        "C({},{})".format(v1, v2) for (v1,v2) in args.cumulants
+        "C({},{})".format(v1, v2) for (v1, v2) in args.cumulants
     ]
 
     missing_cumulants = [
-        c for c in cumulants if not c in dataset.cumulant.values
+        c for c in cumulants if c not in dataset.cumulant.values
     ]
 
     if do_full_suite_plot:
@@ -311,13 +311,13 @@ if __name__ == "__main__":
             if args.plot_angles:
                 plot_angles(dataset, z_max=args.z_max, cumulants=cumulants)
             else:
-                plot_default(dataset, z_max=args.z_max, cumulants=cumulants)
+                plot(dataset, z_max=args.z_max, cumulants=cumulants)
         else:
             plot_full_suite(dataset)
     else:
         if not len(missing_cumulants) == 0:
             raise Exception("Not all variables for plot, missing: {}"
-                          "".format(", ".join(missing_cumulants)))
+                            "".format(", ".join(missing_cumulants)))
 
         else:
             import ipdb
@@ -325,7 +325,7 @@ if __name__ == "__main__":
                 if args.plot_angles:
                     plot_angles(dataset, z_max=args.z_max, cumulants=cumulants)
                 else:
-                    plot_default(dataset, z_max=args.z_max, cumulants=cumulants)
+                    plot(dataset, z_max=args.z_max, cumulants=cumulants)
 
     if args.x_max:
         for ax in plt.gcf().axes:

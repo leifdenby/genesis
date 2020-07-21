@@ -125,7 +125,7 @@ def calc_z_max(da_mask):
     else:
         _, _, z_3d = xr.broadcast(da_mask.x, da_mask.y, da_mask.z)
 
-    z_max = z_3d.where(m).max()
+    z_max = z_3d.where(da_mask).max()
     z_max.attrs['long_name'] = 'max height'
     z_max.attrs['units'] = z_3d.units
     return z_max
@@ -241,11 +241,10 @@ def calc_xy_proj_length__dask(da_objs):
     return da_l
 
 def calc_vertical_flux__dask(da_objs, w, scalar):
-    flux_per_cell = w*scalar
+    flux_per_cell = w * scalar
 
     idx = np.unique(da_objs)[1:]
-    qflux_per_obj
-    obj_flux = dask_image.ndmeasure.sum(flux_per_cell, da_objs, idx).compute()
+    obj_flux_vals = dask_image.ndmeasure.sum(flux_per_cell, da_objs, idx).compute()
 
     obj_flux = xr.DataArray(data=obj_flux_vals, coords=[idx], dims=['object_id'])
     obj_flux.attrs['long_name'] = 'min height'

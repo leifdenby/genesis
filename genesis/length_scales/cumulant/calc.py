@@ -582,7 +582,7 @@ def covariance_direction_plot(v1, v2, s_N=200, theta_win_N=100,
     if with_45deg_sample:
         mu_l, C_vv_l = _line_sample(data=C_vv, theta=theta+pi/4., max_dist=max_dist)
         line_2, = ax.plot(mu_l, C_vv_l, label=r'$\theta=\theta_{p} + 45^{\circ}$')
-        width = _find_width(C_vv, theta+pi/2., width_peak_fraction)
+        width = width_func(C_vv, theta+pi/2., width_peak_fraction)
         ax.axvline(-0.5*width, linestyle='--', color=line_2.get_color())
         ax.axvline(0.5*width, linestyle='--', color=line_2.get_color())
 

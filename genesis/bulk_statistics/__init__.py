@@ -222,7 +222,8 @@ def get_dataset(input_name, variables, output_fn_for=None, p=''):
 
         for var_name in enumerate(variables):
             if var_name.endswith('_flux') and not var_name in dataset:
-                _add_flux_var(dataset, var_name.replace('_flux', ''))
+                raise NotImplementedError('add_flux_var')
+                # _add_flux_var(dataset, var_name.replace('_flux', ''))
 
         out_filename = input_name.replace('.nc', '.{}.pdf'.format(output_fn_for))
     else:

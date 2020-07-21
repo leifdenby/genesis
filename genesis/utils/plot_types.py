@@ -140,7 +140,7 @@ def joint_hist_contoured(xd, yd, bins=None, normed_levels=None, ax=None,
     x_, y_ = np.meshgrid(x_c, y_c, indexing='ij')
 
     if 'plot_hist2d' in kwargs:
-        ax.pcolormesh(x_bins, y_bins, bin_counts)
+        ax.pcolormesh(x_c, y_c, bin_counts)
         cnt = None
     elif normed_levels is not None:
         levels = [

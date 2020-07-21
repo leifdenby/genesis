@@ -192,6 +192,7 @@ def _check_coords(da):
 
     return da
 
+
 def get_data(base_name, var_name):
     compute_flux = False
 
@@ -208,18 +209,16 @@ def get_data(base_name, var_name):
         print("Error: Couldn't find {}".format(fn))
         raise
 
-
     if var_name == 'w':
         phi_da = z_center_field(phi_da=phi_da)
 
     # so we can store horizontal slices later
     phi_da.attrs['from_file'] = os.path.realpath(fn)
 
-
     if not compute_flux:
         return _check_coords(phi_da)
     else:
-        fn_w = get_fn(model_name, case_name, param_name, 'w')
+        fn_w = get_fn(base_name, var_name, 'w')
         w_da = xr.open_dataarray(fn_w, decode_times=False,)
 
         phi_flux_da = compute_vertical_flux(phi_da=phi_da, w_da=w_da)
@@ -237,19 +236,6 @@ def get_cross_section(base_name, var_name, z, z_max=700., method=None):
 
     return da
 
-
-def run_default(debug=False):
-
-    VARIABLE_SETS = (
-        ('w', 'w'),
-        ('q', 'q'),
-        ('t', 't'),
-        ('l', 'l'),
-        ('q_flux', 'q_flux'),
-        ('t_flux', 't_flux'),
-        ('l_flux', 'l_flux'),
-    )
-    return process(PARAM_NAMES, VARIABLE_SETS, z_min=0., z_max=700.)
 
 FN_FORMAT = "{base_name}.cumulant_scales_profile.{v1}.{v2}.{mask}.nc"
 

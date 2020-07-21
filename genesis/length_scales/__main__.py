@@ -9,8 +9,8 @@ def package_contents():
             yield __package__ + '.' + path.replace('.py', '')
 
 
-print "Available modules:"
+print("Available modules:")
 print
 
 for module in package_contents():
-    print "\t" + module
+    print("\t" + module)
