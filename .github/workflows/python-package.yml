@@ -23,6 +23,11 @@ jobs:
       uses: actions/setup-python@v2
       with:
         python-version: ${{ matrix.python-version }}
+    - name: Check formatting with black
+      run: |
+        pip install black
+        # check that formatting is ok with black
+        black --check .    
     - name: setup-conda
       uses: s-weigand/setup-conda@v1.0.2
       with:
