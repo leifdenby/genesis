@@ -77,7 +77,14 @@ def spheroid(ax, x_c, y_c, l, r, color, r_label="r", h_label="h", render_back=Tr
 
     # add background white oval incase there are some lines behind
     b_pad = 0.05
-    bckgrnd_patch = Ellipse((x_c, y_c), w + b_pad, l * 2 + b_pad, facecolor='white', transform=ax.transAxes, alpha=0.9)
+    bckgrnd_patch = Ellipse(
+        (x_c, y_c),
+        w + b_pad,
+        l * 2 + b_pad,
+        facecolor="white",
+        transform=ax.transAxes,
+        alpha=0.9,
+    )
     ax.add_patch(bckgrnd_patch)
     print("hello")
 

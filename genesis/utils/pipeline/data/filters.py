@@ -35,26 +35,26 @@ from ... import objects
 class FilterTriggeringThermalsByMask(luigi.Task):
     base_name = luigi.Parameter()
     mask_method = luigi.Parameter()
-    mask_method_extra_args = luigi.Parameter(default='')
+    mask_method_extra_args = luigi.Parameter(default="")
 
     def requires(self):
         reqs = {}
-        reqs['mask'] = MakeMask(
+        reqs["mask"] = MakeMask(
             base_name=self.base_name,
             method_name=self.mask_method,
-            method_extra_args=self.mask_method_extra_args
+            method_extra_args=self.mask_method_extra_args,
         )
-        reqs['tracking'] = PerformObjectTracking2D(
+        reqs["tracking"] = PerformObjectTracking2D(
             base_name=self.base_name,
-            tracking_type=objects.filter.TrackingType.THERMALS_ONLY
+            tracking_type=objects.filter.TrackingType.THERMALS_ONLY,
         )
 
         return reqs
 
     def run(self):
         input = self.input()
-        mask = input['mask'].open(decode_times=False)
-        cloud_data = self.requires()['tracking'].get_cloud_data()
+        mask = input["mask"].open(decode_times=False)
+        cloud_data = self.requires()["tracking"].get_cloud_data()
 
         t0 = mask.time.values
 
@@ -66,5 +66,5 @@ class FilterTriggeringThermalsByMask(luigi.Task):
         mask_filtered.to_netcdf(mask_filtered)
 
     def output(self):
-        fn = 'triggering_thermals.nc'
+        fn = "triggering_thermals.nc"
         return XArrayTarget(fn)

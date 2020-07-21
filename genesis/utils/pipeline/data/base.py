@@ -24,6 +24,7 @@ def set_workdir(path):
     global _WORKDIR
     _WORKDIR = Path(path)
 
+
 def get_workdir():
     return _WORKDIR
 
@@ -33,12 +34,11 @@ def get_datasources():
         datasources = DATA_SOURCES
     else:
         try:
-            with open('datasources.yaml') as fh:
-                loader = getattr(yaml, 'FullLoader', yaml.Loader)
+            with open("datasources.yaml") as fh:
+                loader = getattr(yaml, "FullLoader", yaml.Loader)
                 datasources = yaml.load(fh, Loader=loader)
         except IOError:
-            raise Exception("please define your data sources in"
-                            " datasources.yaml")
+            raise Exception("please define your data sources in" " datasources.yaml")
 
     return datasources
 
@@ -51,18 +51,19 @@ def _get_dataset_meta_info(base_name):
         if base_name in datasources:
             datasource = datasources[base_name]
             if "tn" in base_name:
-                _, timestep = base_name.split('.tn')
+                _, timestep = base_name.split(".tn")
                 datasource["timestep"] = int(timestep)
             else:
                 datasource["timestep"] = 0
         elif re.search(r"\.tn\d+$", base_name):
-            base_name, timestep = base_name.split('.tn')
+            base_name, timestep = base_name.split(".tn")
             datasource = datasources[base_name]
             datasource["timestep"] = int(timestep)
 
     if datasource is None:
-        raise Exception("Please make a definition for `{}` in "
-                        "datasources.yaml".format(base_name))
+        raise Exception(
+            "Please make a definition for `{}` in " "datasources.yaml".format(base_name)
+        )
 
     return datasource
 
@@ -93,10 +94,10 @@ class XArrayTarget(luigi.target.FileSystemTarget):
 
 class NumpyDatetimeParameter(luigi.DateSecondParameter):
     def normalize(self, x):
-        if hasattr(x, 'dtype') and np.issubdtype(x.dtype, np.datetime64):
+        if hasattr(x, "dtype") and np.issubdtype(x.dtype, np.datetime64):
             dt64 = x
             # https://stackoverflow.com/a/13704307/271776
-            ts = (dt64 - np.datetime64('1970-01-01T00:00:00Z')) / np.timedelta64(1, 's')
+            ts = (dt64 - np.datetime64("1970-01-01T00:00:00Z")) / np.timedelta64(1, "s")
             return super().normalize(datetime.utcfromtimestamp(ts))
         else:
             try:

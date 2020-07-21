@@ -6,7 +6,7 @@ import seaborn as sns
 import numpy as np
 
 
-def plot_reference(
+def plot_reference( # noqa
     ax,
     shape,
     lm_range=None,
@@ -18,13 +18,14 @@ def plot_reference(
     lm_diagram=2.5,
     include_shape_diagram=True,
     calc_kwargs={},
-    **kwargs
+    lm_label_sel=lambda lm: lm != 1.0,  # usually outside since lm=1 is at the origin
+    **kwargs,
 ):
     # the ellipsoid lines are plotted using the spheroid lambda values and so
     # we show the spheroid lines too
     plot_ellipsoid_lines = False
-    if shape == 'ellipsoid':
-        shape = 'spheroid'
+    if shape == "ellipsoid":
+        shape = "spheroid"
         plot_ellipsoid_lines = True
 
     try:
@@ -33,6 +34,7 @@ def plot_reference(
         raise NotImplementedError(shape)
 
     ds = minkowski_analytical.calc_analytical_scales(shape=shape, **calc_kwargs)
+
     if lm_range is not None:
         ds = ds.swap_dims(dict(i="lm")).sel(lm=lm_range).swap_dims(dict(lm="i"))
 
@@ -46,7 +48,7 @@ def plot_reference(
 
     # calculate the lambda values to highlight
     def _find_fractions_of_two(v):
-        return 2.**np.array(list(set(np.log2(v).astype(int))))
+        return 2.0 ** np.array(list(set(np.log2(v).astype(int))))
 
     def _find_integer_values(v):
         return np.sort(np.array(list(set(v.astype(int)))))
@@ -54,10 +56,8 @@ def plot_reference(
     lm_ = _find_fractions_of_two(ds.lm.values)
 
     for lm_pt in lm_:
-        ds_ = ds.swap_dims(dict(i="lm")).sel(lm=lm_pt, method='nearest')
+        ds_ = ds.swap_dims(dict(i="lm")).sel(lm=lm_pt, method="nearest")
         x_, y_ = ds_.planarity, ds_.filamentarity
-
-        lm_max = int(ds.lm.values.max())
 
         ax.plot(x_, y_, marker=marker, label="", **kwargs)
         if lm_pt >= 1:
@@ -68,7 +68,7 @@ def plot_reference(
             s = "1/{:.0f}".format(1.0 / lm_pt)
             dx, dy = 0, -14
             ha = "center"
-        if lm_pt == lm_max:
+        if lm_label_sel(lm_pt):
             s = r"$\lambda=$" + s
         ax.annotate(
             s,
@@ -79,26 +79,33 @@ def plot_reference(
             ha=ha,
         )
 
-    N_points_calc = calc_kwargs.get('N_points', 100)
+    N_points_calc = calc_kwargs.get("N_points", 100)
     if plot_ellipsoid_lines:
         for lm_pt in lm_[lm_ > 1.0]:
-            calc_kwargs['N_points'] = int(N_points_calc/5 * int(lm_pt**0.4))
-            kwargs['linestyle'] = ":"
-            ds_ellip = minkowski_analytical.calc_analytical_scales(shape="ellipsoid", lm=lm_pt, **calc_kwargs)
+            calc_kwargs["N_points"] = int(N_points_calc / 5 * int(lm_pt ** 0.4))
+            kwargs["linestyle"] = ":"
+            ds_ellip = minkowski_analytical.calc_analytical_scales(
+                shape="ellipsoid", lm=lm_pt, **calc_kwargs
+            )
             ax.plot(ds_ellip.planarity, ds_ellip.filamentarity, zorder=0.9, **kwargs)
 
             alpha = _find_integer_values(ds_ellip.alpha.values)
             for n, a_ in enumerate(alpha[alpha > 1.0]):
-                ds_ = ds_ellip.swap_dims(dict(i="alpha")).sel(alpha=a_, method='nearest')
-                ax.plot(ds_.planarity, ds_.filamentarity, marker='.', zorder=0.9, **kwargs)
+                ds_ = ds_ellip.swap_dims(dict(i="alpha")).sel(
+                    alpha=a_, method="nearest"
+                )
+                ax.plot(
+                    ds_.planarity, ds_.filamentarity, marker=".", zorder=0.9, **kwargs
+                )
 
                 if n > 3:
                     break
-                if lm_pt == lm_[lm_ > 1.0][-1]:
+                if lm_pt == lm_[lm_ >= 1.0][-1]:
                     ax.annotate(
                         fr"$\alpha={int(a_)}$",
                         (ds_.planarity, ds_.filamentarity),
-                        color=kwargs["color"], zorder=1.0,
+                        color=kwargs["color"],
+                        zorder=1.0,
                         xytext=(0, 5),
                         textcoords="offset points",
                         horizontalalignment="center",
@@ -132,7 +139,7 @@ def plot_reference(
         ax.set_ylabel("filamentarity")
 
 
-def fp_plot(ds, lm_range=None):
+def fp_plot(ds, lm_range=None, reference_shape="spheroid"):
     g = sns.jointplot("planarity", "filamentarity", data=ds, stat_func=None, marker=".")
 
     g.plot_joint(sns.kdeplot, cmap="Blues", zorder=0)
@@ -147,7 +154,7 @@ def fp_plot(ds, lm_range=None):
     )
     plot_reference(
         ax=ax,
-        shape="spheroid",
+        shape=reference_shape,
         lm_range=lm_range,
         color="red",
         linestyle="--",
@@ -159,7 +166,7 @@ def fp_plot(ds, lm_range=None):
     return g
 
 
-def main(ds, auto_scale=True):
+def main(ds, auto_scale=True, reference_shape="spheroid"):
     """
     Create a filamentarity-planarity joint plot using the `dataset` attribute
     of `ds` for the hue
@@ -175,7 +182,7 @@ def main(ds, auto_scale=True):
     else:
 
         g = multi_jointplot(
-            x="planarity", y="filamentarity", z="dataset", ds=ds, joint_type="kde"
+            x="planarity", y="filamentarity", z="dataset", ds=ds, joint_type="kde",
         )
 
         LABEL_FORMAT = "{name}: {count} objects"
@@ -194,8 +201,15 @@ def main(ds, auto_scale=True):
             ncol=2,
         )
 
-        plot_reference(ax=g.ax_joint, shape="spheroid", color="black")
+        plot_reference(
+            ax=g.ax_joint,
+            shape=reference_shape,
+            color="black",
+            lm_label_sel=lambda lm: lm > 2.0,
+        )
 
     if auto_scale:
         g.ax_joint.set_xlim(-0.0, 0.45)
         g.ax_joint.set_ylim(-0.0, 0.9)
+
+    return g

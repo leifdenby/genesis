@@ -120,10 +120,12 @@ def find_grid_spacing(mask):
     dy_all = np.diff(yt.values)
     dx, dy = np.max(dx_all), np.max(dy_all)
 
-    if not "zt" in mask.coords:
+    if "zt" not in mask.coords:
         warnings.warn("zt hasn't got any coordinates defined, assuming dz=dx")
+    else:
         dz_all = np.diff(zt.values)
-        dz = np.max(dx)
+        dz = np.max(dz_all)
+        assert np.allclose(dx, dz)
 
     if not dx == dy:
         raise NotImplementedError("Only isotropic grids are supported")

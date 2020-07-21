@@ -10,6 +10,7 @@ class PlotJoinTask(luigi.Task):
     `self._build_tasks` to return dictionary with keys for the names of the
     joined plots and the tasks that produce the plots to join.
     """
+
     direction = luigi.Parameter(default="horizontal")
 
     def requires(self):
@@ -22,24 +23,19 @@ class PlotJoinTask(luigi.Task):
         plotjoins = self._build_tasks(return_plotjoins=True)
 
         for join_name, tasks in plotjoins.items():
-            Path(self.output()[join_name].fn).parent.mkdir(
-                exist_ok=True, parents=True
-            )
+            Path(self.output()[join_name].fn).parent.mkdir(exist_ok=True, parents=True)
             args = [
                 "convert",
                 *[t.output().fn for t in tasks],
                 "{}append".format(["-", "+"][self.direction == "horizontal"]),
-                self.output()[join_name].fn
+                self.output()[join_name].fn,
             ]
             subprocess.call(args)
-
 
     def output(self):
         plotjoins = self._build_tasks(return_plotjoins=True)
 
         return {
-            join_name: luigi.LocalTarget(
-                "joined_plots/{}.png".format(join_name)
-            )
+            join_name: luigi.LocalTarget("joined_plots/{}.png".format(join_name))
             for join_name in plotjoins.keys()
         }

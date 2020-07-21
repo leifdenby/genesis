@@ -1,6 +1,5 @@
 import luigi
 import matplotlib.pyplot as plt
-from pathlib import Path
 import numpy as np
 
 from .. import data
@@ -19,25 +18,27 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
                 base_name=self.base_name,
                 tracking_type=data.tracking_2d.TrackingType.CLOUD_CORE,
                 remove_gal_transform=self.remove_gal_transform,
-                label_var='nrcloud',
+                label_var="nrcloud",
                 time=self.time,
             ),
             lwp=data.extraction.ExtractCrossSection2D(
-                base_name=self.base_name, field_name="core", remove_gal_transform=self.remove_gal_transform,
-                time=self.time
+                base_name=self.base_name,
+                field_name="core",
+                remove_gal_transform=self.remove_gal_transform,
+                time=self.time,
             ),
         )
 
         obj_type = "cloud"
-        for grid_var in ['xt', 'yt']:
+        for grid_var in ["xt", "yt"]:
             v = "{}_{}".format(grid_var[0], obj_type)
             field_name = grid_var
 
             tasks[v] = data.tracking_2d.Aggregate2DCrossSectionOnTrackedObjects(
                 base_name=self.base_name,
                 field_name=field_name,
-                op='mean',
-                label_var='nr{}'.format(obj_type),
+                op="mean",
+                label_var="nr{}".format(obj_type),
                 time=self.time,
                 remove_gal_transform=self.remove_gal_transform,
                 tracking_type=data.tracking_2d.TrackingType.CLOUD_CORE,
@@ -61,10 +62,10 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
 
         da_lwp = self.input()["lwp"].open()
 
-        da_nrcloud = self.input()['nrcloud'].open()
+        da_nrcloud = self.input()["nrcloud"].open()
 
-        da_x_cloud = self.input()['x_cloud'].open()
-        da_y_cloud = self.input()['y_cloud'].open()
+        da_x_cloud = self.input()["x_cloud"].open()
+        da_y_cloud = self.input()["y_cloud"].open()
 
         (
             da_lwp.where(da_lwp > 0)
@@ -74,12 +75,13 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
         (
             da_nrcloud.astype(int)
             .sel(**kws)
-            .plot.contour(ax=ax, colors=['blue',], levels=[0.5,])
+            .plot.contour(ax=ax, colors=["blue"], levels=[0.5])
         )
 
         import ipdb
+
         with ipdb.launch_ipdb_on_exception():
-            text_bbox = dict(facecolor='white', alpha=0.5, edgecolor='none')
+            text_bbox = dict(facecolor="white", alpha=0.5, edgecolor="none")
 
             cloud_ids = np.unique(da_nrcloud.sel(**kws))
             cloud_ids = cloud_ids[~np.isnan(cloud_ids)]
@@ -87,8 +89,8 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
                 x_t = da_x_cloud.sel(object_id=c_id)
                 y_t = da_y_cloud.sel(object_id=c_id)
 
-                ax.scatter(x_t, y_t, marker='x', color='blue')
-                ax.text(x_t, y_t, int(c_id), color='blue', bbox=text_bbox)
+                ax.scatter(x_t, y_t, marker="x", color="blue")
+                ax.text(x_t, y_t, int(c_id), color="blue", bbox=text_bbox)
 
         if len(self.center_pt) == 2:
             x_c, y_c = self.center_pt
@@ -100,7 +102,6 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
 
     def output(self):
         fn = "cloud__frame.{}_gal_transform.{}.png".format(
-            ["with", "without"][self.remove_gal_transform],
-            self.time.isoformat()
+            ["with", "without"][self.remove_gal_transform], self.time.isoformat()
         )
         return luigi.LocalTarget(fn)

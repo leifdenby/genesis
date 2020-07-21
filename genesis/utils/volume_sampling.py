@@ -17,22 +17,22 @@ import skimage.color
 
 def _expand_int_regions(v, s):
     # define the convolution kernel
-    k = np.ones((s*2+1, s*2+1))
+    k = np.ones((s * 2 + 1, s * 2 + 1))
 
     # attempt at circular kernel
-    i = np.arange(-s, s+1)
+    i = np.arange(-s, s + 1)
     d = np.linalg.norm(np.meshgrid(i, i), axis=0)
-    k = 0.5*(np.tanh((s-d)) + 1.)
+    k = 0.5 * (np.tanh((s - d)) + 1.0)
 
     # do the convolution to get contributions from neighbouring cells
-    l = convolve2d(v, k, mode='same')  # noqa
+    l = convolve2d(v, k, mode="same")  # noqa
     # find out how many cells contributed to each one that has been newly
     # filled
-    l_s = convolve2d(v != 0, k, mode='same')
+    l_s = convolve2d(v != 0, k, mode="same")
     # make sure don't devide by zero
     l_s[l_s == 0] = 1
 
-    v_expanded = l/l_s
+    v_expanded = l / l_s
 
     v_expanded = np.ma.masked_array(v_expanded, v_expanded == 0)
 
@@ -46,23 +46,20 @@ def _expand_int_regions(v, s):
 
 def make_cloud_surroundings_mask(cloud_mask, s):
     cloud_mask_expanded = _expand_int_regions(cloud_mask, s)
-    cloud_mask_expanded = np.ma.masked_array(cloud_mask_expanded,
-                                             cloud_mask != 0)
+    cloud_mask_expanded = np.ma.masked_array(cloud_mask_expanded, cloud_mask != 0)
 
     return cloud_mask_expanded
 
 
 def get_cloudmask_at_height(t, z_slice, cloud_data, do_plot=False):
-    rl_slice = cloud_data.get_from_3d(var_name='l', z=z_slice, t=t,
-                                      debug=False)
+    rl_slice = cloud_data.get_from_3d(var_name="l", z=z_slice, t=t, debug=False)
 
     # cutoff in UCLALES for `cldbase` is rl=0.0kg/kg, so we use the same here
     image = rl_slice > 0.0
 
     # apply threshold
     thresh = skimage.filters.threshold_otsu(image)
-    bw = skimage.morphology.closing(image > thresh,
-                                    skimage.morphology.square(3))
+    bw = skimage.morphology.closing(image > thresh, skimage.morphology.square(3))
 
     # remove artifacts connected to image border
     cleared = bw.copy()
@@ -81,8 +78,14 @@ def get_cloudmask_at_height(t, z_slice, cloud_data, do_plot=False):
         for region in skimage.measure.regionprops(label_image):
             # draw rectangle around segmented regions
             minr, minc, maxr, maxc = region.bbox
-            rect = mpatches.Rectangle((minc, minr), maxc - minc, maxr - minr,
-                                      fill=False, edgecolor='red', linewidth=2)
+            rect = mpatches.Rectangle(
+                (minc, minr),
+                maxc - minc,
+                maxr - minr,
+                fill=False,
+                edgecolor="red",
+                linewidth=2,
+            )
             ax.add_patch(rect)
 
         plot.xlim(0, 500)
@@ -94,23 +97,25 @@ def get_cloudmask_at_height(t, z_slice, cloud_data, do_plot=False):
 
 def get_cloud_surroundings_at_height(cloud_set, tn, z_slice, var_name):
     cloud_data = cloud_set.cloud_data
-    t = tn*cloud_data.dt
+    t = tn * cloud_data.dt
 
     # load the data up already, so that we're sure it exists
-    data_slice = cloud_data.get_from_3d(var_name=var_name, z=z_slice, t=t,
-                                        debug=False)
+    data_slice = cloud_data.get_from_3d(var_name=var_name, z=z_slice, t=t, debug=False)
 
     # only look at environment of clouds which are high enough to be in the
     # slice at `z_slice`
-    cloud_set__tall_enough = cloud_set.filter(cloudtop_height__gt=z_slice,
-                                              _tn=tn)
+    cloud_set__tall_enough = cloud_set.filter(cloudtop_height__gt=z_slice, _tn=tn)
 
-    print(("Getting near-environment data for {} clouds".format(
-        len(cloud_set__tall_enough)))
+    print(
+        (
+            "Getting near-environment data for {} clouds".format(
+                len(cloud_set__tall_enough)
+            )
+        )
     )
 
     cloudbase_center_cloudset = cloud_set__tall_enough.get_value(
-        'cloudbase_center_position', tn=tn
+        "cloudbase_center_position", tn=tn
     )
     # remove all the clouds where the cloud-base is poorly defined
     cloudbase_center_cloudset = cloudbase_center_cloudset[
@@ -121,15 +126,13 @@ def get_cloud_surroundings_at_height(cloud_set, tn, z_slice, var_name):
     cloudmask_slice = get_cloudmask_at_height(
         t=t, z_slice=z_slice, cloud_data=cloud_data
     )
-    labelled_regions_center = cloud_data.dx*np.array([
-        reg.centroid for reg in skimage.measure.regionprops(cloudmask_slice)
-    ])
+    labelled_regions_center = cloud_data.dx * np.array(
+        [reg.centroid for reg in skimage.measure.regionprops(cloudmask_slice)]
+    )
 
     # for each cloud in the cloud_set find the nearest region in the slice
     # above, we will assume this is part of the same cloud
-    d = scipy.spatial.distance.cdist(
-        cloudbase_center_cloudset, labelled_regions_center
-    )
+    d = scipy.spatial.distance.cdist(cloudbase_center_cloudset, labelled_regions_center)
     min_dist_label_num = np.argmin(d, axis=1)
 
     # remove all the labels not in `min_dist_label_num`, i.e. only keep a
@@ -150,7 +153,7 @@ def get_cloud_surroundings_at_height(cloud_set, tn, z_slice, var_name):
 
         m_current += m_ring
 
-        yield (cloud_data.dx*(n+1), data_ring, data_slice, m_current)
+        yield (cloud_data.dx * (n + 1), data_ring, data_slice, m_current)
 
 
 def get_cloud_surroundings(cloud_mask, da_scalar):

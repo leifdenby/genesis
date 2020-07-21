@@ -1,3 +1,3 @@
-from .all import *
+from .all import *  # noqa
 
-from .plot_utils import PlotJoinTask
+from .plot_utils import PlotJoinTask  # noqa

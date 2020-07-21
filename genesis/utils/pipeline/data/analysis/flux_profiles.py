@@ -10,26 +10,23 @@ class DomainMeanVerticalFlux(luigi.Task):
     field_name = luigi.Parameter()
 
     def requires(self):
-        return ExtractField3D(
-            base_name=self.base_name,
-            field_name=self.field_name,
-        )
+        return ExtractField3D(base_name=self.base_name, field_name=self.field_name,)
 
     def run(self):
         da_3d = input.input().open().squeeze()
 
         # calculate domain mean profile
         da_domain_mean_profile = da_3d.mean(
-            dim=('xt', 'yt'), dtype=np.float64, skipna=True
+            dim=("xt", "yt"), dtype=np.float64, skipna=True
         )
         da_domain_mean_profile["sampling"] = "full domain"
         da_domain_mean_profile.to_netcdf(self.output().fn)
 
     def output(self):
-        fn = ("{base_name}.{field_name}__mean_flux.{filetype}".format(
+        fn = "{base_name}.{field_name}__mean_flux.{filetype}".format(
             base_name=self.base_name, filetype="nc",
-        ))
+        )
 
-        p = WORKDIR/self.base_name/fn
+        p = WORKDIR / self.base_name / fn
         target = XArrayTarget(str(p))
         return target
