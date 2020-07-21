@@ -33,6 +33,7 @@ jobs:
       run: |
         conda env create -n genesis -f environment.yml
         conda init bash
+        source ~/.bashrc
         conda activate genesis
         pip install flake8 pytest
     - name: Lint with flake8
