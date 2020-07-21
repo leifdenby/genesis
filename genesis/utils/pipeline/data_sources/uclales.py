@@ -96,7 +96,7 @@ def _fix_long_name(da):
     modified = False
     # the CF conventions stipulate that the long name attribute should be named
     # `long_name` not `longname`
-    if "longname" in da.attrs and not "long_name" in da.attrs:
+    if "longname" in da.attrs and "long_name" not in da.attrs:
         da.attrs["long_name"] = da.longname
         modified = True
     return da, modified
@@ -138,7 +138,7 @@ def _fix_time_units(da):
     return da, modified
 
 
-def extract_field_to_filename(dataset_meta, path_out, field_name, **kwargs):
+def extract_field_to_filename(dataset_meta, path_out, field_name, **kwargs):  # noqa
     field_name_src = _get_uclales_field(field_name)
 
     fn_format = dataset_meta.get("fn_format", FN_FORMAT_3D)

@@ -90,7 +90,7 @@ import collections
 __version__ = "2014-05-09 leif denby"  # 9may: fix bug default argument bug
 __author_email__ = "denis-bz-py@t-online.de"  # comments welcome, testcases most welcome
 
-# ...............................................................................
+
 class Intergrid:
     __doc__ = globals()["__doc__"]
 
@@ -125,10 +125,10 @@ class Intergrid:
             griddata += prefilter * (exactfit - griddata)
             prefilter = False
         self.griddata = griddata
-        self.prefilter = prefilter == True
+        self.prefilter = prefilter
 
         if maps is None:
-            maps = [None,] * len(lo)
+            maps = [None] * len(lo)
 
         self.maps = maps
         self.nmap = 0
@@ -140,7 +140,7 @@ class Intergrid:
             self._scale = np.ones(dim)
 
             for j, (map, n, l, h) in enumerate(zip(maps, griddata.shape, lo, hi)):
-                ## print "test: j map n l h:", j, map, n, l, h
+                # print "test: j map n l h:", j, map, n, l, h
                 if map is None or isinstance(map, collections.Callable):
                     self._lo[j] = l
                     if h > l:
@@ -156,7 +156,7 @@ class Intergrid:
                     len(map),
                 )
                 mlo, mhi = map.min(), map.max()
-                if not (l <= mlo <= mhi <= h):
+                if not (l <= mlo <= mhi <= h):  # noqa
                     print(
                         "Warning: Intergrid maps[%d] min %.3g max %.3g "
                         "are outside lo %.3g hi %.3g" % (j, mlo, mhi, l, h)
@@ -180,7 +180,7 @@ class Intergrid:
         if self.nmap < self.dim:
             X -= self._lo
             X *= self._scale  # (griddata.shape - 1) / (hi - lo)
-        ## print "test: _map_to_uniform_grid", X.T
+        # print "test: _map_to_uniform_grid", X.T
 
     # ...............................................................................
     def __call__(self, X, out=None):

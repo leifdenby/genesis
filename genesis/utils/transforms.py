@@ -1,6 +1,5 @@
 def _wrap_add(x, y, a, b):
     """add x+y modulu the answer being in range [a...b[
-    
     https://stackoverflow.com/a/51467186/271776
     """
     y %= b - a

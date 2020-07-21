@@ -9,10 +9,9 @@ UCLALES:
 - q: total water vapour
 - t: liquid potential temperature
 """
-import os
 import matplotlib
 
-if __name__ == "__main__":
+if __name__ == "__main__": # noqa
     matplotlib.use("Agg")
 
     # register a progressbar so we can see progress of dask'ed operations with xarray
@@ -22,7 +21,7 @@ if __name__ == "__main__":
 
 import matplotlib.pyplot as plt
 
-from . import load_mask, load_field, scale_field
+from . import load_mask, scale_field
 from . import get_dataset
 
 import genesis.objects
@@ -145,7 +144,7 @@ def main(args=None, ax=None):
     da_mean.plot(y="zt", ax=ax)
 
     mask_description = ""
-    if not mask is None:
+    if mask is not None:
         if "longname" in mask.attrs:
             mask_description = mask.attrs["longname"]
 
@@ -155,9 +154,9 @@ def main(args=None, ax=None):
     plt.title(
         "Vertical {} flux {} in {}{}".format(
             args.var_name,
-            ["", "scaled by area"][not args.scale_by_area is None],
+            ["", "scaled by area"][args.scale_by_area is not None],
             args.input,
-            ["", "\nwith '{}' mask".format(mask_description)][not mask is None],
+            ["", "\nwith '{}' mask".format(mask_description)][mask is not None],
         )
     )
 

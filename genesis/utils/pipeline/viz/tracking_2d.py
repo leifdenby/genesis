@@ -1,6 +1,5 @@
 import luigi
 import matplotlib.pyplot as plt
-from pathlib import Path
 import numpy as np
 
 from .. import data
@@ -76,7 +75,7 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
         (
             da_nrcloud.astype(int)
             .sel(**kws)
-            .plot.contour(ax=ax, colors=["blue",], levels=[0.5,])
+            .plot.contour(ax=ax, colors=["blue"], levels=[0.5])
         )
 
         import ipdb

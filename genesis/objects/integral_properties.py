@@ -104,10 +104,10 @@ def calc_xy_proj_length(da_mask):
     lx = x_max - x_min
     ly = y_max - y_min
 
-    l = np.sqrt(lx ** 2.0 + ly ** 2.0)
-    l.attrs["long_name"] = "xy-projected length"
-    l.attrs["units"] = x_3d.units
-    return l
+    da_length = np.sqrt(lx ** 2.0 + ly ** 2.0)
+    da_length.attrs["long_name"] = "xy-projected length"
+    da_length.attrs["units"] = x_3d.units
+    return da_length
 
 
 def calc_z_proj_length(da_mask):
@@ -117,23 +117,21 @@ def calc_z_proj_length(da_mask):
         m = da_mask
 
     if len(da_mask.x.shape) == 3:
-        x_3d = da_mask.x
-        y_3d = da_mask.y
+        z_3d = da_mask.z
     else:
         _, _, z_3d = xr.broadcast(da_mask.x, da_mask.y, da_mask.z)
 
     z_min, z_max = z_3d.where(m).min(), z_3d.where(m).max()
 
-    l = z_max - z_min
-    l.attrs["long_name"] = "z-projected length"
-    l.attrs["units"] = z_3d.units
-    return l
+    da_length = z_max - z_min
+    da_length.attrs["long_name"] = "z-projected length"
+    da_length.attrs["units"] = z_3d.units
+    return da_length
 
 
 def calc_z_max(da_mask):
     if len(da_mask.x.shape) == 3:
-        x_3d = da_mask.x
-        y_3d = da_mask.y
+        z_3d = da_mask.z
     else:
         _, _, z_3d = xr.broadcast(da_mask.x, da_mask.y, da_mask.z)
 
@@ -145,8 +143,7 @@ def calc_z_max(da_mask):
 
 def calc_z_max__dask(da_objs):
     if len(da_objs.x.shape) == 3:
-        x_3d = da_objs.x
-        y_3d = da_objs.y
+        z_3d = da_objs.z
     else:
         _, _, z_3d = xr.broadcast(*[da_objs[d] for d in da_objs.dims])
 
@@ -164,8 +161,7 @@ def calc_z_max__dask(da_objs):
 
 def calc_z_proj_length__dask(da_objs):
     if len(da_objs.x.shape) == 3:
-        x_3d = da_objs.x
-        y_3d = da_objs.y
+        z_3d = da_objs.z
     else:
         _, _, z_3d = xr.broadcast(*[da_objs[d] for d in da_objs.dims])
 
@@ -178,16 +174,15 @@ def calc_z_proj_length__dask(da_objs):
 
     l_vals = z_max_vals - z_min_vals
 
-    l = xr.DataArray(data=l_vals, coords=[idx], dims=["object_id"])
-    l.attrs["long_name"] = "z-projected length"
-    l.attrs["units"] = z_3d.units
-    return l
+    da_length = xr.DataArray(data=l_vals, coords=[idx], dims=["object_id"])
+    da_length.attrs["long_name"] = "z-projected length"
+    da_length.attrs["units"] = z_3d.units
+    return da_length
 
 
 def calc_z_min__dask(da_objs):
     if len(da_objs.x.shape) == 3:
-        x_3d = da_objs.x
-        y_3d = da_objs.y
+        z_3d = da_objs.z
     else:
         _, _, z_3d = xr.broadcast(*[da_objs[d] for d in da_objs.dims])
 
@@ -250,8 +245,8 @@ def calc_xy_proj_length__dask(da_objs):
     lx = x_max - x_min
     ly = y_max - y_min
 
-    l = np.sqrt(lx ** 2.0 + ly ** 2.0)
-    da_l = xr.DataArray(data=l, coords=[idx], dims=["object_id"])
+    l_vals = np.sqrt(lx ** 2.0 + ly ** 2.0)
+    da_l = xr.DataArray(data=l_vals, coords=[idx], dims=["object_id"])
     da_l.attrs["long_name"] = "xy-projected length"
     da_l.attrs["units"] = x_3d.units
     return da_l

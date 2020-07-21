@@ -1,1 +1,1 @@
-from . import cumulant
+from . import cumulant # noqa

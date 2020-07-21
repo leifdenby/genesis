@@ -39,7 +39,8 @@ def make_grid(dx, lx=3e3, lz=2e3):
 
 
 # shearing function
-f_shear = lambda ls, h0: lambda h: ls / h0 ** 2.0 * h ** 2
+def f_shear(ls, h0):
+    return lambda h: ls / h0 ** 2.0 * h ** 2
 
 
 def len_fn_approx(h, ls, h0):
@@ -50,12 +51,13 @@ def len_fn_approx(h, ls, h0):
 def len_fn(h, ls, h0):
     "numerically integrated distance along length"
     # ax^2 + bc + c
-    dldh = lambda h_: np.sqrt(1.0 + (ls / h0 ** 2.0 * 2.0 * h_) ** 2.0)
+    def dldh(h_):
+        return np.sqrt(1.0 + (ls / h0 ** 2.0 * 2.0 * h_) ** 2.0)
     return scipy.integrate.quad(dldh, 0, h)[0]
 
 
 def find_scaling(ls, h0):
-    """find height fraction `alpha` at which the top of the shape 
+    """find height fraction `alpha` at which the top of the shape
     is sheared a horizontal distance `ls` while keeping the length
     of the shape constant"""
 
@@ -165,7 +167,7 @@ def make_mask(h, l, dx, shape, l_shear, with_plot):
 def calc_scales(h, l, dx, shape, l_shear=0.0, with_plot=False):
     r0 = h / 2.0 / l
 
-    ds = make_mask(h=h, l=l, dx=dx, shape=shape, l_shear=l_shear, with_plot=with_plot)
+    ds = make_mask(h=h, l=l, dx=dx, shape=shape, l_shear=l_shear, with_plot=with_plot)  # noqa
     # only one object so can cast mask to int
     object_labels = ds.mask.values.astype(int)
 
@@ -211,15 +213,13 @@ def mask_plot_example():
     Create a grid plot of mask for objects with change shear and thickness, but
     with constant length
     """
-    import matplotlib.gridspec
-
     ds_study = xr.Dataset(
         coords=dict(
-            h=[1000.0,],
-            l=[2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0],
+            h=[1000.0],
+            l=[2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0],  # noqa
             l_shear=[0.0, 500.0, 1000.0],  # [600., 400., 200., 0.],
-            dx=[4.0,],
-            shape=["thermal",],
+            dx=[4.0],
+            shape=["thermal"],
         )
     )
 
@@ -232,10 +232,8 @@ def mask_plot_example():
     )
 
     def plot_mask(h, l, dx, shape, l_shear, with_plot=False):
-        r0 = h / 2.0 / l
-
         ds = make_mask(
-            h=h, l=l, dx=dx, shape=shape, l_shear=l_shear, with_plot=with_plot
+            h=h, l=l, dx=dx, shape=shape, l_shear=l_shear, with_plot=with_plot  # noqa
         )
 
         ii = ds_study.l_shear.values.tolist().index(l_shear)
@@ -269,11 +267,11 @@ def example2():
 
     ds_study = xr.Dataset(
         coords=dict(
-            h=[1000.0,],
-            l=[2.0, 3.0,],  # 4., 5., 6., 7., 8.],
-            l_shear=[0.0, 500.0,],  # 1000.], #[600., 400., 200., 0.],
-            dx=[4.0,],
-            shape=["thermal",],
+            h=[1000.0],
+            l=[2.0, 3.0,],  # 4., 5., 6., 7., 8.],  # noqa
+            l_shear=[0.0, 500.0],  # 1000.], #[600., 400., 200., 0.],
+            dx=[4.0],
+            shape=["thermal"],
         )
     )
     ds_output = apply_all(ds_study, calc_scales)
@@ -286,7 +284,7 @@ def example2():
 
     try:
         for l_shear in list(ds_output.l_shear.values):
-            ds_ = ds_output.sel(l_shear=l_shear).swap_dims(dict(l="planarity"))
+            ds_ = ds_output.sel(l_shear=l_shear).swap_dims(dict(l="planarity"))  # noqa
             (l,) = ds_.filamentarity.plot.line(
                 marker="s",
                 markersize=4,
@@ -294,8 +292,8 @@ def example2():
                 label=r"$l_s$={}".format(format_length(l_shear)),
                 ax=ax,
             )
-    except:
-        ds_ = ds_output.swap_dims(dict(l="planarity"))
+    except Exception:
+        ds_ = ds_output.swap_dims(dict(l="planarity"))  # noqa
         ds_.filamentarity.plot.line(
             marker="s", markersize=4, linestyle="", ax=ax, label=ds_.shape.values
         )
@@ -321,11 +319,11 @@ def example3(output_fn, reference_shape="ellipsoid"):
 
     ds_study = xr.Dataset(
         coords=dict(
-            h=[1000.0,],
-            l=[2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0],
+            h=[1000.0],
+            l=[2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0],  # noqa
             l_shear=[0.0, 500.0, 1000.0, 1500.0],  # [600., 400., 200., 0.],
-            dx=[4.0,],
-            shape=["thermal",],
+            dx=[4.0],
+            shape=["thermal"],
         )
     )
     ds_output = apply_all(ds_study, calc_scales)

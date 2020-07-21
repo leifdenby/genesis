@@ -9,10 +9,9 @@ UCLALES:
 - q: total water vapour
 - t: liquid potential temperature
 """
-import os
 import matplotlib
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # noqa
     matplotlib.use("Agg")
 
     # register a progressbar so we can see progress of dask'ed operations with xarray
@@ -28,7 +27,7 @@ from . import make_cumulative_from_bin_counts
 import genesis.objects
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # noqa
     import argparse
 
     argparser = argparse.ArgumentParser(__doc__)
@@ -123,7 +122,7 @@ if __name__ == "__main__":
         plt.gca().set_ylim(None, args.y_max)
 
     mask_description = ""
-    if not mask is None:
+    if mask is not None:
         if "longname" in mask.attrs:
             mask_description = mask.attrs["longname"]
 
@@ -134,7 +133,7 @@ if __name__ == "__main__":
         "{}distribution in {}{}".format(
             ["", "Cumulative "][args.cumulative],
             args.input,
-            ["", "\nwith '{}' mask".format(mask_description)][not mask is None],
+            ["", "\nwith '{}' mask".format(mask_description)][mask is not None],
         )
     )
 

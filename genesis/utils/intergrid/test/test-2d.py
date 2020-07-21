@@ -68,7 +68,7 @@ xnew = np.linspace(0, 1, Nxnew)
 ynew = np.linspace(0, 1, Nynew)
 newgrid = productgrid(xnew, ynew)  # shape (Nxnew * Nynew, 2)
 
-# ...............................................................................
+
 def func(X):  # ncycle
     r = np.sqrt(np.sum(X ** 2, axis=-1))
     return np.sin(2 * np.pi * ncycle * r) * 100

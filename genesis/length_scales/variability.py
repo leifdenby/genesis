@@ -243,7 +243,7 @@ if __name__ == "__main__":
     argparser.add_argument("--var_name", nargs="+")
     argparser.add_argument("--z_max", default=700.0)
     argparser.add_argument(
-        "--variability_target", nargs="+", default=[0.90,], type=float
+        "--variability_target", nargs="+", default=[0.90], type=float
     )
 
     args = argparser.parse_args()

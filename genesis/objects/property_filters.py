@@ -35,11 +35,11 @@ def make_filter_fn(prop_name, op_name, s_value):
         if s_value == "True":
             op_fn = np.isnan
         elif s_value == "False":
-            op_fn = lambda v: np.logical_not(np.isnan(v))
+            op_fn = lambda v: np.logical_not(np.isnan(v))  # noqa
         else:
             raise NotImplementedError(s_value)
 
-        fn = lambda da: da.where(op_fn(da[prop_name]), drop=True)
+        fn = lambda da: da.where(op_fn(da[prop_name]), drop=True)  # noqa
     else:
         op = dict(
             lt="less_than",
@@ -52,7 +52,7 @@ def make_filter_fn(prop_name, op_name, s_value):
         op_fn = getattr(np, op.replace("_than", ""))
         value = float(s_value)
 
-        fn = lambda da: da.where(op_fn(getattr(da, prop_name), value), drop=True)
+        fn = lambda da: da.where(op_fn(getattr(da, prop_name), value), drop=True)  # noqa
 
     return fn
 
@@ -62,7 +62,7 @@ PROP_NAME_MAPPING = dict(
     z_max="z_{max}",
     z_min="z_{min}",
     qv_flux="w'q'",
-    cvrxp_p_stddivs="\sigma(\phi)",
+    cvrxp_p_stddivs=r"\sigma(\phi)",
     qc="q_c",
     r_equiv="r_{equiv}",
 )
@@ -86,7 +86,7 @@ def _get_prop_name_in_latex(s):
     return latex
 
 
-OP_NAME_MAPPING = dict(lt="<", eq="=", gt=">", lte="\leq", gte="\geq")
+OP_NAME_MAPPING = dict(lt="<", eq="=", gt=">", lte=r"\leq", gte=r"\geq")
 
 PROP_NAME_UNITS_MAPPING = dict(z_min="m", z_max="m", r_equiv="m",)
 

@@ -1,7 +1,6 @@
 import xarray as xr
 import numpy as np
 import matplotlib.pyplot as plt
-import pystan
 
 from .pystan_cache import StanModel_cache
 from .utils import dist_plot
@@ -22,7 +21,7 @@ model {
 
 def _sample_exp(Ntot, vrange, beta):
     vmin, vmax = vrange
-    alpha = Ntot / (beta * (np.exp(-vmin / beta) - np.exp(-vmax / beta)))
+    # alpha = Ntot / (beta * (np.exp(-vmin / beta) - np.exp(-vmax / beta)))
     x = np.random.exponential(scale=beta, size=Ntot)
     return x
 

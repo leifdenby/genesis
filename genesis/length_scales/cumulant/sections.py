@@ -1,9 +1,8 @@
 """
 Routines for plotting cumulant characteristics from netCDF datafile
 """
-if __name__ == "__main__":
+if __name__ == "__main__": # noqa
     import matplotlib
-
     matplotlib.use("Agg")
 
 import xarray as xr

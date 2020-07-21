@@ -1,6 +1,5 @@
-if __name__ == "__main__":
+if __name__ == "__main__": # noqa
     import matplotlib
-
     matplotlib.use("Agg")
 
 import xarray as xr
@@ -47,7 +46,7 @@ def plot_outline(da, lx=10e3, frac=0.9):
 
             d = (y_mean - y_min) / (y_max - y_min)
             obj_mask.max(dim="yt").plot.contour(
-                y="zt", ax=ax, add_colorbar=False, levels=[0.5,], alpha=d
+                y="zt", ax=ax, add_colorbar=False, levels=[0.5], alpha=d
             )
 
         ax.set_aspect(1)

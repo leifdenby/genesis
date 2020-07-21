@@ -207,7 +207,7 @@ def get_fn(base_name, var_name):
 
 
 def _check_coords(da):
-    if not "xt" in da.coords or not "yt" in da.coords:
+    if "xt" not in da.coords or "yt" not in da.coords:
         warnings.warn(
             "Coordinates for xt and yt are missing input, assuming "
             "dx=25m for now, but these files need regenerating "
@@ -302,7 +302,7 @@ if __name__ == "__main__":
 
     out_filename = "{}.cumulant_length_scales.nc".format(args.base_name)
 
-    if not args.mask_name is None:
+    if args.mask_name is not None:
         if args.mask_field is None:
             mask_field = args.mask_name
         else:
@@ -314,7 +314,7 @@ if __name__ == "__main__":
             raise Exception("Can't find mask file `{}`".format(fn_mask))
 
         ds_mask = xr.open_dataset(fn_mask, decode_times=False)
-        if not mask_field in ds_mask:
+        if mask_field not in ds_mask:
             raise Exception(
                 "Can't find `{}` in mask, loaded mask file:\n{}"
                 "".format(mask_field, str(ds_mask))

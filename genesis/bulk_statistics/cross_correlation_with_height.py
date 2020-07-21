@@ -12,11 +12,11 @@ import matplotlib.pyplot as plt
 import tqdm
 
 try:
-    from cloud_tracking_analysis import CloudData, CloudType
-    from cloud_tracking_analysis.cloud_mask_methods import (
-        cloudbase as get_cloudbase_mask,
-    )
-    from cloud_tracking_analysis.cloud_mask_methods import CloudbaseEstimationMethod
+    from cloud_tracking_analysis import CloudData
+    # from cloud_tracking_analysis.cloud_mask_methods import (
+    #     cloudbase as get_cloudbase_mask,
+    # )
+    # from cloud_tracking_analysis.cloud_mask_methods import CloudbaseEstimationMethod
 
     HAS_CLOUD_TRACKING = True
 except ImportError:
@@ -43,7 +43,7 @@ def get_cloudbase_height(
     ds_tracking, da_cldbase_2d, t0, t_age_max, dx, z_base_max=700.0
 ):
 
-    da_cldbase_2d_ = da_cldbase_2d.sel(time=t0)
+    # da_cldbase_2d_ = da_cldbase_2d.sel(time=t0)
 
     object_set = objs_2d.ObjectSet(ds=ds_tracking)
 
@@ -63,9 +63,9 @@ def get_cloudbase_height(
     # remove clouds that are more than 3min old
     object_set = object_set.filter(cloud_age__lt=t_age_max, kwargs=dict(t0=t0))
 
-    nrcloud_cloudbase = get_cloudbase_mask(
-        object_set=object_set, t0=t0, method=CloudbaseEstimationMethod.DEFAULT
-    )
+    # nrcloud_cloudbase = get_cloudbase_mask(
+    #    object_set=object_set, t0=t0, method=CloudbaseEstimationMethod.DEFAULT
+    # )
 
     raise NotImplementedError
     # cldbase = object_set.cloud_data.get('cldbase', tn=tn)
@@ -100,7 +100,7 @@ def get_cloudbase_data(cloud_data, v, t0, t_age_max=200.0, z_base_max=700.0):
     # return v__belowcloud.where(m, drop=True)
 
 
-def main(
+def main( # noqa
     ds_3d,
     ds_cb=None,
     normed_levels=[10, 90],
@@ -161,11 +161,11 @@ def main(
 
         except JointHistPlotError:
             print("error", ds_.zt.values, "skipping")
-        except Exception as e:
+        except Exception:
             print("error", ds_.zt.values)
             raise
 
-    if not ds_cb is None:
+    if ds_cb is not None:
         import ipdb
 
         with ipdb.launch_ipdb_on_exception():

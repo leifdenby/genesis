@@ -9,7 +9,7 @@ import luigi
 import xarray as xr
 import numpy as np
 
-from ....utils import calc_flux, find_vertical_grid_spacing, transforms
+from ....utils import calc_flux, transforms
 from ... import mask_functions
 from .base import (
     get_workdir,
@@ -29,7 +29,7 @@ REGEX_INSTANTENOUS_BASENAME = re.compile(r"(?P<base_name_2d>.*)\.tn(?P<timestep>
 
 COMPOSITE_FIELD_METHODS = dict(
     p_stddivs=(mask_functions.calc_scalar_perturbation_in_std_div, []),
-    flux=(calc_flux.compute_vertical_flux, ["w",]),
+    flux=(calc_flux.compute_vertical_flux, ["w"]),
     _prefix__d=(calc_flux.get_horz_devition, []),
 )
 
@@ -217,8 +217,6 @@ class TimeCrossSectionSlices2D(luigi.Task):
 
 
 def remove_gal_transform(da, tref, base_name):
-    gal_transform = {}
-
     meta = _get_dataset_meta_info(base_name)
     U_gal = meta.get("U_gal", None)
     if U_gal is None:

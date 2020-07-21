@@ -21,7 +21,7 @@ if __name__ == "__main__":
 
     object_file = args.object_file.replace(".nc", "")
 
-    if not "objects" in object_file:
+    if "objects" not in object_file:
         raise Exception()
 
     base_name, mask_name = object_file.split(".objects.")
