@@ -84,7 +84,10 @@ try:
 
 except ImportError:
     import warnings
-    warnings.warn("numba not available to using slow fall-back for ellipsoid mean curvature calculation")
+
+    warnings.warn(
+        "numba not available to using slow fall-back for ellipsoid mean curvature calculation"
+    )
 
     def _calc_mean_curvature_integral(a, b, c):
         # I couldn't find an integral expression for the mean curvature so we will

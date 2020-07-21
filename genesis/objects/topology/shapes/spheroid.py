@@ -25,7 +25,7 @@ def calc_minkowski_functionals(a, c):
             #  i*arccos(x) = ln(x + sqrt(x**2 - 1))
             # and so
             #  arccos(x) / sqrt(1-x**2.) = ln(x + sqrt(x**2. - 1))/sqrt(x**2. - 1)
-            return np.log(x + np.sqrt(x**2. - 1))/np.sqrt(x**2. - 1)
+            return np.log(x + np.sqrt(x ** 2.0 - 1)) / np.sqrt(x ** 2.0 - 1)
         else:
             return np.arccos(x) / np.sqrt(1 - x ** 2.0)
 

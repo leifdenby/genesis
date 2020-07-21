@@ -309,10 +309,15 @@ def example2():
     print("Wrote {}".format(fn))
 
 
-def example3(output_fn, reference_shape='ellipsoid'):
+def example3(output_fn, reference_shape="ellipsoid"):
     fig, ax = plt.subplots(figsize=(5, 5))
     ax.set_aspect(1)
-    plot_fp_ref(ax=ax, shape=reference_shape, lm_range=slice(1.0 / 4.0, 9), calc_kwargs=dict(N_points=400))
+    plot_fp_ref(
+        ax=ax,
+        shape=reference_shape,
+        lm_range=slice(1.0 / 4.0, 9),
+        calc_kwargs=dict(N_points=400),
+    )
 
     ds_study = xr.Dataset(
         coords=dict(
@@ -359,7 +364,7 @@ def example3(output_fn, reference_shape='ellipsoid'):
     ax.set_ylim(-0.01, 0.55)
     ax.set_aspect(0.5)
     sns.despine()
-    ax.legend(loc='upper right')
+    ax.legend(loc="upper right")
 
     fig.savefig(output_fn, dpi=400)
     print("Wrote {}".format(output_fn))

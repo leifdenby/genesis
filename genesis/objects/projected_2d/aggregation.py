@@ -1,6 +1,7 @@
 import numpy as np
 import dask_image.ndmeasure as dmeasure
 
+
 def cloudbase_max_height_by_histogram_peak(object_labels_2d, da_2d, dx):
     """Find the maximum height of points which are consider to part of the
     cloud base. This height is found by looking at the histogram of
@@ -10,6 +11,7 @@ def cloudbase_max_height_by_histogram_peak(object_labels_2d, da_2d, dx):
     multi-leveled cloudbase and is excluded. Also clouds which have too few
     vertical levels so that the double distance would imply that the entire
     cloud is the base are excluded."""
+
     class InSuficientPointsException(Exception):
         pass
 
@@ -34,12 +36,12 @@ def cloudbase_max_height_by_histogram_peak(object_labels_2d, da_2d, dx):
     # cloud_ids = fn_unique_dropna(nrcloud)[1:]
 
     # histogram = dmeasure.histogram(
-        # image=z_clb_points,
-        # min=hist_range[0],
-        # max=hist_range[1],
-        # bins=nbins,
-        # label_image=nrcloud,
-        # index=cloud_ids
+    # image=z_clb_points,
+    # min=hist_range[0],
+    # max=hist_range[1],
+    # bins=nbins,
+    # label_image=nrcloud,
+    # index=cloud_ids
     # ).compute()
 
     # import ipdb
@@ -55,6 +57,7 @@ def cloudbase_max_height_by_histogram_peak(ds, t0, da_nrcloud, da_cldbase, dx):
     multi-leveled cloudbase and is excluded. Also clouds which have too few
     vertical levels so that the double distance would imply that the entire
     cloud is the base are excluded."""
+
     class InSuficientPointsException(Exception):
         pass
 
@@ -79,54 +82,52 @@ def cloudbase_max_height_by_histogram_peak(ds, t0, da_nrcloud, da_cldbase, dx):
     # cloud_ids = fn_unique_dropna(nrcloud)[1:]
 
     # histogram = dmeasure.histogram(
-        # image=z_clb_points,
-        # min=hist_range[0],
-        # max=hist_range[1],
-        # bins=nbins,
-        # label_image=nrcloud,
-        # index=cloud_ids
+    # image=z_clb_points,
+    # min=hist_range[0],
+    # max=hist_range[1],
+    # bins=nbins,
+    # label_image=nrcloud,
+    # index=cloud_ids
     # ).compute()
 
     # import ipdb
     # ipdb.set_trace()
 
-
-
     # z_base_max = np.zeros(cloud_ids.shape)
     # for n, c_id in enumerate(cloud_id(ds)):
-        # try:
-            # bin_counts = histogram[n]
+    # try:
+    # bin_counts = histogram[n]
 
-            # # insert zero number of cells at ends so that ends can be peaks too
-            # n_ext = np.append(np.insert(bin_counts, 0, 0), 0)
+    # # insert zero number of cells at ends so that ends can be peaks too
+    # n_ext = np.append(np.insert(bin_counts, 0, 0), 0)
 
-            # is_peak = np.logical_and(
-                # n_ext[0:-2] < n_ext[1:-1],
-                # n_ext[1:-1] > n_ext[2:]
-            # )
+    # is_peak = np.logical_and(
+    # n_ext[0:-2] < n_ext[1:-1],
+    # n_ext[1:-1] > n_ext[2:]
+    # )
 
-            # peaks = np.nonzero(is_peak)[0]
+    # peaks = np.nonzero(is_peak)[0]
 
-            # if len(peaks) == 0:
-                # raise InSuficientPointsException("Couldn't find a peak in the"
-                                                 # " cldbase points histogram")
+    # if len(peaks) == 0:
+    # raise InSuficientPointsException("Couldn't find a peak in the"
+    # " cldbase points histogram")
 
-            # first_peak = peaks[0]
+    # first_peak = peaks[0]
 
-            # # include up to twice the peak index height as part of the cloud base
-            # try:
-                # z_base_lim = z_bins_c[first_peak*2]
-            # except IndexError:
-                # raise TopheavyCloudException
+    # # include up to twice the peak index height as part of the cloud base
+    # try:
+    # z_base_lim = z_bins_c[first_peak*2]
+    # except IndexError:
+    # raise TopheavyCloudException
 
-            # # Is there a second peak nearby?
-            # if len(peaks) > 1 and first_peak*2 > peaks[1]:
-                # raise MultilevelCloudbaseException
+    # # Is there a second peak nearby?
+    # if len(peaks) > 1 and first_peak*2 > peaks[1]:
+    # raise MultilevelCloudbaseException
 
-            # z_base_max[n] = z_base_lim
+    # z_base_max[n] = z_base_lim
 
-        # except (InSuficientPointsException, TopheavyCloudException,
-                # MultilevelCloudbaseException) as e:
-            # z_base_max[n] = np.nan
+    # except (InSuficientPointsException, TopheavyCloudException,
+    # MultilevelCloudbaseException) as e:
+    # z_base_max[n] = np.nan
 
     # return z_base_max

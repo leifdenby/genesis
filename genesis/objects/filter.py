@@ -1,4 +1,3 @@
-
 def present(ds_tracking, t0):
     """
     Return clouds that are present at time `tn`
@@ -14,6 +13,4 @@ def present(ds_tracking, t0):
 
 
 def cloud_type(ds_tracking, types):
-    return ds_tracking.sel(smcloud=[
-        t.value for t in types
-    ])
+    return ds_tracking.sel(smcloud=[t.value for t in types])
