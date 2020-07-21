@@ -22,7 +22,7 @@ def StanModel_cache(model_code, model_name=None, **kwargs):
 
     try:
         sm = pickle.load(open(cache_fn, "rb"))
-    except:
+    except Exception:
         sm = pystan.StanModel(model_code=model_code)
         with open(cache_fn, "wb") as f:
             pickle.dump(sm, f)

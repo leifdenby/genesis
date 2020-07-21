@@ -1,17 +1,12 @@
 # coding: utf-8
-
-# In[1]:
-
-if __name__ == "__main__":
+if __name__ == "__main__":  # noqa
     import matplotlib
-
     matplotlib.use("Agg")
 
 
 import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
-import math
 import pandas as pd
 
 from genesis.objects import get_data

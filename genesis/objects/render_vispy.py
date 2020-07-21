@@ -26,11 +26,8 @@ import os
 
 import xarray as xr
 
-import numpy as np
-
-from vispy import app, scene, io
+from vispy import app, scene
 from vispy.color import get_colormaps, BaseColormap
-from vispy.visuals.transforms import STTransform
 
 
 # create colormaps that work well for translucent and additive volume rendering
@@ -105,9 +102,9 @@ def main(objects, object_id, var_name=None):
 
     # m = np.swapaxes(m, 0, 2)
 
-    x_min, x_max = m.xt.min(), m.xt.max()
-    y_min, y_max = m.yt.min(), m.yt.max()
-    xc, yc = m.xt.mean(), m.yt.mean()
+    # x_min, x_max = m.xt.min(), m.xt.max()
+    # y_min, y_max = m.yt.min(), m.yt.max()
+    # xc, yc = m.xt.mean(), m.yt.mean()
 
     # Prepare canvas
     canvas = scene.SceneCanvas(keys="interactive", size=(1200, 800), show=True)
@@ -144,7 +141,7 @@ def main(objects, object_id, var_name=None):
     cam.distance = nz * 5
     view.camera = cam
 
-    xax = scene.Axis(
+    _ = scene.Axis(
         pos=[[-0.5 * nx, -0.5 * ny], [0.5 * nx, -0.5 * ny]],
         tick_direction=(0, -1),
         font_size=16,
@@ -153,7 +150,7 @@ def main(objects, object_id, var_name=None):
         text_color="r",
         parent=view.scene,
     )
-    xax = scene.Axis(
+    _ = scene.Axis(
         pos=[[-0.5 * nx, -0.5 * ny], [0.5 * nx, -0.5 * ny]],
         tick_direction=(0, -1),
         font_size=16,
@@ -223,7 +220,7 @@ if __name__ == "__main__":
 
     object_file = args.object_file.replace(".nc", "")
 
-    if not "objects" in object_file:
+    if "objects" not in object_file:
         raise Exception()
 
     base_name, objects_mask = object_file.split(".objects.")
@@ -233,7 +230,7 @@ if __name__ == "__main__":
         raise Exception("Couldn't find objects file `{}`".format(fn_objects))
     objects = xr.open_dataarray(fn_objects, decode_times=False)
 
-    if not args.object_id in objects.values:
+    if args.object_id not in objects.values:
         raise Exception()
 
     print(__doc__)

@@ -5,7 +5,6 @@ import inspect
 import os
 import argparse
 
-import numpy as np
 import xarray as xr
 
 from . import mask_functions
@@ -47,7 +46,7 @@ def make_mask_name(method, method_kwargs):
             return type(method_kwargs[v]) in [float, int, str]
 
     name = ".".join(
-        [method,]
+        [method]
         + [
             "{v}{val}".format(v=v, val=method_kwargs[v])
             for v in method_kwargs.keys()
@@ -66,7 +65,7 @@ def build_method_kwargs(method, kwargs):
     fn = getattr(mask_functions, method)
     fn_argspec = inspect.getargspec(fn)
     needed_vars = fn_argspec.args
-    if not fn_argspec.defaults is None:
+    if fn_argspec.defaults is not None:
         default_values = dict(
             zip(fn_argspec.args[-len(fn_argspec.defaults) :], fn_argspec.defaults)
         )
@@ -94,7 +93,7 @@ def build_method_kwargs(method, kwargs):
                 )
                 kwargs[v] = default_values.get(v)
         else:
-            if not v in kwargs:
+            if v not in kwargs:
                 missing_kwargs.append(v)
 
     if len(missing_kwargs) > 0:
@@ -118,7 +117,7 @@ def main(method, method_kwargs):
     return mask
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # noqa
     argparser = argparse.ArgumentParser(__doc__)
     argparser.add_argument("base_name", type=str)
     mask_function_names = [

@@ -17,7 +17,6 @@ import numpy as np
 # "dask'ed dask-ndmeasure. Install `dask-ndmeasure` for much "
 # "faster computation")
 
-from scipy import ndimage
 from scipy.constants import pi
 from tqdm import tqdm
 import dask_image.ndmeasure
@@ -281,7 +280,7 @@ if __name__ == "__main__":
 
     op = args.operator
 
-    if not "objects" in object_file:
+    if "objects" not in object_file:
         raise Exception()
 
     base_name, objects_mask = object_file.split(".objects.")

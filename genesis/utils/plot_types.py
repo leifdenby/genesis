@@ -168,7 +168,6 @@ def joint_hist_contoured(xd, yd, bins=None, normed_levels=None, ax=None, **kwarg
 
 def _get_counts(x, y):
     c = Counter([tuple(v) for v in zip(x, y)])
-    counts = c.items()
     x_, y_ = zip(*c.keys())
     vals = np.array(list(c.values())).astype(int)
 
@@ -264,7 +263,7 @@ def multi_jointplot(x, y, z, ds, joint_type="pointhist", lgd_ncols=1, **kwargs):
                 )
                 x_e, y_e = pts
                 s = 1500.0 / np.sum(bin_counts)
-                center = lambda x_: 0.5 * (x_[1:] + x_[:-1])
+                center = lambda x_: 0.5 * (x_[1:] + x_[:-1])  # noqa
                 x_c, y_c = np.meshgrid(center(pts[0]), center(pts[1]), indexing="ij")
                 assert bin_counts.shape == x_c.shape
                 g.ax_joint.scatter(

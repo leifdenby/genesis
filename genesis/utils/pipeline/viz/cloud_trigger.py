@@ -1,6 +1,5 @@
 import luigi
 import matplotlib.pyplot as plt
-from pathlib import Path
 import numpy as np
 
 from .. import data
@@ -99,12 +98,12 @@ class CloudTriggeringCrossSectionAnimationFrame(luigi.Task):
         (
             da_nrthrm.astype(int)
             .sel(**kws)
-            .plot.contour(ax=ax, color=["black",], levels=[0.5,])
+            .plot.contour(ax=ax, color=["black"], levels=[0.5])
         )
         (
             da_nrcloud.astype(int)
             .sel(**kws)
-            .plot.contour(ax=ax, colors=["blue",], levels=[0.5,])
+            .plot.contour(ax=ax, colors=["blue"], levels=[0.5])
         )
 
         import ipdb

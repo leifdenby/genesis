@@ -1,13 +1,11 @@
 import matplotlib
-
-matplotlib.use("Agg")
+matplotlib.use("Agg") # noqa
 
 import warnings
 import os
 
 import numpy as np
 import matplotlib.pyplot as plot
-from matplotlib.gridspec import GridSpec
 import matplotlib.font_manager
 
 import xarray as xr
@@ -77,8 +75,6 @@ def _plot_overview(dataset_name, t_hrs_used):
         da_ = da.sel(
             time=t_ * 60.0 * 60.0, drop=True, tolerance=5.0 * 60.0, method="nearest"
         ).squeeze()
-
-        x, y = da.xt, da.yt
 
         (da_ > 0.001).plot.pcolormesh(
             cmap=plot.get_cmap("Greys_r"), rasterized=True, ax=ax, add_colorbar=False,
@@ -173,9 +169,10 @@ def calc_temperature(q_l, p, theta_l):
     # given in B. Steven's notes on moist thermodynamics), but instead
     # reflects the form used in UCLALES where in place of the mixture
     # heat-capacity the dry-air heat capacity is used
-    temp_func = lambda T: theta_l - T * (p_theta / p) ** (R_d / cp_d) * np.exp(
-        -L_v * q_l / (cp_d * T)
-    )
+    def temp_func(T):
+        return theta_l - T * (p_theta / p) ** (R_d / cp_d) * np.exp(
+            -L_v * q_l / (cp_d * T)
+        )
 
     if np.all(q_l == 0.0):
         # no need for root finding
@@ -205,7 +202,7 @@ def _UCLALES_est_temperature(ds):
         arr_temperature = Pool().starmap(
             calc_temperature, zip(da_ql, da_pressure, da_thetal)
         )
-    except:
+    except Exception:
         arr_temperature = np.vectorize(calc_temperature)(
             q_l=da_ql, p=da_pressure, theta_l=da_thetal
         )
@@ -253,7 +250,7 @@ def _plot_profiles(dataset_name, t_hrs_used):
 
 
 def main(dataset_name, dt_overview_hours=5):
-    fig = plot.figure(figsize=(10, 12))
+    _ = plot.figure(figsize=(10, 12))
 
     t_hrs_used = _plot_timeseries(dataset_name=dataset_name)
     _plot_3d_data_indicators(dataset_name=dataset_name)

@@ -2,13 +2,11 @@
 Utilities for labelling 3D objects from a mask
 """
 import os
-import warnings
 
 import xarray as xr
 import numpy as np
 
 import cloud_identification
-from ..utils import find_grid_spacing
 
 OUT_FILENAME_FORMAT = "{base_name}.objects.{objects_name}.nc"
 
@@ -49,8 +47,6 @@ def _label_objects_wrapper(mask, splitting_scalar, remove_at_edge=False):
 
 
 def label_objects(mask, splitting_scalar):
-    dx = find_grid_spacing(mask)
-
     if splitting_scalar is not None:
         mask = mask.sel(zt=splitting_scalar.zt).squeeze()
 

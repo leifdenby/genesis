@@ -1,2 +1,2 @@
-from . import minkowski
-from . import plots
+from . import minkowski  # noqa
+from . import plots  # noqa

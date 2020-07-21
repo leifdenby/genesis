@@ -11,7 +11,6 @@ import scipy.optimize
 import scipy.integrate
 from ...utils.intergrid import intergrid
 import xarray as xr
-from tqdm import tqdm
 from enum import Enum
 import skimage.measure
 
@@ -34,7 +33,7 @@ _var_name_mapping = {
     "w0400": r"w^{400m}",
 }
 
-RE_CUMULANT_NAME = re.compile("C\((\w+),(\w+)\)(.*)")
+RE_CUMULANT_NAME = re.compile(r"C\((\w+),(\w+)\)(.*)")
 
 
 def fix_cumulant_name(name):
@@ -165,7 +164,7 @@ def identify_principle_axis(C, sI_N=100):
     x_ = C.coords["x"]
     y_ = C.coords["y"]
 
-    I_func = lambda x, y, m: np.array(
+    I_func = lambda x, y, m: np.array( # noqa
         [
             [np.sum(m * y ** 2.0), np.sum(m * x * y)],
             [np.sum(m * y * x), np.sum(x ** 2.0 * m)],
@@ -182,10 +181,10 @@ def identify_principle_axis(C, sI_N=100):
 
     if C.dims == ("x", "y"):
         x, y = np.meshgrid(x_[sI_x], y_[sI_y], indexing="ij")
-        I = I_func(x, y, s * C[sI_x, sI_y])
+        I = I_func(x, y, s * C[sI_x, sI_y]) # noqa
     else:
         x, y = np.meshgrid(x_[sI_y], y_[sI_x], indexing="ij")
-        I = I_func(x, y, s * C[sI_y, sI_x])
+        I = I_func(x, y, s * C[sI_y, sI_x]) # noqa
 
     la, v = np.linalg.eig(I)
 
@@ -446,8 +445,8 @@ def _find_width_through_mass_weighting(data, theta, max_width=5000.0, center_onl
             val = sample_fn(mu)[1]
             return np.maximum(0, s * val)
 
-        fn_inertia = lambda mu: fn(mu) * np.abs(mu)
-        fn_mass = lambda mu: fn(mu)
+        fn_inertia = lambda mu: fn(mu) * np.abs(mu) # noqa
+        fn_mass = lambda mu: fn(mu) # noqa
 
         if dir == 1:
             kw = dict(a=0, b=max_width / 2.0)
@@ -495,7 +494,6 @@ def _find_width_through_mass_weighting(data, theta, max_width=5000.0, center_onl
 
 def _find_width_through_cutoff(data, theta, width_peak_fraction=0.5, max_width=5000.0):
     x = data.coords["x"]
-    x_ = x[np.abs(x) < max_width / 2.0]
     assert x.units == "m"
 
     sample_fn = _get_line_sample_func(data, theta)
@@ -532,7 +530,7 @@ def _find_width_through_cutoff(data, theta, width_peak_fraction=0.5, max_width=5
 
         try:
             x_hwhm = scipy.optimize.brentq(f=root_fn, a=0.0, b=mu_lim)
-        except ValueError as e:
+        except ValueError:
             warnings.warn(
                 "Couldn't find width smaller than `{}` assuming"
                 " that the cumulant spreads to infinity".format(max_width)
@@ -666,8 +664,6 @@ def charactistic_scales(
     characteristic length-scales along and perpendicular to principle axis (as
     full width at half maximum)
     """
-    import matplotlib.pyplot as plot
-
     if v2 is not None:
         assert v1.shape == v2.shape
         assert np.all(v1.coords["x"] == v2.coords["x"])
@@ -687,7 +683,6 @@ def charactistic_scales(
     C_vv = calc_2nd_cumulant(v1, v2, mask=mask)
 
     l_win = l_theta_win
-    found_min_max_lengths = False
     m = 0
     if sample_angle is not None:
         theta = xr.DataArray(

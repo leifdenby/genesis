@@ -1,8 +1,6 @@
 """
 Utility to compute vertical fluxes of scalars from 3D output in UCLALES
 """
-import os
-
 import numpy as np
 
 from . import center_staggered_field

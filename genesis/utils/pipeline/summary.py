@@ -1,5 +1,4 @@
 import luigi
-import numpy as np
 
 from . import viz, data
 
@@ -26,7 +25,6 @@ class FluxFractionCarriedSummary(viz.FluxFractionCarried):
         return reqs
 
     def run(self):
-        input = self.input()
         ds_filtered = self.input()["filtered"].open()
         self._make_plot(ds=ds_filtered, output_fn=self.output()["plot"].fn)
 

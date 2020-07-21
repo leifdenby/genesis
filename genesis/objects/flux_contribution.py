@@ -2,9 +2,7 @@ import seaborn as sns
 import numpy as np
 import xarray as xr
 import matplotlib.pyplot as plt
-import matplotlib as mpl
 import math
-import textwrap
 
 from ..utils.plot_types import adjust_fig_to_fit_figlegend
 
@@ -85,7 +83,7 @@ def plot(
     mean_profile_components="all",
     include_x_mean=True,
     add_profile_legend=True,
-):
+):  # noqa
     def _get_finite_range(vals):
         # turns infs into nans and then we can uses nanmax nanmin
         v = vals.where(~np.isinf(vals), np.nan)
@@ -147,9 +145,6 @@ def plot(
         da_flux_tot = da_flux_tot.sel(sampling=mean_profile_components)
     da_flux_tot = da_flux_tot.sortby("sampling", ascending=False)
     da_flux_tot.attrs.update(ds[f"{v}__mean"].attrs)
-    lines_profile = da_flux_tot.plot(
-        y="zt", ax=g.ax_marg_y, hue="sampling", add_legend=add_profile_legend
-    )
 
     # add a square marker for the mask
     mask_marker = "s"
@@ -216,7 +211,8 @@ def plot(
 
     g.ax_joint.set_ylim(ds.where(ds.zt > 0, drop=True).zt.min(), None)
 
-    add_newline = lambda s: s[: s.index("[")] + "\n" + s[s.index("[") :]
+    def add_newline(s):
+        return s[: s.index("[")] + "\n" + s[s.index("[") :]
     g.ax_marg_y.set_xlabel(add_newline(g.ax_marg_y.get_xlabel()))
 
     return g.ax_joint
@@ -254,7 +250,7 @@ def plot_with_areafrac(ds, figsize=(12, 8), legend_ncols=3):
     da_flux_tot = ds.flux_mean.groupby("sampling").apply(scale_flux)
     da_flux_tot.attrs["long_name"] = r"$\sigma\ \overline{{w'{}'}}$".format(s_latex)
     da_flux_tot.attrs["units"] = ds.flux_mean.units
-    g = da_flux_tot.plot(ax=ax, y="z", hue="sampling")
+    da_flux_tot.plot(ax=ax, y="z", hue="sampling")
 
     sns.despine(fig)
     [ax.get_legend().remove() for ax in axes]
