@@ -38,6 +38,7 @@ jobs:
       run: |
         conda env create -n genesis -f environment.yml
         source activate genesis
+        pip install git+https://github.com/leifdenby/cloud_identification@master
         pip install flake8 pytest
     - name: Lint with flake8
       run: |
