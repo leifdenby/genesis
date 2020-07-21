@@ -1,11 +1,9 @@
-import itertools
-import textwrap
-from pathlib import Path
-import re
-
 import matplotlib
 
-matplotlib.use("Agg")
+matplotlib.use("Agg")  # noqa
+
+from pathlib import Path
+import re
 
 import luigi
 import xarray as xr
@@ -15,11 +13,10 @@ import seaborn as sns
 import yaml
 import shutil
 
-# from ...length_scales.plot import cumulant_scale_vs_height
 from ....bulk_statistics import cross_correlation_with_height
 from .... import length_scales
 from .... import objects
-from ... import plot_types, cm_nilearn, figure_metadata
+from ... import plot_types, figure_metadata
 from ....utils.calc_flux import scale_flux_to_watts
 
 from .. import data
@@ -295,7 +292,7 @@ class JointDistProfileGrid(luigi.Task):
         )
 
         if Ny == 1:
-            axes = np.array([axes,])
+            axes = np.array([axes])
 
         for i, base_name in enumerate(base_names):
             for j, part in enumerate(["nomask", "masked"]):
@@ -323,7 +320,7 @@ class JointDistProfileGrid(luigi.Task):
                     title += "\nmasked by {}".format(_textwrap(ds_3d.mask_desc, 30))
                 ax.set_title(title)
 
-        lgd = plt.figlegend(
+        plt.figlegend(
             handles=lines,
             labels=[l.get_label() for l in lines],
             loc="lower center",
@@ -561,7 +558,7 @@ class ObjectScalesComparison(luigi.Task):
         try:
             with open("{}.yaml".format(self.plot_definition)) as fh:
                 return yaml.load(fh, Loader=loader)
-        except IOError as e:
+        except IOError:
             return yaml.load(self.plot_definition, Loader=loader)
 
     def requires(self):
@@ -792,7 +789,7 @@ class ObjectScalesFit(luigi.Task):
         )
 
         if len(axes.shape) == 1:
-            axes = np.array([axes,])
+            axes = np.array([axes])
 
         for n, (base_name, input) in enumerate(inputs.items()):
             input = input.open()
@@ -903,10 +900,9 @@ class ObjectsScaleDist(luigi.Task):
     def get_title(self):
         return ""
 
-    def run(self):
+    def run(self):  # noqa
         figsize = [float(v) for v in self.figsize.split(",")]
         N_vars = len(self.var_name.split(","))
-        N_basenames = len(self.base_names.split(","))
         fig, axes = plt.subplots(
             figsize=(figsize[0] * N_vars, figsize[1]), ncols=N_vars, sharey=True
         )
@@ -1080,7 +1076,7 @@ class ObjectsScalesJointDist(luigi.Task):
     def get_base_name_labels(self):
         return {}
 
-    def make_plot(self):
+    def make_plot(self):  # noqa
         inputs = self.input()
 
         kws = {}
@@ -1223,8 +1219,6 @@ class ObjectsScalesJointDist(luigi.Task):
         return ax
 
     def run(self):
-        ax = self.make_plot()
-
         try:
             plt.savefig(self.output().fn, bbox_inches="tight")
         except IOError:
@@ -1533,9 +1527,14 @@ class Suite(luigi.Task):
     def requires(self):
         reqs = {}
         if self.timestep is not None:
-            add_timestep = lambda bn: "{}.tn{}".format(bn, self.timestep)
+
+            def add_timestep(bn):
+                return "{}.tn{}".format(bn, self.timestep)
+
         else:
-            add_timestep = lambda bn: bn
+
+            def add_timestep(bn):
+                return bn
 
         if self.base_name is None:
             datasources = data.get_datasources()

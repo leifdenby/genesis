@@ -24,7 +24,7 @@ def find_grid_spacing(mask):
     dx = np.round(dx, REQUIRED_DX_PRECISION)
     dy = np.round(dx, REQUIRED_DX_PRECISION)
 
-    if not z_var in mask.coords:
+    if z_var not in mask.coords:
         warnings.warn("z hasn't got any coordinates defined, assuming dz=dx")
         dz = np.max(dx)
     else:

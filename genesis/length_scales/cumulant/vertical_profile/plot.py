@@ -1,19 +1,17 @@
 """
 Routines for plotting cumulant characteristics from netCDF datafile
 """
-if __name__ == "__main__":
+if __name__ == "__main__":  # noqa
     import matplotlib
 
     matplotlib.use("Agg")
 
 import warnings
-import os
 
 import xarray as xr
 from matplotlib.gridspec import GridSpec
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.constants import pi
 import seaborn as sns
 
 from ..calc import fix_cumulant_name
@@ -21,7 +19,7 @@ from ....utils import wrap_angles
 
 
 FULL_SUITE_PLOT_PARTS = dict(
-    l=(0, 0),
+    l=(0, 0),  # noqa
     q=(0, slice(1, None)),
     t=(1, slice(0, None)),
     w=(2, slice(0, 2)),
@@ -87,9 +85,7 @@ def plot_full_suite(data, marker=""):
         ax.set_xlim(0, d.zt.max() / h * w * aspect)
 
     plt.subplots_adjust(bottom=0.10)
-    lgd = plt.figlegend(
-        lines, [l.get_label() for l in lines], loc="lower center", ncol=2
-    )
+    _ = plt.figlegend(lines, [l.get_label() for l in lines], loc="lower center", ncol=2)
 
 
 def plot_angles(
@@ -113,8 +109,6 @@ def plot_angles(
     if fig is None and split_subplots:
         fig = plt.figure(figsize=(2.5 * len(cumulants), 4))
 
-    z_ = data.zt
-
     ax = None
 
     axes = []
@@ -126,7 +120,7 @@ def plot_angles(
     for i, cumulant in enumerate(cumulants):
         lines = []
         n = data.cumulant.values.tolist().index(cumulant)
-        s = data.isel(cumulant=n, drop=True).squeeze()
+        _ = data.isel(cumulant=n, drop=True).squeeze()
         if split_subplots:
             ax = plt.subplot(1, len(cumulants), i + 1, sharey=ax)
         else:
@@ -158,7 +152,7 @@ def plot_angles(
 
     if with_legend:
         plt.subplots_adjust(bottom=0.24)
-        lgd = plt.figlegend(
+        _ = plt.figlegend(
             lines, [l.get_label() for l in lines], loc="lower center", ncol=2
         )
 
@@ -180,7 +174,7 @@ def plot(
     **kwargs
 ):
 
-    if not plot_type in ["angles", "scales"]:
+    if plot_type not in ["angles", "scales"]:
         raise Exception
 
     if len(cumulants) == 0:
@@ -189,7 +183,7 @@ def plot(
     if z_max is not None:
         data = data.copy().where(data.zt < z_max, drop=True)
 
-    Nd = data.dataset_name.count()
+    _ = data.dataset_name.count()
 
     if split_subplots:
         fig, axes = plt.subplots(
@@ -201,8 +195,6 @@ def plot(
     else:
         fig, ax = plt.subplots()
 
-    z_ = data.zt
-
     if plot_type == "angles":
         data.principle_axis.values = np.rad2deg(
             wrap_angles(np.deg2rad(data.principle_axis))
@@ -211,7 +203,7 @@ def plot(
     for i, cumulant in enumerate(cumulants):
         lines = []
         n = data.cumulant.values.tolist().index(cumulant)
-        s = data.isel(cumulant=n, drop=True).squeeze()
+        _ = data.isel(cumulant=n, drop=True).squeeze()
 
         if split_subplots:
             if len(cumulants) > 1:
@@ -280,7 +272,7 @@ def plot(
 
     plt.tight_layout()
     if with_legend:
-        lgd = plt.figlegend(
+        _ = plt.figlegend(
             lines, [l.get_label() for l in lines], loc="lower center", ncol=2
         )
         fig.text(
@@ -309,11 +301,6 @@ FN_FORMAT = "{base_name}.cumulant_profile_{plot_type}.{mask}.pdf"
 
 if __name__ == "__main__":
     import matplotlib
-
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-
-    import seaborn as sns
 
     sns.set(style="ticks")
 
@@ -348,7 +335,7 @@ if __name__ == "__main__":
 
     dataset = xr.open_mfdataset(args.input, concat_dim="dataset_name")
 
-    if not "dataset_name" in dataset.dims:
+    if "dataset_name" not in dataset.dims:
         dataset = dataset.expand_dims("dataset_name")
 
     do_full_suite_plot = None

@@ -35,7 +35,7 @@ def fixed_bin_hist(v, dv, ax, **kwargs):
     ax.hist(v, range=vrange, bins=nbins, **kwargs)
 
 
-def dist_plot(
+def dist_plot(  # noqa
     v, dv_bin, fit=None, axes=None, log_dists=True, components="default", **kwargs
 ):
     da_v = None
@@ -73,7 +73,6 @@ def dist_plot(
                 beta_std = None
                 if type(beta) == tuple:
                     beta, beta_std = beta
-                Ntot = len(v)
                 C = np.exp(vrange_fit[0] / beta)
                 v_ = np.linspace(*vrange_fit, 100)
                 ax.plot(v_, C / beta * np.exp(-v_ / beta), color="red")

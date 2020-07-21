@@ -59,7 +59,9 @@ def cloudbase_max_height_by_histogram_peak(ds, t0, da_nrcloud, da_cldbase, dx):
     nbins = int((hist_range[1] - hist_range[0]) / dx)
     z_bins_c = np.arange(z_min, z_max, nbins)
 
-    fn_unique_dropna = lambda v: np.unique(v.data[~np.isnan(v.data)])
+    def fn_unique_dropna(v):
+        return np.unique(v.data[~np.isnan(v.data)])
+
     cloud_ids = fn_unique_dropna(nrcloud)[1:]
 
     histogram = dmeasure.histogram(
@@ -106,7 +108,7 @@ def cloudbase_max_height_by_histogram_peak(ds, t0, da_nrcloud, da_cldbase, dx):
             InSuficientPointsException,
             TopheavyCloudException,
             MultilevelCloudbaseException,
-        ) as e:
+        ):
             z_base_max[n] = np.nan
 
     return z_base_max

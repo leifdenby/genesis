@@ -1,1 +1,1 @@
-from . import exponential_fit
+from . import exponential_fit  # noqa

@@ -1,5 +1,5 @@
-import numpy as np
-import dask_image.ndmeasure as dmeasure
+# import numpy as np
+# import dask_image.ndmeasure as dmeasure
 
 
 def cloudbase_max_height_by_histogram_peak(object_labels_2d, da_2d, dx):
@@ -48,7 +48,7 @@ def cloudbase_max_height_by_histogram_peak(object_labels_2d, da_2d, dx):
     # ipdb.set_trace()
 
 
-def cloudbase_max_height_by_histogram_peak(ds, t0, da_nrcloud, da_cldbase, dx):
+def cloudbase_max_height_by_histogram_peak_new(ds, t0, da_nrcloud, da_cldbase, dx):
     """Find the maximum height of points which are consider to part of the
     cloud base. This height is found by looking at the histogram of
     cloud-underside heights, picking the first peak and including all points

@@ -1,9 +1,8 @@
 """
 """
-import os
 import matplotlib
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # noqa
     matplotlib.use("Agg")
 
     # register a progressbar so we can see progress of dask'ed operations with xarray
@@ -13,8 +12,7 @@ if __name__ == "__main__":
 
 import matplotlib.pyplot as plt
 
-from . import load_mask, load_field
-from . import get_dataset
+from . import load_mask
 
 import genesis.objects
 
@@ -71,7 +69,7 @@ def main(args=None, ax=None):
     area_fraction.plot(y="zt")
 
     mask_description = ""
-    if not mask is None:
+    if mask is not None:
         if "longname" in mask.attrs:
             mask_description = mask.attrs["longname"]
 

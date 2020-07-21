@@ -38,7 +38,7 @@ class TrackingType(Enum):
 
 
 REQUIRED_FIELDS_MAPPING = dict(
-    core=["core",],
+    core=["core"],
     thermal=["lwp", "trcbase", "trctop", "trcpath"],
     cloud=["cldbase", "cldtop", "lwp"],
 )

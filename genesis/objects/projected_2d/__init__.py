@@ -1,17 +1,15 @@
-import xarray as xr
 import operator
 import numpy as np
 import inspect
 
 
 from . import operations
-from .operations import CloudType
 
 
 def _find_objectset_operations():
     from inspect import getmembers, isfunction, getargspec
 
-    f = lambda o: isfunction(o[1]) and "ds" in getargspec(o[1]).args
+    f = lambda o: isfunction(o[1]) and "ds" in getargspec(o[1]).args  # noqa
     return [o[0] for o in getmembers(operations) if f(o)]
 
 
@@ -115,9 +113,9 @@ class ObjectSet:
         # XXX: xarray messes up indexing by boolean array, recast to bare
         # np.array
         if exclude:
-            new_cloud_ids = cloud_ids[np.logical_not(np.array(r))]
+            cloud_ids = cloud_ids[np.logical_not(np.array(r))]
         else:
-            new_cloud_ids = cloud_ids[np.array(r)]
+            cloud_ids = cloud_ids[np.array(r)]
 
         ds_new_props = self.ds_props.sel(smcloudid=cloud_ids)
 

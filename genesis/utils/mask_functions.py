@@ -193,7 +193,7 @@ def coldpool_edge_shear_direction_split(
     ly = _find_mean_dir(ds=ds, x_=y)
 
     print("Defining edge direction vector for each point")
-    dims = tuple(["component",] + list(ds_edge.coldpool.dims))
+    dims = tuple(["component"] + list(ds_edge.coldpool.dims))
     # use raw values for significant speedup
     ds["edge_direction"] = (dims, [lx.values, ly.values])
     ds.edge_direction.values /= np.linalg.norm(ds.edge_direction.values, axis=0)

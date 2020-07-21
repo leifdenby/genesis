@@ -2,7 +2,6 @@
 Map a object property onto 3D object field
 """
 import os
-import warnings
 
 import xarray as xr
 import numpy as np
@@ -49,7 +48,7 @@ if __name__ == "__main__":
 
     object_file = args.object_file.replace(".nc", "")
 
-    if not "objects" in object_file:
+    if "objects" not in object_file:
         raise Exception()
 
     base_name, objects_mask = object_file.split(".objects.")

@@ -10,7 +10,7 @@ def Rot_x(t):
 
 def Rot_z(t):
     # https://en.wikipedia.org/wiki/Rotation_matrix#In_three_dimensions
-    return np.array([[np.cos(t), -np.sin(t), 0], [np.sin(t), np.cos(t), 0], [0, 0, 1],])
+    return np.array([[np.cos(t), -np.sin(t), 0], [np.sin(t), np.cos(t), 0], [0, 0, 1]])
 
 
 def rotate_points(p, theta, phi):
@@ -32,7 +32,7 @@ def plot_shape(ds):
     fig, axes = plt.subplots(ncols=2, nrows=2, figsize=(7, 5))
 
     for n, d in enumerate(ds.dims):
-        if not "z" in d:
+        if "z" not in d:
             kwargs = dict(y="z")
         else:
             kwargs = dict()
@@ -46,13 +46,26 @@ def plot_shape(ds):
 
 
 def find_ellipsoid_scales(da_mask):
-    I_func = lambda x, y, z, m: np.array(
-        [
-            [np.sum(m * (y ** 2.0 + z ** 2.0)), np.sum(m * x * y), np.sum(m * x * z)],
-            [np.sum(m * y * x), np.sum(m * (x ** 2.0 + z ** 2.0)), np.sum(m * y * z)],
-            [np.sum(m * z * x), np.sum(m * z * y), np.sum(m * (y ** 2.0 + x ** 2.0))],
-        ]
-    )
+    def I_func(x, y, z, m):
+        return np.array(
+            [
+                [
+                    np.sum(m * (y ** 2.0 + z ** 2.0)),
+                    np.sum(m * x * y),
+                    np.sum(m * x * z),
+                ],
+                [
+                    np.sum(m * y * x),
+                    np.sum(m * (x ** 2.0 + z ** 2.0)),
+                    np.sum(m * y * z),
+                ],
+                [
+                    np.sum(m * z * x),
+                    np.sum(m * z * y),
+                    np.sum(m * (y ** 2.0 + x ** 2.0)),
+                ],
+            ]
+        )
 
     if np.any(da_mask.isnull()):
         m = ~da_mask.isnull()
@@ -78,7 +91,7 @@ def find_ellipsoid_scales(da_mask):
     y_ = y_3d - y_c
     z_ = z_3d - z_c
 
-    I = I_func(x_, y_, z_, m)
+    I = I_func(x_, y_, z_, m)  # noqa
 
     la, v = np.linalg.eig(I)
 
@@ -124,7 +137,6 @@ def _make_test_grid():
 def test_plot_shape_mask():
     ds = _make_test_grid()
     lx = ds.lx
-    ly = ds.ly
 
     a, b = lx / 4.0, lx / 2.0
     ds["mask"] = ds.x ** 2.0 / a ** 2.0 + ds.y ** 2.0 / b ** 2.0 + ds.z ** 2.0 < 1.0
@@ -144,7 +156,6 @@ def test_plot_shape_mask():
 def test_make_ellipsoid_mask():
     ds = _make_test_grid()
     lx = ds.lx
-    ly = ds.ly
 
     a = lx / 4.0
     b = lx / 2.0

@@ -253,9 +253,9 @@ def dim_cmap(cmap, factor=0.3, to_white=True):
         % factor
     )
     if to_white:
-        dimmer = lambda c: 1 - factor * (1 - c)
+        dimmer = lambda c: 1 - factor * (1 - c)  # noqa
     else:
-        dimmer = lambda c: factor * c
+        dimmer = lambda c: factor * c  # noqa
     cdict = cmap._segmentdata.copy()
     for c_index, color in enumerate(("red", "green", "blue")):
         color_lst = list()
@@ -266,7 +266,7 @@ def dim_cmap(cmap, factor=0.3, to_white=True):
     return _colors.LinearSegmentedColormap("%s_dimmed" % cmap.name, cdict, _cm.LUTSIZE)
 
 
-def replace_inside(outer_cmap, inner_cmap, vmin, vmax):
+def replace_inside(outer_cmap, inner_cmap, vmin, vmax):  # noqa
     """ Replace a colormap by another inside a pair of values.
     """
     assert vmin < vmax, ValueError("vmin must be smaller than vmax")

@@ -57,7 +57,7 @@ def render_mask_as_3d_voxels(da_mask, ax=None, center_xy_pos=False, alpha=0.5):
         | (m_obj != np.roll(m_obj, axis=2, shift=-1))
     )
 
-    colors = np.zeros(list(m_obj.shape) + [4,], dtype=np.float32)
+    colors = np.zeros(list(m_obj.shape) + [4], dtype=np.float32)
     colors[m_edge, 0] = 0
     colors[m_edge, 1] = 1
     colors[m_edge, 2] = 0
@@ -157,7 +157,7 @@ if __name__ == "__main__":
 
     object_file = args.object_file.replace(".nc", "")
 
-    if not "objects" in object_file:
+    if "objects" not in object_file:
         raise Exception()
 
     base_name, objects_mask = object_file.split(".objects.")
@@ -167,7 +167,7 @@ if __name__ == "__main__":
         raise Exception("Couldn't find objects file `{}`".format(fn_objects))
     da_objects = xr.open_dataarray(fn_objects, decode_times=False)
 
-    if not args.object_id in da_objects.values:
+    if args.object_id not in da_objects.values:
         raise Exception()
 
     obj_id = args.object_id

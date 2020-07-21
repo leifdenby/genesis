@@ -3,12 +3,8 @@ Utilities for calculating characteristics scales of objects using Minkowski
 functionals
 """
 import os
-import warnings
 
 import xarray as xr
-import numpy as np
-
-import cloud_identification
 
 from . import topology
 

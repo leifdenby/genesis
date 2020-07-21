@@ -2,7 +2,6 @@ import warnings
 import shutil
 import os
 from pathlib import Path
-import re
 
 import luigi
 import xarray as xr
@@ -26,7 +25,6 @@ from ....utils import find_vertical_grid_spacing
 from ..data_sources import uclales_2d_tracking
 from ..data_sources.uclales_2d_tracking import TrackingType
 from ..data_sources.uclales import _fix_time_units as fix_time_units
-from ....objects.projected_2d import ObjectSet
 
 
 class XArrayTargetUCLALES(XArrayTarget):
@@ -204,7 +202,6 @@ class PerformObjectTracking2D(luigi.Task):
             shutil.move(fn_tracking, self.output().fn)
 
     def output(self):
-        meta = _get_dataset_meta_info(self.base_name)
         type_id = uclales_2d_tracking.TrackingType.make_identifier(self.tracking_type)
 
         if len(self.timestep_interval) == 0:
@@ -299,7 +296,7 @@ class Aggregate2DCrossSectionOnTrackedObjects(luigi.Task):
             ),
         )
 
-        if not self.field_name in ["xt", "yt"]:
+        if self.field_name not in ["xt", "yt"]:
             tasks["field"] = ExtractCrossSection2D(
                 base_name=self.base_name, field_name=self.field_name, time=self.time,
             )
@@ -328,7 +325,9 @@ class Aggregate2DCrossSectionOnTrackedObjects(luigi.Task):
             bin_var = da_values.name
 
             # get unique object labels
-            fn_unique_dropna = lambda v: np.unique(v.data[~np.isnan(v.data)])
+            def fn_unique_dropna(v):
+                return np.unique(v.data[~np.isnan(v.data)])
+
             object_ids = fn_unique_dropna(da_labels)[1:]
 
             values_binned = np.zeros((len(object_ids), nbins), dtype=int)
@@ -364,7 +363,9 @@ class Aggregate2DCrossSectionOnTrackedObjects(luigi.Task):
 
     def _aggregate_generic(self, da_values, da_labels, op):
         # get unique object labels
-        fn_unique_dropna = lambda v: np.unique(v.data[~np.isnan(v.data)])
+        def fn_unique_dropna(v):
+            return np.unique(v.data[~np.isnan(v.data)])
+
         object_ids = fn_unique_dropna(da_labels)[1:]
 
         if len(object_ids) > 0:
@@ -380,7 +381,7 @@ class Aggregate2DCrossSectionOnTrackedObjects(luigi.Task):
 
         with ipdb.launch_ipdb_on_exception():
             da = xr.DataArray(
-                values, dims=("object_id"), coords={"object_id": object_ids,},
+                values, dims=("object_id"), coords={"object_id": object_ids},
             )
 
             if "long_name" in da_values:

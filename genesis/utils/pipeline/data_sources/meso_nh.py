@@ -2,7 +2,6 @@ from pathlib import Path
 import warnings
 from collections import OrderedDict
 
-import ipdb
 import xarray as xr
 import numpy as np
 
@@ -153,7 +152,7 @@ def _center_vertical_velocity_field(w_old):
     return w_cc
 
 
-def extract_field_to_filename(dataset_meta, path_out, field_name, **kwargs):
+def extract_field_to_filename(dataset_meta, path_out, field_name, **kwargs):  # noqa
     if field_name == "theta_v":
         assert "qv" in kwargs and "theta" in kwargs
 

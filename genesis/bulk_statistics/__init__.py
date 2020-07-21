@@ -53,7 +53,7 @@ def load_mask(input_name, mask_name, mask_field=None, invert=False):
 
     ds_mask = xr.open_dataset(fn_mask, decode_times=False)
 
-    if not mask_field in ds_mask:
+    if mask_field not in ds_mask:
         raise Exception(
             "Can't find `{}` in mask, loaded mask file:\n{}"
             "".format(mask_field, str(ds_mask))
@@ -82,7 +82,7 @@ def load_field(fn, autoscale=True, mask=None):
         if len(da_in.zt) > len(mask.zt):
             # mask has smaller vertical extent than data, crop data
             warnings.warn("Mask has smaller vertical extent than data, " "masking data")
-            if not "time" in mask.dims:
+            if "time" not in mask.dims:
                 mask = mask.expand_dims("time")
             da_in = da_in.sel(zt=mask.zt).where(mask, 0.0)
             da_in.name = field_name
@@ -165,14 +165,11 @@ def calc_distribution_in_cross_sections(da_s, ds_bin, z_slice=None):
 
     z_var = da_s.coords["zt" if "zt" in da_s.coords else "zm"]
 
-    lines = []
-
     # get data will be working on
     if z_slice is not None:
         z = z_var.sel(**{z_var.name: z_slice})
     else:
         z = z_var
-    nz = z.shape[0]
     da_in = da_s.sel(**{z_var.name: z, "drop": True})
 
     # setup array for output
@@ -180,7 +177,7 @@ def calc_distribution_in_cross_sections(da_s, ds_bin, z_slice=None):
     bins = np.linspace(v_range[0], v_range[1], num=n_bins + 1)
 
     def calc_distribution_in_cross_section(da_cross):
-        count_in_bin = lambda v: xr.DataArray(v.shape[0])
+        count_in_bin = lambda v: xr.DataArray(v.shape[0])  # noqa
         da_counts = da_cross.groupby_bins(da_cross, bins=bins).apply(count_in_bin)
 
         return da_counts
@@ -242,7 +239,7 @@ def get_dataset(input_name, variables, output_fn_for=None, p=""):
         dataset = xr.open_dataset(input_name, decode_times=False)
 
         for var_name in enumerate(variables):
-            if var_name.endswith("_flux") and not var_name in dataset:
+            if var_name.endswith("_flux") and var_name not in dataset:
                 raise NotImplementedError("add_flux_var")
                 # _add_flux_var(dataset, var_name.replace('_flux', ''))
 
@@ -273,7 +270,7 @@ def get_dataset(input_name, variables, output_fn_for=None, p=""):
                 "{}.w.nc".format(input_name), decode_times=False, chunks=dict(zm=20)
             )
 
-            if not dataset is None:
+            if dataset is not None:
                 dataset = xr.merge([dataset, d2])
             else:
                 dataset = d2

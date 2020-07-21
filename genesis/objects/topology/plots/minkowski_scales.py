@@ -1,8 +1,5 @@
 # coding: utf-8
-
-# In[1]:
-
-if __name__ == "__main__":
+if __name__ == "__main__":  # noqa
     import matplotlib
 
     matplotlib.use("Agg")
@@ -10,8 +7,6 @@ if __name__ == "__main__":
 
 import seaborn as sns
 import matplotlib.pyplot as plt
-import numpy as np
-import math
 
 from genesis.objects import get_data
 

@@ -6,7 +6,7 @@ import seaborn as sns
 import numpy as np
 
 
-def plot_reference(
+def plot_reference(  # noqa
     ax,
     shape,
     lm_range=None,
@@ -58,8 +58,6 @@ def plot_reference(
     for lm_pt in lm_:
         ds_ = ds.swap_dims(dict(i="lm")).sel(lm=lm_pt, method="nearest")
         x_, y_ = ds_.planarity, ds_.filamentarity
-
-        lm_max = int(ds.lm.values.max())
 
         ax.plot(x_, y_, marker=marker, label="", **kwargs)
         if lm_pt >= 1:

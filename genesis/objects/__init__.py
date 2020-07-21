@@ -2,16 +2,9 @@ import glob
 import os
 
 import xarray as xr
-import pandas as pd
 
 try:
     # reduce moved in python3
-    from functools import reduce
-except ImportError:
-    pass
-
-try:
-    # python3 has moved reduce to functools
     from functools import reduce
 except ImportError:
     pass
@@ -52,7 +45,7 @@ def get_data(base_name, mask_identifier="*", debug=False):
 def make_mask_from_objects_file(filename):
     object_file = filename.replace(".nc", "")
 
-    if not "objects" in object_file:
+    if "objects" not in object_file:
         raise Exception()
 
     base_name, mask_name = object_file.split(".objects.")
@@ -69,6 +62,6 @@ def make_mask_from_objects_file(filename):
     return mask
 
 
-from . import topology
-from . import integrate, identify, filter
-from . import flux_contribution
+from . import topology  # noqa
+from . import integrate, identify, filter  # noqa
+from . import flux_contribution  # noqa

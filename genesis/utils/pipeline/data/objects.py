@@ -652,9 +652,7 @@ class ComputePerObjectProfiles(luigi.Task):
             v = fn(da_, labels=da_objects_, index=object_ids).compute()
         except TypeError:
             v = fn(da_, label_image=da_objects_, index=object_ids).compute()
-        da = xr.DataArray(
-            data=v, dims=["object_id",], coords=dict(object_id=object_ids)
-        )
+        da = xr.DataArray(data=v, dims=["object_id"], coords=dict(object_id=object_ids))
         da.name = "{}__{}".format(da_.name, kwargs["op"])
         da.attrs["units"] = da_.units
         da.attrs["long_name"] = "{} of {} per object".format(
