@@ -28,11 +28,21 @@ def make_filter_fn(prop_name, op_name, s_value):
         part, _ = op_name.split('_')
         fn = functools.partial(_filter_by_percentile, frac=value, part=part,
                                var_name=prop_name)
+    if op_name == "isnan":
+        if s_value == 'True':
+            op_fn = np.isnan
+        elif s_value == 'False':
+            op_fn = lambda v: np.logical_not(np.isnan(v))
+        else:
+            raise NotImplementedError(s_value)
+
+        fn = lambda da: da.where(op_fn(da[prop_name]), drop=True)
     else:
         op = dict(lt="less_than", gt="greater_than", eq="equal",
-                  lte="less_equal", gte="greater_equal")[op_name]
+                  lte="less_equal", gte="greater_equal", isnan="isnan")[op_name]
         op_fn = getattr(np, op.replace('_than', ''))
         value = float(s_value)
+
         fn = lambda da: da.where(op_fn(getattr(da, prop_name), value), drop=True)
 
     return fn
