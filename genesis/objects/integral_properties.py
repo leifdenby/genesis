@@ -13,13 +13,17 @@ VAR_MAPPINGS = dict(
     planarity="minkowski",
     theta="com_incline_and_orientation_angle",
     phi="com_incline_and_orientation_angle",
+    theta_mw="com_incline_and_orientation_angle_mass_weighted",
+    phi_mw="com_incline_and_orientation_angle_mass_weighted",
     x_c="centroid",
     y_c="centroid",
     z_c="centroid",
 )
 
 
-def calc_com_incline_and_orientation_angle(da_mask, return_centerline_pts=False):
+def calc_com_incline_and_orientation_angle(
+    da_mask, mass_weighted=False, return_centerline_pts=False
+):
     """
     Calculate approximate shear angle of object (theta) and xy-orientation
     angle (phi) from the change of xy-position of the center-of-mass computed
@@ -46,15 +50,21 @@ def calc_com_incline_and_orientation_angle(da_mask, return_centerline_pts=False)
     )  # other=nan so that these get excluded from mean calculation
     y_c = y_3d.where(m).mean(**kws)
 
+    if mass_weighted:
+        A_by_z = da_mask.sum(**kws)
+    else:
+        A_by_z = 1.0
+
     try:
         dx = np.gradient(x_c)
         dy = np.gradient(y_c)
+        dz = np.gradient(x_c.z)
 
-        dx_mean = np.nanmean(dx)
-        dy_mean = np.nanmean(dy)
+        dx_mean = np.nanmean(dx * A_by_z)
+        dy_mean = np.nanmean(dy * A_by_z)
 
         dl_mean = np.sqrt(dx_mean ** 2.0 + dy_mean ** 2.0)
-        dz_mean = np.nanmean(np.gradient(x_c.z))
+        dz_mean = np.nanmean(dz * A_by_z)
 
         theta = np.arctan2(dl_mean, dz_mean)
         phi = np.arctan2(dy_mean, dx_mean)
@@ -79,11 +89,22 @@ def calc_com_incline_and_orientation_angle(da_mask, return_centerline_pts=False)
             ),
         ]
     )
+    ds.attrs["is_mass_weighted"] = int(mass_weighted)
 
     if return_centerline_pts:
         return ds, [x_c, y_c, da_mask.z]
     else:
         return ds
+
+
+def calc_com_incline_and_orientation_angle_mass_weighted(
+    da_mask, return_centerline_pts=False
+):
+    ds = calc_com_incline_and_orientation_angle(
+        da_mask=da_mask, return_centerline_pts=return_centerline_pts
+    )
+    ds = ds.rename(dict(phi="phi_mw", theta="theta_mw"))
+    return ds
 
 
 def calc_xy_proj_length(da_mask):

@@ -273,9 +273,10 @@ class ComputeObjectScales(luigi.Task):
             variables = self.variables.split(",")
             if isinstance(ds, xr.Dataset):
                 if not set(ds.data_vars) == set(variables):
-                    import ipdb
-
-                    ipdb.set_trace()
+                    raise Exception(
+                        f"There's a problem with existing file {p}: "
+                        f"{set(ds.data_vars)} != {set(variables)}"
+                    )
             else:
                 assert ds.name == variables[0]
 
@@ -596,6 +597,7 @@ class ComputeObjectScale(luigi.Task):
         ds = objects.integrate.integrate(
             objects=da_objects, variable=variable, operator=operator, **kwargs
         )
+
         ds.to_netcdf(self.output().fn)
 
 
