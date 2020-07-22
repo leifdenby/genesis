@@ -1,5 +1,7 @@
 # GENESIS toolkit for analysing coherent structures in atmospheric flows
 
+![genesis](https://github.com/leifdenby/genesis/workflows/genesis/badge.svg)
+
 This repository contains the GENESIS toolkit developed during the
 [GENESIS](http://homepages.see.leeds.ac.uk/~earlcd/GENESIS/) project, which
 enables the study of coherent structures in atmospheric flows. It is designed
