@@ -69,7 +69,7 @@ def plot_full_suite(data, marker=""):
             lines.append(line)
             lines.append(line2)
 
-            plt.xlabel("characterisc width [m]")
+            plt.xlabel("characteristic width [m]")
 
         if s[1] == 0 or type(s[1]) == slice and s[1].start == 0:
             plt.ylabel("height [m]")
@@ -261,7 +261,7 @@ def plot(
                     d_.width_perpendicular.plot(
                         ax=ax, y="zt", color=line.get_color(), marker="_", linestyle=""
                     )
-                ax.set_xlabel("characterisc width [m]")
+                ax.set_xlabel("characteristic width [m]")
             else:
                 raise NotImplementedError(plot_type)
             lines.append(line)
