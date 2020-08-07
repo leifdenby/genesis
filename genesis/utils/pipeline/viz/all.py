@@ -1432,9 +1432,10 @@ class FluxFractionCarried(luigi.Task):
 
     def run(self):
         ds = input.open()
-        self._make_plot(ds, self.output().fn)
+        fig, axes = self._make_plot(ds, self.output().fn)
+        fig.savefig(self.output().fn, bbox_inches="tight")
 
-    def _make_plot(self, ds, output_fn, **kwargs):
+    def _make_plot(self, ds, **kwargs):
         ds_ = ds.rename({"{}_flux__mean".format(self.scalar): "flux_mean", "zt": "z"})
         ds_ = ds_[["areafrac", "flux_mean"]]
         ds_.attrs["scalar"] = self.scalar
@@ -1443,7 +1444,7 @@ class FluxFractionCarried(luigi.Task):
         suptitle = self.get_suptitle()
         if suptitle:
             plt.suptitle(self.get_suptitle(), y=1.1)
-        fig.savefig(output_fn, bbox_inches="tight")
+        return fig, axes
 
     def output(self):
         s_filter = ""
@@ -1506,7 +1507,8 @@ class FluxFractionCarriedFiltersComparison(FluxFractionCarried):
         ds = xr.concat(dss, dim="sampling")
         ds.attrs["scalar"] = self.scalar
 
-        self._make_plot(ds, self.output().fn, figsize=(5, 3), legend_ncols=1)
+        fig, axes = self._make_plot(ds, figsize=(5, 3), legend_ncols=1)
+        fig.savefig(self.output().fn, bbox_inches="tight")
 
     def get_suptitle(self):
         return None
