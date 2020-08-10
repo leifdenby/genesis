@@ -83,6 +83,7 @@ def plot(
     mean_profile_components="all",
     include_x_mean=True,
     add_profile_legend=True,
+    fig_width=7.0,
 ):  # noqa
     def _get_finite_range(vals):
         # turns infs into nans and then we can uses nanmax nanmin
@@ -107,8 +108,8 @@ def plot(
 
     bin_centers = 0.5 * (bins[1:] + bins[:-1])
     # fig, axes = plt.subplots(ncols=2, nrows=2, sharex="col", sharey="row", figsize=(10,6))
-    fig_height = 6 if not include_x_mean else 7.5
-    g = PlotGrid(ratio=(2, 5), height=fig_height, width=7, extra_x_marg=True)
+    fig_height = fig_width - 1.0 if not include_x_mean else fig_width + 0.5
+    g = PlotGrid(ratio=(2, 5), height=fig_height, width=fig_width, extra_x_marg=True)
     ds_ = ds.groupby_bins(x, bins=bins, labels=bin_centers)
     da_flux_per_bin = ds_.sum(dim="object_id", dtype=np.float64)[bin_var] / (nx * ny)
     # put in zeroes so that we don't get empty parts of the plots
@@ -145,6 +146,9 @@ def plot(
         da_flux_tot = da_flux_tot.sel(sampling=mean_profile_components)
     da_flux_tot = da_flux_tot.sortby("sampling", ascending=False)
     da_flux_tot.attrs.update(ds[f"{v}__mean"].attrs)
+    lines_profile = da_flux_tot.plot(
+        y="zt", ax=g.ax_marg_y, hue="sampling", add_legend=add_profile_legend
+    )
 
     # add a square marker for the mask
     mask_marker = "s"

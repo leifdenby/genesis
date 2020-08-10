@@ -1277,6 +1277,7 @@ class ObjectScaleVsHeightComposition(luigi.Task):
 
     add_profile_legend = luigi.BoolParameter(default=True)
     include_mask_profile = luigi.BoolParameter(default=True)
+    fig_width = luigi.FloatParameter(default=7.0)
 
     def requires(self):
         kwargs = dict(
@@ -1353,7 +1354,8 @@ class ObjectScaleVsHeightComposition(luigi.Task):
                 v=self.field_name,
                 dx=self.dx,
                 mean_profile_components=mean_profile_components,
-                add_profile_legend=self.add_profile_legend
+                add_profile_legend=self.add_profile_legend,
+                fig_width=self.fig_width,
                 # scaling_factors=scaling_factors
             )
 
