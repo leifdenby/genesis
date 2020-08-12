@@ -11,19 +11,26 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
     center_pt = luigi.ListParameter(default=[])
     l_pad = luigi.FloatParameter(default=5000)
     remove_gal_transform = luigi.BoolParameter(default=False)
+    scalar = luigi.Parameter(default="lwp")
+    label_var = luigi.Parameter(default="nrcloud")
 
     def requires(self):
+        if self.label_var == "nrthermal":
+            tracking_type = data.tracking_2d.TrackingType.CLOUD_CORE_THERMAL
+        else:
+            tracking_type = data.tracking_2d.TrackingType.CLOUD_CORE
+
         tasks = dict(
-            nrcloud=data.tracking_2d.TrackingLabels2D(
+            labels=data.tracking_2d.TrackingLabels2D(
                 base_name=self.base_name,
-                tracking_type=data.tracking_2d.TrackingType.CLOUD_CORE,
+                tracking_type=tracking_type,
                 remove_gal_transform=self.remove_gal_transform,
-                label_var="nrcloud",
+                label_var=self.label_var,
                 time=self.time,
             ),
-            lwp=data.extraction.ExtractCrossSection2D(
+            scalar=data.extraction.ExtractCrossSection2D(
                 base_name=self.base_name,
-                field_name="core",
+                field_name=self.scalar,
                 remove_gal_transform=self.remove_gal_transform,
                 time=self.time,
             ),
@@ -60,20 +67,20 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
 
         fig, ax = plt.subplots(figsize=(16, 12))
 
-        da_lwp = self.input()["lwp"].open()
+        da_scalar = self.input()["scalar"].open()
 
-        da_nrcloud = self.input()["nrcloud"].open()
+        da_labels = self.input()["labels"].open()
 
         da_x_cloud = self.input()["x_cloud"].open()
         da_y_cloud = self.input()["y_cloud"].open()
 
         (
-            da_lwp.where(da_lwp > 0)
+            da_scalar
             .sel(**kws)
             .plot(ax=ax, vmax=0.1, add_colorbar=True, cmap="Blues")
         )
         (
-            da_nrcloud.astype(int)
+            da_labels.astype(int)
             .sel(**kws)
             .plot.contour(ax=ax, colors=["blue"], levels=[0.5])
         )
@@ -83,7 +90,7 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
         with ipdb.launch_ipdb_on_exception():
             text_bbox = dict(facecolor="white", alpha=0.5, edgecolor="none")
 
-            cloud_ids = np.unique(da_nrcloud.sel(**kws))
+            cloud_ids = np.unique(da_labels.sel(**kws))
             cloud_ids = cloud_ids[~np.isnan(cloud_ids)]
             for c_id in cloud_ids:
                 x_t = da_x_cloud.sel(object_id=c_id)
@@ -101,7 +108,8 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
         plt.savefig(str(self.output().fn))
 
     def output(self):
-        fn = "cloud__frame.{}_gal_transform.{}.png".format(
-            ["with", "without"][self.remove_gal_transform], self.time.isoformat()
+        fn = "{}.{}__frame.{}.{}_gal_transform.{}.png".format(
+            self.base_name, self.label_var, self.scalar,
+            ["with", "without"][self.remove_gal_transform], self.time.isoformat().replace(":", "")
         )
         return luigi.LocalTarget(fn)
