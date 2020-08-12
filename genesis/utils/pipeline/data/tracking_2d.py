@@ -160,8 +160,20 @@ class PerformObjectTracking2D(luigi.Task):
 
         if len(self.timestep_interval) == 0:
             tn_start = 0
-            da_input = self.input()[0].open()
-            tn_end = len(da_input.time) - 1
+            N_timesteps = {
+                input.fn: int(input.open().time.count()) for input in self.input()
+            }
+            if len(N_timesteps.keys()) == 1:
+                tn_end = list(N_timesteps.values())[0] - 1
+            else:
+                s_files = "\n\t".join([
+                    "{fn}: {N}".format(fn=k, N=v) for (k, v) in N_timesteps.items()
+                ])
+                raise Exception("The input files required for tracking don't currently have"
+                                " the same number of timesteps, maybe some of them need"
+                                " recreating? Required files and number of timesteps:\n"
+                                f"\n\t{s_files}"
+                                )
         else:
             tn_start, tn_end = self.timestep_interval
 
