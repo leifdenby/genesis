@@ -163,7 +163,7 @@ class PerformObjectTracking2D(luigi.Task):
             N_timesteps = {
                 input.fn: int(input.open().time.count()) for input in self.input()
             }
-            if len(N_timesteps.keys()) == 1:
+            if len(set(N_timesteps.values())) == 1:
                 tn_end = list(N_timesteps.values())[0] - 1
             else:
                 s_files = "\n\t".join([
@@ -259,6 +259,12 @@ class TrackingLabels2D(luigi.Task):
         da_timedep["time"] = da_timedep.time
 
         t0 = self.time
+        if not self.label_var in da_timedep:
+            available_vars = ", ".join(
+                filter(lambda v: v.startswith("nr"), list(da_timedep.data_vars))
+            )
+            raise Exception(f"Couldn't find the requested label var `{self.label_var}`"
+                            f", available vars: {available_vars}")
         da = da_timedep[self.label_var].sel(time=t0).squeeze()
 
         if self.remove_gal_transform:
