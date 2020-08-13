@@ -85,11 +85,7 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
         da_x_object = self.input()[f"x_{object_type}"].open()
         da_y_object = self.input()[f"y_{object_type}"].open()
 
-        (
-            da_scalar
-            .sel(**kws)
-            .plot(ax=ax, vmax=0.1, add_colorbar=True, cmap="Blues")
-        )
+        (da_scalar.sel(**kws).plot(ax=ax, vmax=0.1, add_colorbar=True, cmap="Blues"))
         (
             da_labels.astype(int)
             .sel(**kws)
@@ -117,8 +113,11 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
 
     def output(self):
         fn = "{}.{}__frame.{}.{}_gal_transform.{}.png".format(
-            self.base_name, self.label_var, self.scalar,
-            ["with", "without"][self.remove_gal_transform], self.time.isoformat().replace(":", "")
+            self.base_name,
+            self.label_var,
+            self.scalar,
+            ["with", "without"][self.remove_gal_transform],
+            self.time.isoformat().replace(":", ""),
         )
         return luigi.LocalTarget(fn)
 
@@ -129,8 +128,7 @@ class CloudCrossSectionAnimationSpan(CloudCrossSectionAnimationFrame):
 
     def requires(self):
         return data.extraction.TimeCrossSectionSlices2D(
-            base_name=self.base_name,
-            field_name=self.scalar,
+            base_name=self.base_name, field_name=self.scalar,
         )
 
     def _build_subtasks(self):
@@ -149,7 +147,7 @@ class CloudCrossSectionAnimationSpan(CloudCrossSectionAnimationFrame):
                 l_pad=self.l_pad,
                 remove_gal_transform=self.remove_gal_transform,
                 scalar=self.scalar,
-                label_var=self.label_var
+                label_var=self.label_var,
             )
             for t in da_times
         ]
@@ -159,6 +157,4 @@ class CloudCrossSectionAnimationSpan(CloudCrossSectionAnimationFrame):
         yield self._build_subtasks()
 
     def output(self):
-        return [
-            t.output() for t in self._build_subtasks()
-        ]
+        return [t.output() for t in self._build_subtasks()]

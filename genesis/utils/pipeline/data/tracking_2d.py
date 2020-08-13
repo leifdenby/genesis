@@ -166,14 +166,15 @@ class PerformObjectTracking2D(luigi.Task):
             if len(set(N_timesteps.values())) == 1:
                 tn_end = list(N_timesteps.values())[0] - 1
             else:
-                s_files = "\n\t".join([
-                    "{fn}: {N}".format(fn=k, N=v) for (k, v) in N_timesteps.items()
-                ])
-                raise Exception("The input files required for tracking don't currently have"
-                                " the same number of timesteps, maybe some of them need"
-                                " recreating? Required files and number of timesteps:\n"
-                                f"\n\t{s_files}"
-                                )
+                s_files = "\n\t".join(
+                    ["{fn}: {N}".format(fn=k, N=v) for (k, v) in N_timesteps.items()]
+                )
+                raise Exception(
+                    "The input files required for tracking don't currently have"
+                    " the same number of timesteps, maybe some of them need"
+                    " recreating? Required files and number of timesteps:\n"
+                    f"\n\t{s_files}"
+                )
         else:
             tn_start, tn_end = self.timestep_interval
 
@@ -263,8 +264,10 @@ class TrackingLabels2D(luigi.Task):
             available_vars = ", ".join(
                 filter(lambda v: v.startswith("nr"), list(da_timedep.data_vars))
             )
-            raise Exception(f"Couldn't find the requested label var `{self.label_var}`"
-                            f", available vars: {available_vars}")
+            raise Exception(
+                f"Couldn't find the requested label var `{self.label_var}`"
+                f", available vars: {available_vars}"
+            )
         da = da_timedep[self.label_var].sel(time=t0).squeeze()
 
         if self.remove_gal_transform:
