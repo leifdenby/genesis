@@ -59,6 +59,8 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
             object_type = "cloud"
         elif self.label_var == "nrthrm":
             object_type = "thermal"
+        elif self.label_var == "cldthrm_family":
+            object_type = "cldthrm_family"
         else:
             raise NotImplementedError(self.label_var)
         return object_type
@@ -96,6 +98,8 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
         text_bbox = dict(facecolor="white", alpha=0.5, edgecolor="none")
         object_ids = np.unique(da_labels.sel(**kws))
         object_ids = object_ids[~np.isnan(object_ids)]
+        if object_ids[0] == 0:
+            object_ids = object_ids[1:]
         for c_id in object_ids:
             x_t = da_x_object.sel(object_id=c_id)
             y_t = da_y_object.sel(object_id=c_id)

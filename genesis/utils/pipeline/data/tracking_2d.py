@@ -21,6 +21,7 @@ from .base import NumpyDatetimeParameter
 from .masking import MakeMask
 from ....bulk_statistics import cross_correlation_with_height
 from ....utils import find_vertical_grid_spacing
+from ....objects.tracking_2d.family import create_tracking_family_2D_field
 
 from ..data_sources import uclales_2d_tracking
 from ..data_sources.uclales_2d_tracking import TrackingType
@@ -251,24 +252,34 @@ class TrackingLabels2D(luigi.Task):
     tracking_type = luigi.EnumParameter(enum=TrackingType)
 
     def requires(self):
-        return PerformObjectTracking2D(
-            base_name=self.base_name, tracking_type=self.tracking_type,
-        )
+        if self.label_var == "cldthrm_family":
+            return TrackingFamilyLabels2D(
+                base_name=self.base_name,
+            )
+        else:
+            return PerformObjectTracking2D(
+                base_name=self.base_name, tracking_type=self.tracking_type,
+            )
 
     def run(self):
         da_timedep = self.input().open()
         da_timedep["time"] = da_timedep.time
 
+        if self.label_var == "cldthrm_family":
+            pass
+        else:
+            if not self.label_var in da_timedep:
+                available_vars = ", ".join(
+                    filter(lambda v: v.startswith("nr"), list(da_timedep.data_vars))
+                )
+                raise Exception(
+                    f"Couldn't find the requested label var `{self.label_var}`"
+                    f", available vars: {available_vars}"
+                )
+            da_timedep = da_timedep[self.label_var]
+
         t0 = self.time
-        if not self.label_var in da_timedep:
-            available_vars = ", ".join(
-                filter(lambda v: v.startswith("nr"), list(da_timedep.data_vars))
-            )
-            raise Exception(
-                f"Couldn't find the requested label var `{self.label_var}`"
-                f", available vars: {available_vars}"
-            )
-        da = da_timedep[self.label_var].sel(time=t0).squeeze()
+        da = da_timedep.sel(time=t0).squeeze()
 
         if self.remove_gal_transform:
             tref = da_timedep.isel(time=0).time
@@ -710,3 +721,29 @@ class ExtractNearCloudEnvironment(luigi.Task):
         )
         p = get_workdir() / self.base_name / fn
         return XArrayTarget(str(p))
+
+
+class TrackingFamilyLabels2D(PerformObjectTracking2D):
+    # we're going to be relating clouds and thermals, so need to have tracked
+    # them both
+    tracking_type = TrackingType.CLOUD_CORE_THERMAL
+    def requires(self):
+        return PerformObjectTracking2D(
+            base_name=self.base_name,
+            tracking_type=self.tracking_type,
+            timestep_interval=self.timestep_interval,
+            U_offset=self.U_offset,
+        )
+
+    def run(self):
+        ds_tracking = self.input().open()
+        da_family = create_tracking_family_2D_field(ds_tracking=ds_tracking)
+        da_family.to_netcdf(self.output().fn)
+
+    def output(self):
+        p_tracking = Path(self.input().fn)
+        base_name = self.base_name
+        p_family = p_tracking.parent/p_tracking.name.replace(
+            f"{base_name}.tracking.", f"{base_name}.tracking.cldthrm_family.",
+        )
+        return XArrayTarget(str(p_family))
