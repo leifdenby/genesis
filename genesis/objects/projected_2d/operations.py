@@ -1,12 +1,7 @@
 import numpy as np
 import dask_image.ndmeasure as dmeasure
 
-
-class CloudType:
-    PASSIVE = 1
-    SINGLE_PULSE = 2
-    OUTFLOW = 3
-    ACTIVE = 4
+from .object_types import CloudType
 
 
 def present(ds, t0):
@@ -23,8 +18,8 @@ def present(ds, t0):
     return m
 
 
-def cloud_type(ds):
-    return ds.smcloudtype
+def object_type(ds):
+    return ds.object_type
 
 
 def cloud_id(ds):
@@ -112,3 +107,7 @@ def cloudbase_max_height_by_histogram_peak(ds, t0, da_nrcloud, da_cldbase, dx):
             z_base_max[n] = np.nan
 
     return z_base_max
+
+
+def duration(ds):
+    return ds.duration
