@@ -1,6 +1,8 @@
 import operator
 import numpy as np
 import inspect
+import warnings
+import xarray as xr
 
 from . import operations
 
@@ -16,6 +18,7 @@ class ObjectSet:
     def __init__(self, ds, object_type="cloud", parent=None, ds_masks=None):
         ds_local = ds.copy()
         self.parent = parent
+        self.object_type = object_type
 
         if parent is None:
             vars_to_keep = list(
@@ -43,6 +46,24 @@ class ObjectSet:
                 del self.ds[v]
                 continue
             self.ds = self.ds.rename({v: new_name})
+
+        # fix units. The cloud-tracking code doesn't check that the units are
+        # consistent between the input files and so we can end up with the
+        # units string referring to fractions of days but actually the values
+        # are in seconds...
+        for v in list(self.ds.data_vars) + list(self.ds.coords):
+            if "units" in self.ds[v].attrs:
+                units = self.ds[v].units
+                val0 = self.ds[v].values[0]
+                if units == "day as %Y%m%d.%f" and np.allclose(val0, int(val0)):
+                    warnings.warn(
+                        "The the time units are given as `day as %Y%m%d.%f`,"
+                        " but the first value is an integer value so I'm going"
+                        " to assume the units are actually in seconds"
+                    )
+                    self.ds[v].attrs["units"] = "seconds since 2000-01-01T00:00:00"
+                    self.ds[v].attrs["calendar"] = "proleptic_gregorian"
+                    self.ds = xr.decode_cf(self.ds)
 
         if ds_masks is None:
             vars_to_keep = list(
@@ -137,7 +158,9 @@ class ObjectSet:
 
         ds_new = self.ds.sel(object_id=object_ids)
 
-        return ObjectSet(ds=ds_new, ds_masks=self.ds_masks, parent=self,)
+        return ObjectSet(
+            ds=ds_new, ds_masks=self.ds_masks, parent=self, object_type=self.object_type
+        )
 
     def __len__(self):
         return int(self.ds.object_id.count())
