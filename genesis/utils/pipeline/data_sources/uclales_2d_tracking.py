@@ -37,20 +37,20 @@ class TrackingType(Enum):
         return t.value.replace(",", "_")
 
 
-REQUIRED_FIELDS_MAPPING = dict(
+REQUIRED_VARS_MAPPING = dict(
     core=["core"],
     thermal=["lwp", "trcbase", "trctop", "trcpath"],
     cloud=["cldbase", "cldtop", "lwp"],
 )
 
 
-def get_required_fields(tracking_type):
-    required_fields = [
+def get_required_vars(tracking_type):
+    required_vars = [
         "core",
     ]
     for tracked_feature in tracking_type.value.split(","):
-        required_fields += REQUIRED_FIELDS_MAPPING[tracked_feature]
-    return set(required_fields)
+        required_vars += REQUIRED_VARS_MAPPING[tracked_feature]
+    return set(required_vars)
 
 
 def call(
@@ -85,7 +85,7 @@ def call(
         ]
 
         if U_offset is not None:
-            args += U_offset
+            args += [str(v) for v in U_offset]
 
         print(data_path)
         print((" ".join(args)))

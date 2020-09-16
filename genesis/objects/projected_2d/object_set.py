@@ -15,7 +15,7 @@ def _find_objectset_operations():
 
 
 class ObjectSet:
-    def __init__(self, ds, object_type="cloud", parent=None, ds_masks=None):
+    def __init__(self, ds, object_type="cloud", parent=None):
         ds_local = ds.copy()
         self.parent = parent
         self.object_type = object_type
@@ -65,14 +65,6 @@ class ObjectSet:
                     self.ds[v].attrs["calendar"] = "proleptic_gregorian"
                     self.ds = xr.decode_cf(self.ds)
 
-        if ds_masks is None:
-            vars_to_keep = list(
-                filter(lambda v: v.startswith("nr"), list(ds.data_vars))
-            )
-            self.ds_masks = ds_local[vars_to_keep]
-        else:
-            self.ds_masks = ds_masks
-
     def get_value(self, function_name, as_xarray=False, only_present=False, **kwargs):
         """
         Using function `function_name` compute a value for all clouds in the
@@ -89,9 +81,6 @@ class ObjectSet:
 
         fn_argspec = inspect.getargspec(fn)
         needed_vars = fn_argspec.args
-
-        if "da_nrcloud" in needed_vars:
-            kwargs["da_nrcloud"] = self.ds_masks.nrcloud
 
         return fn(ds=self.ds, **kwargs).squeeze()
 
@@ -159,7 +148,7 @@ class ObjectSet:
         ds_new = self.ds.sel(object_id=object_ids)
 
         return ObjectSet(
-            ds=ds_new, ds_masks=self.ds_masks, parent=self, object_type=self.object_type
+            ds=ds_new, parent=self, object_type=self.object_type
         )
 
     def __len__(self):

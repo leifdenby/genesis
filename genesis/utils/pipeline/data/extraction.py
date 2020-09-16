@@ -172,9 +172,9 @@ class XArrayTarget2DCrossSection(XArrayTarget):
 
 class TimeCrossSectionSlices2D(luigi.Task):
     base_name = luigi.Parameter()
-    field_name = luigi.Parameter()
+    var_name = luigi.Parameter()
 
-    FN_FORMAT = "{exp_name}.out.xy.{field_name}.nc"
+    FN_FORMAT = "{exp_name}.out.xy.{var_name}.nc"
 
     def _extract_and_symlink_local_file(self):
         meta = _get_dataset_meta_info(self.base_name)
@@ -197,7 +197,7 @@ class TimeCrossSectionSlices2D(luigi.Task):
         meta = _get_dataset_meta_info(self.base_name)
 
         fn = self.FN_FORMAT.format(
-            exp_name=meta["experiment_name"], field_name=self.field_name
+            exp_name=meta["experiment_name"], var_name=self.var_name
         )
 
         p = get_workdir() / self.base_name / "cross_sections" / "runtime_slices" / fn
@@ -236,15 +236,15 @@ def remove_gal_transform(da, tref, base_name):
 
 class ExtractCrossSection2D(luigi.Task):
     base_name = luigi.Parameter()
-    field_name = luigi.Parameter()
+    var_name = luigi.Parameter()
     time = NumpyDatetimeParameter()
     remove_gal_transform = luigi.BoolParameter(default=False)
 
-    FN_FORMAT = "{exp_name}.out.xy.{field_name}.nc"
+    FN_FORMAT = "{exp_name}.out.xy.{var_name}.nc"
 
     def requires(self):
         return TimeCrossSectionSlices2D(
-            base_name=self.base_name, field_name=self.field_name,
+            base_name=self.base_name, var_name=self.var_name,
         )
 
     def run(self):
@@ -255,12 +255,16 @@ class ExtractCrossSection2D(luigi.Task):
             tref = da_timedep.isel(time=0).time
             da = remove_gal_transform(da=da, tref=tref, base_name=self.base_name)
 
+        if "longname" in da.attrs and not "long_name" in da.attrs:
+            da.attrs['long_name'] = da.attrs['longname']
+            del(da.attrs['longname'])
+
         Path(self.output().fn).parent.mkdir(exist_ok=True, parents=True)
         da.to_netcdf(self.output().fn)
 
     def output(self):
         fn = "{}.{}_gal_transform.{}.nc".format(
-            self.field_name,
+            self.var_name,
             ["with", "without"][self.remove_gal_transform],
             self.time.isoformat(),
         )

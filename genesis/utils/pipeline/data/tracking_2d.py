@@ -147,13 +147,13 @@ class PerformObjectTracking2D(luigi.Task):
                 " (`.tn`) to tracking util"
             )
 
-        required_fields = uclales_2d_tracking.get_required_fields(
+        required_vars = uclales_2d_tracking.get_required_vars(
             tracking_type=self.tracking_type
         )
 
         return [
-            TimeCrossSectionSlices2D(base_name=self.base_name, field_name=field_name)
-            for field_name in required_fields
+            TimeCrossSectionSlices2D(base_name=self.base_name, var_name=var_name)
+            for var_name in required_vars
         ]
 
     def run(self):
@@ -248,14 +248,82 @@ class PerformObjectTracking2D(luigi.Task):
         return XArrayTargetUCLALESTracking(str(p))
 
 
-class TrackingLabels2D(luigi.Task):
+class _Tracking2DExtraction(luigi.Task):
+    """
+    Base task for extracting fields from object tracking in 2D. This should
+    never be called directly. Instead use either TrackingVariable2D or TrackingLabels2D
+    """
     base_name = luigi.Parameter()
-    label_var = luigi.Parameter()
-    time = NumpyDatetimeParameter()
-    offset_labels_by_gal_transform = luigi.BoolParameter(default=False)
     track_without_gal_transform = luigi.BoolParameter(default=False)
     tracking_type = luigi.EnumParameter(enum=TrackingType)
     tracking_timestep_interval = luigi.ListParameter(default=[])
+
+    def requires(self):
+        U_tracking_offset = None
+        if self.track_without_gal_transform:
+            meta = _get_dataset_meta_info(self.base_name)
+            U_tracking_offset = meta.get("U_gal", None)
+            if U_tracking_offset is None:
+                raise Exception(
+                    "To remove the Galilean transformation before tracking"
+                    " please define the transform velocity"
+                    " as `U_gal` in datasources.yaml for"
+                    " dataset `{}`".format(self.base_name)
+                )
+        return PerformObjectTracking2D(
+            base_name=self.base_name, tracking_type=self.tracking_type,
+            timestep_interval=self.tracking_timestep_interval,
+            U_offset=U_tracking_offset
+        )
+
+
+class TrackingVariable2D(_Tracking2DExtraction):
+    var_name = luigi.Parameter()
+
+    def run(self):
+        var_name = self.var_name
+        da_input = self.input().open()
+
+        if not var_name in da_input:
+            available_vars = ", ".join(
+                filter(lambda v: not v.startswith("nr"), list(da_input.data_vars))
+            )
+            raise Exception(
+                f"Couldn't find the requested var `{self.var_name}`"
+                f", available vars: {available_vars}"
+            )
+        da = da_input[var_name]
+
+        Path(self.output().fn).parent.mkdir(exist_ok=True, parents=True)
+        da.to_netcdf(self.output().fn)
+
+    def output(self):
+        type_id = uclales_2d_tracking.TrackingType.make_identifier(self.tracking_type)
+        if self.tracking_timestep_interval:
+            interval_id = "{}_to_{}".format(*self.tracking_timestep_interval)
+        else:
+            interval_id = "__all__"
+
+        name_parts = [
+            f"nr{self.var_name}",
+            f"tracked_{type_id}",
+            interval_id,
+        ]
+
+        if self.track_without_gal_transform:
+            name_parts.append("go_track")
+
+        fn = f"{'.'.join(name_parts)}.nc"
+
+        p = get_workdir() / self.base_name / "tracking_vars_2d" / fn
+        return XArrayTarget(str(p))
+
+
+class TrackingLabels2D(_Tracking2DExtraction):
+    label_var = luigi.Parameter()
+    time = NumpyDatetimeParameter()
+    offset_labels_by_gal_transform = luigi.BoolParameter(default=False)
+
 
     def requires(self):
         if self.offset_labels_by_gal_transform and self.track_without_gal_transform:
@@ -267,22 +335,7 @@ class TrackingLabels2D(luigi.Task):
                 base_name=self.base_name,
             )
         else:
-            U_tracking_offset = None
-            if self.track_without_gal_transform:
-                meta = _get_dataset_meta_info(self.base_name)
-                U_tracking_offset = meta.get("U_gal", None)
-                if U_tracking_offset is None:
-                    raise Exception(
-                        "To remove the Galilean transformation before tracking"
-                        " please define the transform velocity"
-                        " as `U_gal` in datasources.yaml for"
-                        " dataset `{}`".format(self.base_name)
-                    )
-            return PerformObjectTracking2D(
-                base_name=self.base_name, tracking_type=self.tracking_type,
-                timestep_interval=self.tracking_timestep_interval,
-                U_offset=U_tracking_offset
-            )
+            return super(TrackingLabels2D, self).requires()
 
     def run(self):
         da_timedep = self.input().open()
@@ -314,11 +367,27 @@ class TrackingLabels2D(luigi.Task):
         da.to_netcdf(self.output().fn)
 
     def output(self):
-        fn = "{}.{}_gal_transform.{}.nc".format(
-            self.label_var,
-            ["with", "without"][self.offset_labels_by_gal_transform],
+        type_id = uclales_2d_tracking.TrackingType.make_identifier(self.tracking_type)
+        if self.tracking_timestep_interval:
+            interval_id = "{}_to_{}".format(*self.tracking_timestep_interval)
+        else:
+            interval_id = "__all__"
+
+        name_parts = [
+            f"nr{self.label_var}",
+            f"tracked_{type_id}",
+            interval_id,
             self.time.isoformat(),
-        )
+        ]
+
+        if self.offset_labels_by_gal_transform:
+            name_parts.append("go_labels")
+
+        if self.track_without_gal_transform:
+            name_parts.append("go_track")
+
+        fn = f"{'.'.join(name_parts)}.nc"
+
         p = get_workdir() / self.base_name / "tracking_labels_2d" / fn
         return XArrayTarget(str(p))
 
@@ -329,18 +398,20 @@ class Aggregate2DCrossSectionOnTrackedObjects(luigi.Task):
     example the number of cells in each cloud `nrcloud`
     """
 
-    field_name = luigi.Parameter()
+    var_name = luigi.Parameter()
     base_name = luigi.Parameter()
     time = NumpyDatetimeParameter()
     label_var = luigi.Parameter()
     op = luigi.Parameter()
     tracking_type = luigi.EnumParameter(enum=TrackingType)
-    remove_gal_transform = luigi.BoolParameter(default=False)
+    tracking_timestep_interval = luigi.ListParameter(default=[])
+    offset_labels_by_gal_transform = luigi.BoolParameter(default=False)
+    track_without_gal_transform = luigi.BoolParameter(default=False)
 
-    dx = luigi.FloatParameter(default=None)
+    dx = luigi.FloatParameter(default=-1.0)
 
     def requires(self):
-        if self.op == "histogram" and self.dx is None:
+        if self.op == "histogram" and (self.dx is None or self.dx <= 0.0):
             raise Exception("Op `histogram` requires `dx` parameter is set")
 
         tasks = dict(
@@ -349,13 +420,15 @@ class Aggregate2DCrossSectionOnTrackedObjects(luigi.Task):
                 time=self.time,
                 label_var=self.label_var,
                 tracking_type=self.tracking_type,
-                remove_gal_transform=self.remove_gal_transform,
+                offset_labels_by_gal_transform=self.offset_labels_by_gal_transform,
+                track_without_gal_transform=self.track_without_gal_transform,
+                tracking_timestep_interval=self.tracking_timestep_interval,
             ),
         )
 
-        if self.field_name not in ["xt", "yt"]:
+        if self.var_name not in ["xt", "yt"]:
             tasks["field"] = ExtractCrossSection2D(
-                base_name=self.base_name, field_name=self.field_name, time=self.time,
+                base_name=self.base_name, var_name=self.var_name, time=self.time,
             )
 
         return tasks
@@ -455,13 +528,13 @@ class Aggregate2DCrossSectionOnTrackedObjects(luigi.Task):
     def run(self):
         da_labels = self.input()["tracking_labels"].open().astype(int)
 
-        if self.field_name in ["xt", "yt"]:
-            if self.field_name in "xt":
+        if self.var_name in ["xt", "yt"]:
+            if self.var_name in "xt":
                 _, da_values = xr.broadcast(da_labels.xt, da_labels.yt)
-            elif self.field_name in "yt":
+            elif self.var_name in "yt":
                 da_values, _ = xr.broadcast(da_labels.xt, da_labels.yt)
             else:
-                raise NotImplementedError(self.field_name)
+                raise NotImplementedError(self.var_name)
         else:
             da_values = self.input()["field"].open()
 
@@ -478,43 +551,228 @@ class Aggregate2DCrossSectionOnTrackedObjects(luigi.Task):
         da_out.to_netcdf(self.output().fn)
 
     def output(self):
-        fn = "{}__{}.{}_gal_transform.by_{}.at_{}.nc".format(
-            self.field_name,
-            self.op,
-            ["with", "without"][self.remove_gal_transform],
-            self.label_var,
+        type_id = uclales_2d_tracking.TrackingType.make_identifier(self.tracking_type)
+        if self.tracking_timestep_interval:
+            interval_id = "tn{}_to_tn{}".format(*self.tracking_timestep_interval)
+        else:
+            interval_id = "__all__"
+
+        name_parts = [
+            self.var_name,
+            f"of_{self.label_var}",
+            f"tracked_{type_id}",
+            interval_id,
             self.time.isoformat(),
+        ]
+
+        if self.dx:
+            name_parts.insert(1, f"{self.dx}_{self.op}")
+        else:
+            name_parts.insert(1, self.op)
+
+        if self.offset_labels_by_gal_transform:
+            name_parts.append("go_labels")
+
+        if self.track_without_gal_transform:
+            name_parts.append("go_track")
+
+        fn = f"{'.'.join(name_parts)}.nc"
+
+        p = get_workdir() / self.base_name / "cross_sections" / "aggregated" / fn
+        return XArrayTarget(str(p))
+
+
+class SingleObject2DCrossSectionAggregation(luigi.Task):
+    """
+    Find the aggregation output for a single object at a speciific time
+    """
+    base_name = luigi.Parameter()
+    label_var = luigi.Parameter()
+    var_name = luigi.Parameter()
+    object_id = luigi.IntParameter()
+    op = luigi.Parameter()
+    time = NumpyDatetimeParameter()
+    dx = luigi.FloatParameter(default=-1.0)
+
+    track_without_gal_transform = luigi.BoolParameter(default=False)
+    tracking_type = luigi.EnumParameter(enum=TrackingType)
+    tracking_timestep_interval = luigi.ListParameter(default=[])
+
+    def requires(self):
+        return Aggregate2DCrossSectionOnTrackedObjects(
+            var_name=self.var_name,
+            base_name=self.base_name,
+            dx=self.dx,
+            op=self.op,
+            time=self.time,
+            label_var=self.label_var,
+            tracking_timestep_interval=self.tracking_timestep_interval,
+            tracking_type=self.tracking_type,
+            track_without_gal_transform=self.track_without_gal_transform,
         )
+
+    def run(self):
+        da_agg_all = self.input().open()
+        da_obj = da_agg_all.sel(object_id=self.object_id)
+        da_obj.to_netcdf(self.output().fn)
+
+    def output(self):
+        type_id = uclales_2d_tracking.TrackingType.make_identifier(self.tracking_type)
+        if self.tracking_timestep_interval:
+            interval_id = "tn{}_to_tn{}".format(*self.tracking_timestep_interval)
+        else:
+            interval_id = "__all__"
+
+        name_parts = [
+            f"obj{self.object_id}",
+            self.var_name,
+            f"of_{self.label_var}",
+            f"tracked_{type_id}",
+            interval_id,
+            self.time.isoformat(),
+        ]
+
+        if self.track_without_gal_transform:
+            name_parts.append("go_track")
+
+        fn = f"{'.'.join(name_parts)}.nc"
+        p = get_workdir() / self.base_name / "cross_sections" / "aggregated" / fn
+        return XArrayTarget(str(p))
+
+class SingleObjectAll2DCrossSectionAggregations(luigi.Task):
+    """
+    Find the aggregation output for a single object throughout its life-span
+    """
+    base_name = luigi.Parameter()
+    label_var = luigi.Parameter()
+    var_name = luigi.Parameter()
+    object_id = luigi.IntParameter()
+    op = luigi.Parameter()
+    dx = luigi.FloatParameter(default=-1.0)
+
+    track_without_gal_transform = luigi.BoolParameter(default=False)
+    tracking_type = luigi.EnumParameter(enum=TrackingType)
+    tracking_timestep_interval = luigi.ListParameter(default=[])
+
+    def requires(self):
+        # first need to find duration of tracked object
+        kwargs = dict(
+            base_name=self.base_name,
+            tracking_type=self.tracking_type,
+            tracking_timestep_interval=self.tracking_timestep_interval,
+            track_without_gal_transform=self.track_without_gal_transform,
+        )
+        return dict(
+            t_start=TrackingVariable2D(
+                var_name=f"sm{self.label_var}tmin",
+                **kwargs
+            ),
+            t_end=TrackingVariable2D(
+                var_name=f"sm{self.label_var}tmax",
+                **kwargs
+            ),
+            time_global=TrackingVariable2D(
+                var_name="time",
+                **kwargs
+            ),
+        )
+
+    def run(self):
+        input = self.input()
+        da_time = input['time_global'].open()
+        da_tstart = input['t_start'].open()
+        da_tend = input['t_end'].open()
+
+        dt = np.gradient(da_time)[0]
+
+        t_start_obj = da_tstart.sel({ f"sm{self.label_var}id": self.object_id}) - dt
+        t_end_obj = da_tend.sel({ f"sm{self.label_var}id": self.object_id}) + dt
+
+        da_time_obj = da_time.sel(time=slice(t_start_obj, t_end_obj))
+
+        tasks = []
+        for t in da_time_obj.values:
+            task = SingleObject2DCrossSectionAggregation(
+                var_name=self.var_name,
+                base_name=self.base_name,
+                dx=self.dx,
+                op=self.op,
+                time=t,
+                label_var=self.label_var,
+                tracking_timestep_interval=self.tracking_timestep_interval,
+                tracking_type=self.tracking_type,
+                track_without_gal_transform=self.track_without_gal_transform,
+                object_id=self.object_id,
+            )
+            tasks.append(task)
+
+        output = yield tasks
+        das = [da_.open() for da_ in output]
+        da = xr.concat(das, dim="time").fillna(0)
+        da.to_netcdf(self.output().fn)
+
+    def output(self):
+        type_id = uclales_2d_tracking.TrackingType.make_identifier(self.tracking_type)
+        if self.tracking_timestep_interval:
+            interval_id = "tn{}_to_tn{}".format(*self.tracking_timestep_interval)
+        else:
+            interval_id = "__all__"
+
+        name_parts = [
+            f"obj{self.object_id}",
+            self.var_name,
+            f"of_{self.label_var}",
+            f"tracked_{type_id}",
+            interval_id,
+        ]
+
+        if self.track_without_gal_transform:
+            name_parts.append("go_track")
+
+        fn = f"{'.'.join(name_parts)}.nc"
         p = get_workdir() / self.base_name / "cross_sections" / "aggregated" / fn
         return XArrayTarget(str(p))
 
 
 class AggregateAll2DCrossSectionOnTrackedObjects(luigi.Task):
-    field_name = luigi.Parameter()
+    var_name = luigi.Parameter()
     base_name = luigi.Parameter()
     dx = luigi.FloatParameter()
+    op = luigi.Parameter()
     label_var = luigi.Parameter()
-    tn_min = luigi.IntParameter(default=20)
-    tn_max = luigi.IntParameter(default=50)
+
+    track_without_gal_transform = luigi.BoolParameter(default=False)
+    tracking_type = luigi.EnumParameter(enum=TrackingType)
+    tracking_timestep_interval = luigi.ListParameter(default=[])
 
     def requires(self):
+        raise NotImplementedError("Collection over multiple objects still needs work")
+
         return TimeCrossSectionSlices2D(
-            base_name=self.base_name, field_name=self.field_name
+            base_name=self.base_name, var_name=self.var_name
         )
 
     def _build_tasks(self):
         da_timedep = self.input().open()
         tasks = []
-        for t in da_timedep.time.values:
+        da_time = da_timedep.time
+        if len(self.tracking_timestep_interval) == 2:
+            da_time = da_time.isel(time=slice(*self.tracking_timestep_interval))
+
+        for t in da_time.values:
             t = Aggregate2DCrossSectionOnTrackedObjects(
-                field_name=self.field_name,
+                var_name=self.var_name,
                 base_name=self.base_name,
                 dx=self.dx,
+                op=self.op,
                 label_var=self.label_var,
                 time=t,
+                tracking_timestep_interval=self.tracking_timestep_interval,
+                tracking_type=self.tracking_type,
+                track_without_gal_transform=self.track_without_gal_transform,
             )
             tasks.append(t)
-        return tasks[self.tn_min : self.tn_max]
+        return tasks
 
     def run(self):
         inputs = yield self._build_tasks()
@@ -525,18 +783,37 @@ class AggregateAll2DCrossSectionOnTrackedObjects(luigi.Task):
         ds.to_netcdf(self.output().fn)
 
     def output(self):
-        fn = "{}.by_{}.tn{}_to_tn{}.nc".format(
-            self.field_name, self.label_var, self.tn_min, self.tn_max
-        )
+        type_id = uclales_2d_tracking.TrackingType.make_identifier(self.tracking_type)
+        if self.tracking_timestep_interval:
+            interval_id = "tn{}_to_tn{}".format(*self.tracking_timestep_interval)
+        else:
+            interval_id = "__all__"
+
+        name_parts = [
+            self.var_name,
+            f"of_{self.label_var}",
+            f"tracked_{type_id}",
+            interval_id,
+        ]
+
+        if self.dx:
+            name_parts.insert(1, f"{self.dx}_{self.op}")
+        else:
+            name_parts.insert(1, self.op)
+
+        if self.track_without_gal_transform:
+            name_parts.append("go_track")
+
+        fn = f"{'.'.join(name_parts)}.nc"
+
         p = get_workdir() / self.base_name / "cross_sections" / "aggregated" / fn
         return XArrayTarget(str(p))
-
 
 class Aggregate2DCrossSectionOnTrackedObjectsBy3DField(luigi.Task):
     base_name = luigi.Parameter()
     ref_field_name = luigi.Parameter(default="qt")
     label_var = luigi.Parameter()
-    field_name = luigi.Parameter()
+    var_name = luigi.Parameter()
 
     def requires(self):
         assert REGEX_INSTANTENOUS_BASENAME.match(self.base_name)
@@ -553,7 +830,7 @@ class Aggregate2DCrossSectionOnTrackedObjectsBy3DField(luigi.Task):
         base_name_2d = match.groupdict()["base_name_2d"]
 
         output = yield Aggregate2DCrossSectionOnTrackedObjects(
-            field_name=self.field_name,
+            var_name=self.var_name,
             base_name=base_name_2d,
             time=t0,
             label_var=self.label_var,
@@ -564,7 +841,7 @@ class Aggregate2DCrossSectionOnTrackedObjectsBy3DField(luigi.Task):
         os.symlink(output.fn, self.output().fn)
 
     def output(self):
-        fn = "{}.by_{}.nc".format(self.field_name, self.label_var)
+        fn = "{}.by_{}.nc".format(self.var_name, self.label_var)
         p = get_workdir() / self.base_name / "cross_sections" / "aggregated" / fn
         return XArrayTarget(str(p))
 
