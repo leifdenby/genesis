@@ -130,7 +130,7 @@ def _fix_time_units(da):
         )
         modified = True
     elif da.attrs["units"] == "day as %Y%m%d.%f":
-        da.values = (da.values * 24 * 60 * 60).astype(int)
+        da = (da * 24 * 60 * 60).astype(int)
         da.attrs["units"] = "seconds since 2000-01-01 00:00:00"
         modified = True
     else:

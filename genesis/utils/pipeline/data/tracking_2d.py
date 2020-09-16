@@ -188,16 +188,20 @@ class PerformObjectTracking2D(luigi.Task):
             )
             tn_start = 0
 
-        if "tracking_2d" in meta:
-            # tn_start, tn_end = meta['tracking_2d']['interval']
-            # tracking_type = TrackingType["cloud,core,thermal"]
-
+        if meta.get("no_tracking_calls", False):
+            filename = Path(self.output().fn).name
             p_source = Path(meta["path"])
-            p_source_tracking = p_source / "tracking_output" / meta["tracking_2d"]
+            p_source_tracking = p_source / "tracking_output" / filename
 
             if p_source_tracking.exists():
                 Path(self.output().fn).parent.mkdir(parents=True, exist_ok=True)
                 os.symlink(p_source_tracking, self.output().fn)
+            else:
+                raise Exception("Automatic tracking calls have been disabled and"
+                                f" couldn't find tracking output."
+                                " Please run tracking utility externally and place output"
+                                f" in `{p_source_tracking}`"
+                                )
 
         else:
             dataset_name = meta["experiment_name"]
@@ -230,7 +234,7 @@ class PerformObjectTracking2D(luigi.Task):
             offset_s = "no_offset"
 
         FN_2D_FORMAT = (
-            "{base_name}.tracking.{type_id}" ".{interval_id}.{offset}.out.xy.nc"
+            "{base_name}.tracking.{type_id}" ".{interval_id}.{offset}.nc"
         )
 
         fn = FN_2D_FORMAT.format(
@@ -248,17 +252,36 @@ class TrackingLabels2D(luigi.Task):
     base_name = luigi.Parameter()
     label_var = luigi.Parameter()
     time = NumpyDatetimeParameter()
-    remove_gal_transform = luigi.BoolParameter(default=False)
+    offset_labels_by_gal_transform = luigi.BoolParameter(default=False)
+    track_without_gal_transform = luigi.BoolParameter(default=False)
     tracking_type = luigi.EnumParameter(enum=TrackingType)
+    tracking_timestep_interval = luigi.ListParameter(default=[])
 
     def requires(self):
+        if self.offset_labels_by_gal_transform and self.track_without_gal_transform:
+            raise Exception("`offset_labels_by_gal_transform` and `track_without_gal_transform`"
+                            " cannot both be true")
+
         if self.label_var == "cldthrm_family":
             return TrackingFamilyLabels2D(
                 base_name=self.base_name,
             )
         else:
+            U_tracking_offset = None
+            if self.track_without_gal_transform:
+                meta = _get_dataset_meta_info(self.base_name)
+                U_tracking_offset = meta.get("U_gal", None)
+                if U_tracking_offset is None:
+                    raise Exception(
+                        "To remove the Galilean transformation before tracking"
+                        " please define the transform velocity"
+                        " as `U_gal` in datasources.yaml for"
+                        " dataset `{}`".format(self.base_name)
+                    )
             return PerformObjectTracking2D(
                 base_name=self.base_name, tracking_type=self.tracking_type,
+                timestep_interval=self.tracking_timestep_interval,
+                U_offset=U_tracking_offset
             )
 
     def run(self):
@@ -266,24 +289,26 @@ class TrackingLabels2D(luigi.Task):
         da_timedep["time"] = da_timedep.time
 
         if self.label_var == "cldthrm_family":
-            pass
+            label_var = self.label_var
         else:
-            if not self.label_var in da_timedep:
-                available_vars = ", ".join(
+            label_var = f"nr{self.label_var}"
+            if not label_var in da_timedep:
+                available_vars = ", ".join([
+                    s.replace("nr", "(nr)") for s in
                     filter(lambda v: v.startswith("nr"), list(da_timedep.data_vars))
-                )
+                ])
                 raise Exception(
                     f"Couldn't find the requested label var `{self.label_var}`"
                     f", available vars: {available_vars}"
                 )
-            da_timedep = da_timedep[self.label_var]
+            da_timedep = da_timedep[label_var]
 
         t0 = self.time
         da = da_timedep.sel(time=t0).squeeze()
 
-        if self.remove_gal_transform:
+        if self.offset_labels_by_gal_transform:
             tref = da_timedep.isel(time=0).time
-            da = remove_gal_transform(da=da, tref=tref, base_name=self.base_name)
+            da = offset_labels_by_gal_transform(da=da, tref=tref, base_name=self.base_name)
 
         Path(self.output().fn).parent.mkdir(exist_ok=True, parents=True)
         da.to_netcdf(self.output().fn)
@@ -291,7 +316,7 @@ class TrackingLabels2D(luigi.Task):
     def output(self):
         fn = "{}.{}_gal_transform.{}.nc".format(
             self.label_var,
-            ["with", "without"][self.remove_gal_transform],
+            ["with", "without"][self.offset_labels_by_gal_transform],
             self.time.isoformat(),
         )
         p = get_workdir() / self.base_name / "tracking_labels_2d" / fn
