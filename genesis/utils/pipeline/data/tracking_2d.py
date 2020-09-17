@@ -613,7 +613,16 @@ class SingleObject2DCrossSectionAggregation(luigi.Task):
 
     def run(self):
         da_agg_all = self.input().open()
-        da_obj = da_agg_all.sel(object_id=self.object_id)
+        try:
+            da_obj = da_agg_all.sel(object_id=self.object_id)
+        except KeyError:
+            # XXX: the tracking code has as bug so that tmax refers to the next
+            # timestep *after* unless the object exists in the very last
+            # timestep. We want to know which objects exist at the very last
+            # timestep examined, so we need to handle the indexing here and
+            # create a fake datasets with nans
+            da_obj = np.nan*da_agg_all.isel(object_id=0)
+            da_obj = da_obj.assign_coords(dict(object_id=self.object_id))
         da_obj.to_netcdf(self.output().fn)
 
     def output(self):
@@ -649,6 +658,7 @@ class SingleObjectAll2DCrossSectionAggregations(luigi.Task):
     object_id = luigi.IntParameter()
     op = luigi.Parameter()
     dx = luigi.FloatParameter(default=-1.0)
+    use_relative_time = luigi.BoolParameter(default=False)
 
     track_without_gal_transform = luigi.BoolParameter(default=False)
     tracking_type = luigi.EnumParameter(enum=TrackingType)
@@ -685,8 +695,8 @@ class SingleObjectAll2DCrossSectionAggregations(luigi.Task):
 
         dt = np.gradient(da_time)[0]
 
-        t_start_obj = da_tstart.sel({ f"sm{self.label_var}id": self.object_id}) - dt
-        t_end_obj = da_tend.sel({ f"sm{self.label_var}id": self.object_id}) + dt
+        t_start_obj = da_tstart.sel({ f"sm{self.label_var}id": self.object_id}) - 0.5*dt
+        t_end_obj = da_tend.sel({ f"sm{self.label_var}id": self.object_id}) + 0.5*dt
 
         da_time_obj = da_time.sel(time=slice(t_start_obj, t_end_obj))
 
@@ -709,6 +719,16 @@ class SingleObjectAll2DCrossSectionAggregations(luigi.Task):
         output = yield tasks
         das = [da_.open() for da_ in output]
         da = xr.concat(das, dim="time").fillna(0)
+        if self.use_relative_time:
+            da_time_relative = da.time - da.time.isel(time=0)
+            da_time_relative_mins = (
+                da_time_relative.dt.seconds/60.0 + 24.0*60.0*da_time_relative.dt.days
+            )
+            da_time_relative_mins.attrs['long_name'] = "time since forming"
+            da_time_relative_mins.attrs['units'] = "min"
+            da = (da.assign_coords(dict(time_relative=da_time_relative_mins))
+                    .swap_dims(dict(time="time_relative"))
+                 )
         da.to_netcdf(self.output().fn)
 
     def output(self):
@@ -720,6 +740,80 @@ class SingleObjectAll2DCrossSectionAggregations(luigi.Task):
 
         name_parts = [
             f"obj{self.object_id}",
+            self.var_name,
+            f"of_{self.label_var}",
+            f"tracked_{type_id}",
+            interval_id,
+        ]
+
+        if self.use_relative_time:
+            name_parts.append("t_rel")
+
+        if self.track_without_gal_transform:
+            name_parts.append("go_track")
+
+        fn = f"{'.'.join(name_parts)}.nc"
+        p = get_workdir() / self.base_name / "cross_sections" / "aggregated" / fn
+        return XArrayTarget(str(p))
+
+
+class AllObjectsAll2DCrossSectionAggregations(luigi.Task):
+    """
+    Combine aggregation output for all objects throughout their life-span
+    """
+    base_name = luigi.Parameter()
+    label_var = luigi.Parameter()
+    var_name = luigi.Parameter()
+    op = luigi.Parameter()
+    dx = luigi.FloatParameter(default=-1.0)
+
+    track_without_gal_transform = luigi.BoolParameter(default=False)
+    tracking_type = luigi.EnumParameter(enum=TrackingType)
+    tracking_timestep_interval = luigi.ListParameter(default=[])
+
+    def requires(self):
+        return TrackingVariable2D(
+            var_name=f"sm{self.label_var}tmin",
+            base_name=self.base_name,
+            tracking_type=self.tracking_type,
+            tracking_timestep_interval=self.tracking_timestep_interval,
+            track_without_gal_transform=self.track_without_gal_transform,
+        )
+
+    def run(self):
+        da_tstart = self.input().open()
+
+        object_ids = da_tstart[f"sm{self.label_var}id"].values.astype(int)
+
+        outputs = []
+        for object_id in object_ids:
+            task = SingleObjectAll2DCrossSectionAggregations(
+                var_name=self.var_name,
+                base_name=self.base_name,
+                dx=self.dx,
+                op=self.op,
+                label_var=self.label_var,
+                tracking_timestep_interval=self.tracking_timestep_interval,
+                tracking_type=self.tracking_type,
+                track_without_gal_transform=self.track_without_gal_transform,
+                object_id=object_id,
+                use_relative_time=True,
+            )
+            output = yield task
+            outputs.append(output)
+
+        das = [da_.open() for da_ in outputs]
+        da = xr.concat(das, dim="time_relative").fillna(0)
+        da.to_netcdf(self.output().fn)
+
+    def output(self):
+        type_id = uclales_2d_tracking.TrackingType.make_identifier(self.tracking_type)
+        if self.tracking_timestep_interval:
+            interval_id = "tn{}_to_tn{}".format(*self.tracking_timestep_interval)
+        else:
+            interval_id = "__all__"
+
+        name_parts = [
             self.var_name,
             f"of_{self.label_var}",
             f"tracked_{type_id}",
