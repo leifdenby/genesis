@@ -89,11 +89,19 @@ class XArrayTargetUCLALESTracking(XArrayTarget):
                     new_units = "seconds"
 
                 if old_units == "day as %Y%m%d.%f":
-                    # round to nearest second, some of the tracking files
-                    # are stored as fraction of a day (...) and so when
-                    # converting backing to seconds we sometimes get
-                    # rounding errors
-                    da_new = np.rint((da_old * 24 * 60 * 60)).astype(int)
+                    if np.max(da_old.values - da_old.astype(int).values) == 0 and np.max(da_old) > 1000.0:
+                        warnings.warn(f"The units on `{da_old.name}` are given as"
+                                      f" `{da_old.units}`, but all the values are"
+                                      " integer value and the largest is > 1000"
+                                      ", so the correct units will be assumed to"
+                                      " be seconds.")
+                        da_new = da_old.astype(int)
+                    else:
+                        # round to nearest second, some of the tracking files
+                        # are stored as fraction of a day (...) and so when
+                        # converting backing to seconds we sometimes get
+                        # rounding errors
+                        da_new = np.rint((da_old * 24 * 60 * 60)).astype(int)
                 elif old_units == "seconds since 0-00-00 00:00:00":
                     da_new = da_old.copy()
                 else:
@@ -306,7 +314,7 @@ class TrackingVariable2D(_Tracking2DExtraction):
             interval_id = "__all__"
 
         name_parts = [
-            f"nr{self.var_name}",
+            self.var_name,
             f"tracked_{type_id}",
             interval_id,
         ]
@@ -662,9 +670,11 @@ class AllObjectsAll2DCrossSectionAggregations(luigi.Task):
                 continue
 
             # find all objects that were present at this time
-            object_ids = all_object_ids.where(
-                ((da_tstart <= time) * (time <= da_tend)), drop=True
-            )
+            import ipdb
+            with ipdb.launch_ipdb_on_exception():
+                object_ids = all_object_ids.where(
+                    ((da_tstart <= time) * (time <= da_tend)), drop=True
+                )
 
             for object_id in object_ids.values:
                 try:
