@@ -182,7 +182,8 @@ class TimeCrossSectionSlices2D(luigi.Task):
         p_out = Path(self.output().fn)
         p_in = Path(meta["path"]) / "cross_sections" / "runtime_slices" / p_out.name
 
-        assert p_in.exists()
+        if not p_in.exists():
+            raise FileNotFoundError(f"Couldn't find file {p_in} to symlink")
 
         p_out.parent.mkdir(exist_ok=True, parents=True)
         os.symlink(str(p_in.absolute()), str(p_out))
