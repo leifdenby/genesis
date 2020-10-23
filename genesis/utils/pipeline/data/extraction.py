@@ -248,9 +248,32 @@ class ExtractCrossSection2D(luigi.Task):
             base_name=self.base_name, var_name=self.var_name,
         )
 
+    def _ensure_has_coord(self, da, coord):
+        assert coord in ["xt", "yt"]
+        if not coord in da.coords:
+            meta = _get_dataset_meta_info(self.base_name)
+            dx = meta.get('dx')
+            if dx is None:
+                raise Exception(f"The grid variable `{coord}` is missing from the"
+                                f" `{self.var_name}` 2D cross-section field. To"
+                                " create the missing grid coordinate you need"
+                                " to define the variable `dx` in the dataset"
+                                " meta information")
+
+            nx = int(da[coord].count())
+            x = dx*np.arange(-nx//2, nx//2)
+            da.coords[coord] = (coord,), x
+            warnings.warn(f"Coordinate values for `{coord}` is missing for variable"
+                          f" `{self.var_name}`, creating it from `dx` in meta-info"
+                          f" for `{self.base_name}`")
+            da.coords[coord].attrs['units'] = 'm'
+            da.coords[coord].attrs['long_name'] = 'cell-center position'
+
     def run(self):
         da_timedep = self.input().open()
         da = da_timedep.sel(time=self.time).squeeze()
+        self._ensure_has_coord(da=da, coord="xt")
+        self._ensure_has_coord(da=da, coord="yt")
 
         if self.remove_gal_transform:
             tref = da_timedep.isel(time=0).time
