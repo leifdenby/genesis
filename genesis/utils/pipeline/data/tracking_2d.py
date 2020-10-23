@@ -21,7 +21,7 @@ from .base import get_workdir, _get_dataset_meta_info, XArrayTarget
 from .base import NumpyDatetimeParameter
 from .masking import MakeMask
 from ....bulk_statistics import cross_correlation_with_height
-from ....utils import find_vertical_grid_spacing
+from ....utils import find_vertical_grid_spacing, find_horizontal_grid_spacing
 from ....objects.tracking_2d.family import create_tracking_family_2D_field
 
 from ..data_sources import uclales_2d_tracking
@@ -431,7 +431,7 @@ class Aggregate2DCrossSectionOnTrackedObjects(luigi.Task):
             ),
         )
 
-        if self.var_name not in ["xt", "yt"]:
+        if self.var_name not in ["xt", "yt", "area"]:
             tasks["field"] = ExtractCrossSection2D(
                 base_name=self.base_name, var_name=self.var_name, time=self.time,
             )
@@ -545,6 +545,12 @@ class Aggregate2DCrossSectionOnTrackedObjects(luigi.Task):
             if self.offset_labels_by_gal_transform:
                 tref = da_labels.time
                 da_values = remove_gal_transform(da=da_values, tref=tref, base_name=self.base_name)
+        elif self.var_name == "area":
+            meta = _get_dataset_meta_info(self.base_name)
+            dx = find_horizontal_grid_spacing(da_labels)
+            da_values = xr.ones_like(da_labels)
+            da_values.attrs['units'] = f"{da_labels.xt.units}^2"
+            da_values.attrs['long_name'] = "area"
         else:
             da_values = self.input()["field"].open()
 
@@ -601,10 +607,12 @@ class AllObjectsAll2DCrossSectionAggregations(luigi.Task):
     var_name = luigi.Parameter()
     op = luigi.Parameter()
     dx = luigi.FloatParameter(default=-1.0)
+    use_relative_time_axis = luigi.BoolParameter(default=True)
 
     track_without_gal_transform = luigi.BoolParameter(default=False)
     tracking_type = luigi.EnumParameter(enum=TrackingType)
     tracking_timestep_interval = luigi.ListParameter([])
+    timestep_skip = luigi.IntParameter(default=None)
 
     def requires(self):
         # first need to find duration of tracked object
@@ -631,10 +639,10 @@ class AllObjectsAll2DCrossSectionAggregations(luigi.Task):
         return tasks
 
     def _build_agg_tasks(self):
-        da_time = self.input()['t_global'].open()
-
+        times = self._get_times()
         agg_tasks = {}
-        for time in da_time.values:
+
+        for time in times:
             agg_task = Aggregate2DCrossSectionOnTrackedObjects(
                 var_name=self.var_name,
                 base_name=self.base_name,
@@ -649,16 +657,23 @@ class AllObjectsAll2DCrossSectionAggregations(luigi.Task):
             agg_tasks[time] = agg_task
         return agg_tasks
 
+    def _get_times(self):
+        da_time = self.input()['t_global'].open()
+        times = da_time.values
+        if self.timestep_skip is not None:
+            times = times[::self.timestep_skip]
+        return times
+
 
     def run(self):
         agg_tasks = self._build_agg_tasks()
         agg_output = yield agg_tasks
 
         inputs = self.input()
-        da_time = inputs['t_global'].open()
+        times = self._get_times()
         da_tstart = inputs['t_start'].open()
         da_tend = inputs['t_end'].open()
-        dt = np.gradient(da_time.values)[0]
+        # dt = np.gradient(da_time.values)[0]
 
         obj_var = f"sm{self.label_var}id"
         all_object_ids = da_tstart[obj_var].astype(int)
@@ -667,7 +682,7 @@ class AllObjectsAll2DCrossSectionAggregations(luigi.Task):
         das_agg_objs = {}
         # iterate over the timesteps splitting the aggregation in each into
         # different lists for each object present
-        for time in tqdm(da_time.values, desc="timestep", position=0):
+        for time in tqdm(times, desc="timestep", position=0):
             da_agg_all = agg_output[time].open()
             if "object_id" not in da_agg_all.coords:
                 continue
@@ -729,16 +744,17 @@ class AllObjectsAll2DCrossSectionAggregations(luigi.Task):
                     # ipdb.set_trace()
                     # raise Exception("")
 
-            da_time_relative = da_agg_obj.time - da_agg_obj.time.isel(time=0)
-            da_time_relative_mins = (
-                da_time_relative.dt.seconds/60.0 + 24.0*60.0*da_time_relative.dt.days
-            )
-            da_time_relative_mins.attrs['long_name'] = "time since forming"
-            da_time_relative_mins.attrs['units'] = "min"
-            da_agg_obj = (da_agg_obj
-                .assign_coords(dict(time_relative=da_time_relative_mins))
-                .swap_dims(dict(time="time_relative"))
-            )
+            if self.use_relative_time_axis:
+                da_time_relative = da_agg_obj.time - da_agg_obj.time.isel(time=0)
+                da_time_relative_mins = (
+                    da_time_relative.dt.seconds/60.0 + 24.0*60.0*da_time_relative.dt.days
+                )
+                da_time_relative_mins.attrs['long_name'] = "time since forming"
+                da_time_relative_mins.attrs['units'] = "min"
+                da_agg_obj = (da_agg_obj
+                    .assign_coords(dict(time_relative=da_time_relative_mins))
+                    .swap_dims(dict(time="time_relative"))
+                )
 
             das_agg.append(da_agg_obj)
 
@@ -760,6 +776,12 @@ class AllObjectsAll2DCrossSectionAggregations(luigi.Task):
             f"tracked_{type_id}",
             interval_id,
         ]
+
+        if not self.use_relative_time_axis:
+            name_parts.append("absolute_time")
+
+        if self.timestep_skip is not None:
+            name_parts.append(f"{self.timestep_skip}tn_skip")
 
         if self.track_without_gal_transform:
             name_parts.append("go_track")

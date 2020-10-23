@@ -55,6 +55,29 @@ def find_vertical_grid_spacing(da):
     return np.min(dz_all)
 
 
+def find_horizontal_grid_spacing(mask):
+    # NB: should also checked for stretched grids..
+    try:
+        x, y = mask.xt, mask.yt
+    except AttributeError:
+        x, y = mask.x, mask.y
+
+    dx_all = np.diff(x.values)
+    dy_all = np.diff(y.values)
+    dx, dy = np.max(dx_all), np.max(dy_all)
+
+    dx = np.round(dx, REQUIRED_DX_PRECISION)
+    dy = np.round(dx, REQUIRED_DX_PRECISION)
+
+    if not dx == dy:
+        raise NotImplementedError(
+            "Only isotropic grids are supported"
+            "(dx,dy)=({},{},{})".format(dx, dy)
+        )
+
+    return dx
+
+
 def angle_mean(theta):
     x = np.mean(np.cos(theta))
     y = np.mean(np.sin(theta))
