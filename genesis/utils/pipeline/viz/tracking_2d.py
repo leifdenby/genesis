@@ -2,8 +2,28 @@ import luigi
 import matplotlib.pyplot as plt
 import numpy as np
 import datetime
+import xarray as xr
 
 from .. import data
+
+from skimage.color import colorlabel
+label2rgb = colorlabel.label2rgb
+
+
+class FixedColorMap:
+    def _match_label_with_color(self, label, colors, bg_label, bg_color):
+        mm, color_cycle = self._old_match_label_with_color(
+            label=label, colors=colors, bg_label=bg_label, bg_color=bg_color,
+        )
+        mapped_labels = (label.flatten() % len(colors))
+        return mapped_labels, color_cycle
+
+    def __enter__(self):
+        self._old_match_label_with_color = colorlabel._match_label_with_color
+        colorlabel._match_label_with_color = self._match_label_with_color
+
+    def __exit__(self, type, value, traceback):
+        colorlabel._match_label_with_color = self._old_match_label_with_color
 
 
 class CloudCrossSectionAnimationFrame(luigi.Task):
@@ -11,12 +31,19 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
     time = data.base.NumpyDatetimeParameter()
     center_pt = luigi.ListParameter(default=[])
     l_pad = luigi.FloatParameter(default=5000)
-    remove_gal_transform = luigi.BoolParameter(default=False)
-    scalar = luigi.Parameter(default="lwp")
-    label_var = luigi.Parameter(default="nrcloud")
+    track_without_gal_transform = luigi.BoolParameter(default=False)
+    remove_gal_transform = luigi.BoolParameter(default=True)
+    var_name = luigi.Parameter(default="lwp")
+    label_var = luigi.Parameter(default="cloud")
+    coloured_labels = luigi.BoolParameter(default=False)
+
+    def _remove_gal_transform(self):
+        if self.offset_labels_by_gal_transform:
+            tref = da_timedep.isel(time=0).time
+            da = remove_gal_transform(da=da, tref=tref, base_name=self.base_name)
 
     def requires(self):
-        if self.label_var == "nrthrm":
+        if self.label_var == "thrm":
             tracking_type = data.tracking_2d.TrackingType.CLOUD_CORE_THERMAL
         else:
             tracking_type = data.tracking_2d.TrackingType.CLOUD_CORE
@@ -25,13 +52,14 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
             labels=data.tracking_2d.TrackingLabels2D(
                 base_name=self.base_name,
                 tracking_type=tracking_type,
-                remove_gal_transform=self.remove_gal_transform,
+                track_without_gal_transform=self.track_without_gal_transform,
                 label_var=self.label_var,
                 time=self.time,
+                offset_labels_by_gal_transform=self.remove_gal_transform,
             ),
             scalar=data.extraction.ExtractCrossSection2D(
                 base_name=self.base_name,
-                field_name=self.scalar,
+                var_name=self.var_name,
                 remove_gal_transform=self.remove_gal_transform,
                 time=self.time,
             ),
@@ -40,24 +68,25 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
         object_type = self._get_object_type()
         for grid_var in ["xt", "yt"]:
             v = "{}_{}".format(grid_var[0], object_type)
-            field_name = grid_var
+            var_name = grid_var
 
             tasks[v] = data.tracking_2d.Aggregate2DCrossSectionOnTrackedObjects(
                 base_name=self.base_name,
-                field_name=field_name,
+                var_name=var_name,
                 op="mean",
                 label_var=self.label_var,
                 time=self.time,
-                remove_gal_transform=self.remove_gal_transform,
+                track_without_gal_transform=self.track_without_gal_transform,
                 tracking_type=tracking_type,
+                offset_labels_by_gal_transform=self.remove_gal_transform,
             )
 
         return tasks
 
     def _get_object_type(self):
-        if self.label_var == "nrcloud":
+        if self.label_var == "cloud":
             object_type = "cloud"
-        elif self.label_var == "nrthrm":
+        elif self.label_var == "thrm":
             object_type = "thermal"
         elif self.label_var == "cldthrm_family":
             object_type = "cldthrm_family"
@@ -87,12 +116,25 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
         da_x_object = self.input()[f"x_{object_type}"].open()
         da_y_object = self.input()[f"y_{object_type}"].open()
 
-        (da_scalar.sel(**kws).plot(ax=ax, vmax=0.1, add_colorbar=True, cmap="Blues"))
-        (
-            da_labels.astype(int)
-            .sel(**kws)
-            .plot.contour(ax=ax, colors=["red"], levels=[0.5])
-        )
+        (da_scalar.sel(**kws).plot(ax=ax, vmax=0.1, add_colorbar=True, cmap="Blues", zorder=1))
+
+        if self.coloured_labels:
+            da_ = da_labels.sel(**kws).fillna(0).astype(int)
+            with FixedColorMap():
+                rgb_values = label2rgb(da_.values, alpha=0.2, bg_label=0, bg_color=(255, 255, 255))
+            rgba_values = np.zeros((lambda nx, ny, nc: (nx, ny, nc+1))(*rgb_values.shape))
+            rgba_values[:,:,:-1] = rgb_values
+            rgba_values[:,:,-1] = 0.2
+            da_rgb = xr.DataArray(rgb_values,
+                coords=da_.coords, dims=list(da_.dims) + ['rgb']
+            )
+            da_rgb.plot.imshow(ax=ax, rgb='rgb', alpha=0.5, zorder=10)
+        else:
+            (
+                da_labels.astype(int)
+                .sel(**kws)
+                .plot.contour(ax=ax, colors=["red"], levels=[0.5])
+            )
 
         # plot object centers computed by aggregating over object label masks
         text_bbox = dict(facecolor="white", alpha=0.5, edgecolor="none")
@@ -116,13 +158,25 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
         plt.savefig(str(self.output().fn))
 
     def output(self):
-        fn = "{}.{}__frame.{}.{}_gal_transform.{}.png".format(
+        name_parts = [
             self.base_name,
-            self.label_var,
-            self.scalar,
-            ["with", "without"][self.remove_gal_transform],
+            f"{self.label_var}__frame",
+            self.var_name,
+        ]
+
+        if self.track_without_gal_transform:
+            name_parts.append("go_track")
+        if self.remove_gal_transform:
+            name_parts.append("go_labels")
+        if self.coloured_labels:
+            name_parts.append("coloured")
+
+        name_parts += [
             self.time.isoformat().replace(":", ""),
-        )
+            "png"
+        ]
+
+        fn = ".".join(name_parts)
         return luigi.LocalTarget(fn)
 
 
@@ -132,10 +186,13 @@ class CloudCrossSectionAnimationSpan(CloudCrossSectionAnimationFrame):
 
     def requires(self):
         return data.extraction.TimeCrossSectionSlices2D(
-            base_name=self.base_name, field_name=self.scalar,
+            base_name=self.base_name, var_name=self.var_name,
         )
 
     def _build_subtasks(self):
+        if not self.input().exists():
+            return None
+
         da_scalar_2d = self.input().open()
         t0 = da_scalar_2d.time.min()
         t_start = t0 + np.timedelta64(self.t_start_offset_hrs, "h")
@@ -149,9 +206,11 @@ class CloudCrossSectionAnimationSpan(CloudCrossSectionAnimationFrame):
                 time=t,
                 center_pt=self.center_pt,
                 l_pad=self.l_pad,
-                remove_gal_transform=self.remove_gal_transform,
-                scalar=self.scalar,
+                track_without_gal_transform=self.track_without_gal_transform,
+                var_name=self.var_name,
                 label_var=self.label_var,
+                coloured_labels=self.coloured_labels,
+                remove_gal_transform=self.remove_gal_transform
             )
             for t in da_times
         ]
@@ -161,4 +220,8 @@ class CloudCrossSectionAnimationSpan(CloudCrossSectionAnimationFrame):
         yield self._build_subtasks()
 
     def output(self):
-        return [t.output() for t in self._build_subtasks()]
+        tasks = self._build_subtasks()
+        if tasks is None:
+            return luigi.LocalTarget('__invalid_file__')
+        else:
+            return [t.output() for t in tasks]

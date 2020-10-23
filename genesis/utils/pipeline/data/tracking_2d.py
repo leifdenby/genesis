@@ -335,10 +335,6 @@ class TrackingLabels2D(_Tracking2DExtraction):
 
 
     def requires(self):
-        if self.offset_labels_by_gal_transform and self.track_without_gal_transform:
-            raise Exception("`offset_labels_by_gal_transform` and `track_without_gal_transform`"
-                            " cannot both be true")
-
         if self.label_var == "cldthrm_family":
             return TrackingFamilyLabels2D(
                 base_name=self.base_name,
@@ -370,7 +366,7 @@ class TrackingLabels2D(_Tracking2DExtraction):
 
         if self.offset_labels_by_gal_transform:
             tref = da_timedep.isel(time=0).time
-            da = offset_labels_by_gal_transform(da=da, tref=tref, base_name=self.base_name)
+            da = remove_gal_transform(da=da, tref=tref, base_name=self.base_name)
 
         Path(self.output().fn).parent.mkdir(exist_ok=True, parents=True)
         da.to_netcdf(self.output().fn)
@@ -534,7 +530,7 @@ class Aggregate2DCrossSectionOnTrackedObjects(luigi.Task):
         return da
 
     def run(self):
-        da_labels = self.input()["tracking_labels"].open().astype(int)
+        da_labels = self.input()["tracking_labels"].open().fillna(0).astype(int)
 
         if self.var_name in ["xt", "yt"]:
             if self.var_name in "xt":
@@ -543,12 +539,18 @@ class Aggregate2DCrossSectionOnTrackedObjects(luigi.Task):
                 da_values, _ = xr.broadcast(da_labels.xt, da_labels.yt)
             else:
                 raise NotImplementedError(self.var_name)
+
+            # (x, y) values change due to the Galliean transform, so we need to
+            # use the actual translated grid positions
+            if self.offset_labels_by_gal_transform:
+                tref = da_labels.time
+                da_values = remove_gal_transform(da=da_values, tref=tref, base_name=self.base_name)
         else:
             da_values = self.input()["field"].open()
 
         if self.op == "histogram":
             da_out = self._aggregate_as_hist(da_values=da_values, da_labels=da_labels,)
-        elif self.op == "mean":
+        elif self.op in vars(dmeasure):
             da_out = self._aggregate_generic(
                 da_values=da_values, da_labels=da_labels, op=self.op
             )
@@ -649,7 +651,8 @@ class AllObjectsAll2DCrossSectionAggregations(luigi.Task):
 
 
     def run(self):
-        agg_output = yield self._build_agg_tasks()
+        agg_tasks = self._build_agg_tasks()
+        agg_output = yield agg_tasks
 
         inputs = self.input()
         da_time = inputs['t_global'].open()
@@ -672,25 +675,28 @@ class AllObjectsAll2DCrossSectionAggregations(luigi.Task):
             # find all objects that were present at this time
             import ipdb
             with ipdb.launch_ipdb_on_exception():
-                object_ids = all_object_ids.where(
-                    ((da_tstart <= time) * (time <= da_tend)), drop=True
-                )
+                object_ids = da_agg_all.object_id
+                # XXX: it appears there may be another bug here, this time with
+                # the start/end time of object appearance
+                # object_ids = all_object_ids.where(
+                    # ((da_tstart <= time) * (time <= da_tend)), drop=True
+                # )
 
-            for object_id in object_ids.values:
-                try:
-                    da_obj = da_agg_all.sel(object_id=object_id)
-                except KeyError:
-                    # NOTE: the tracking code has as bug so that tmax refers to the next
-                    # timestep *after* unless the object exists in the very last
-                    # timestep. We want to know which objects exist at the very last
-                    # timestep examined, so we need to handle the indexing here and
-                    # create a fake datasets with nans
-                    da_obj = np.nan*da_agg_all.isel(object_id=0)
-                    da_obj = da_obj.assign_coords(dict(object_id=object_id))
+                for object_id in object_ids.values:
+                    try:
+                        da_obj = da_agg_all.sel(object_id=object_id)
+                    except KeyError:
+                        # NOTE: the tracking code has as bug so that tmax refers to the next
+                        # timestep *after* unless the object exists in the very last
+                        # timestep. We want to know which objects exist at the very last
+                        # timestep examined, so we need to handle the indexing here and
+                        # create a fake datasets with nans
+                        da_obj = np.nan*da_agg_all.isel(object_id=0)
+                        da_obj = da_obj.assign_coords(dict(object_id=object_id))
 
-                if not object_id in das_agg_objs:
-                    das_agg_objs[object_id] = []
-                das_agg_objs[object_id].append(da_obj)
+                    if not object_id in das_agg_objs:
+                        das_agg_objs[object_id] = []
+                    das_agg_objs[object_id].append(da_obj)
 
         # free up some memory
         del agg_output
@@ -706,17 +712,22 @@ class AllObjectsAll2DCrossSectionAggregations(luigi.Task):
 
             # check the start and end times match with what the cloud-tracking
             # code thinks...
-            t_start_obj = da_tstart.sel({obj_var: object_id})
-            assert t_start_obj == da_agg_obj.time.isel(time=0)
-            t_end_obj = da_tend.sel({obj_var: object_id})
-            if not t_end_obj == da_agg_obj.time.isel(time=-1):
-                # NOTE: again the bug in the cloud-tracking code means that
-                # objects that exist at the end of the time-range have their
-                # end time actually *after* the very last timestep
-                if t_end_obj == da_time.isel(time=-1) + dt:
-                    pass
-                else:
-                    raise Exception("")
+
+            # XXX: appears there's abug with the cloud tracking code... so I've
+            # disabled this for now
+            # t_start_obj = da_tstart.sel({obj_var: object_id})
+            # assert t_start_obj == da_agg_obj.time.isel(time=0)
+            # t_end_obj = da_tend.sel({obj_var: object_id})
+            # if not t_end_obj == da_agg_obj.time.isel(time=-1):
+                # # NOTE: again the bug in the cloud-tracking code means that
+                # # objects that exist at the end of the time-range have their
+                # # end time actually *after* the very last timestep
+                # if t_end_obj == da_time.isel(time=-1) + dt:
+                    # pass
+                # else:
+                    # import ipdb
+                    # ipdb.set_trace()
+                    # raise Exception("")
 
             da_time_relative = da_agg_obj.time - da_agg_obj.time.isel(time=0)
             da_time_relative_mins = (
