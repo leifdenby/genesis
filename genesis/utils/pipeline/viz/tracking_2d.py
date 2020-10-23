@@ -36,6 +36,7 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
     var_name = luigi.Parameter(default="lwp")
     label_var = luigi.Parameter(default="cloud")
     coloured_labels = luigi.BoolParameter(default=False)
+    tracking_timestep_interval = luigi.ListParameter(default=[])
 
     def _remove_gal_transform(self):
         if self.offset_labels_by_gal_transform:
@@ -55,6 +56,7 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
                 track_without_gal_transform=self.track_without_gal_transform,
                 label_var=self.label_var,
                 time=self.time,
+                tracking_timestep_interval=self.tracking_timestep_interval,
                 offset_labels_by_gal_transform=self.remove_gal_transform,
             ),
             scalar=data.extraction.ExtractCrossSection2D(
@@ -79,6 +81,7 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
                 track_without_gal_transform=self.track_without_gal_transform,
                 tracking_type=tracking_type,
                 offset_labels_by_gal_transform=self.remove_gal_transform,
+                tracking_timestep_interval=self.tracking_timestep_interval,
             )
 
         return tasks
@@ -207,6 +210,7 @@ class CloudCrossSectionAnimationSpan(CloudCrossSectionAnimationFrame):
                 center_pt=self.center_pt,
                 l_pad=self.l_pad,
                 track_without_gal_transform=self.track_without_gal_transform,
+                tracking_timestep_interval=self.tracking_timestep_interval,
                 var_name=self.var_name,
                 label_var=self.label_var,
                 coloured_labels=self.coloured_labels,
