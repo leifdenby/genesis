@@ -90,7 +90,11 @@ def _get_prop_name_in_latex(s):
 
 OP_NAME_MAPPING = dict(lt="<", eq="=", gt=">", lte=r"\leq", gte=r"\geq")
 
-PROP_NAME_UNITS_MAPPING = dict(z_min="m", z_max="m", r_equiv="m",)
+PROP_NAME_UNITS_MAPPING = dict(
+    z_min="m",
+    z_max="m",
+    r_equiv="m",
+)
 
 
 def _format_op_for_latex(prop_latex, op_name, s_value, units=""):

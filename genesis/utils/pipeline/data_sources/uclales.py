@@ -39,7 +39,11 @@ UNITS_FORMAT = {
 DERIVED_FIELDS = dict(
     T=("qc", "theta_l", "p"),
     theta_l_v=("theta_l", "qv", "qc", "qr"),
-    theta_l_v_hack=("theta_l", "qv", "qc",),
+    theta_l_v_hack=(
+        "theta_l",
+        "qv",
+        "qc",
+    ),
     qv=("qt", "qc", "qr"),
 )
 
@@ -114,19 +118,22 @@ def _fix_time_units(da):
         pass
     elif da.attrs["units"].startswith("seconds since 2000-00-00"):
         da.attrs["units"] = da.attrs["units"].replace(
-            "seconds since 2000-00-00", "seconds since 2000-01-01",
+            "seconds since 2000-00-00",
+            "seconds since 2000-01-01",
         )
         modified = True
     elif da.attrs["units"].startswith("seconds since 0-00-00"):
         # 2D fields have strange time units...
         da.attrs["units"] = da.attrs["units"].replace(
-            "seconds since 0-00-00", "seconds since 2000-01-01",
+            "seconds since 0-00-00",
+            "seconds since 2000-01-01",
         )
         modified = True
     elif da.attrs["units"].startswith("seconds since 0-0-0"):
         # 2D fields have strange time units...
         da.attrs["units"] = da.attrs["units"].replace(
-            "seconds since 0-0-0", "seconds since 2000-01-01",
+            "seconds since 0-0-0",
+            "seconds since 2000-01-01",
         )
         modified = True
     elif da.attrs["units"] == "day as %Y%m%d.%f":

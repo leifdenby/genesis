@@ -8,15 +8,19 @@ import xarray as xr
 from .. import data
 
 from skimage.color import colorlabel
+
 label2rgb = colorlabel.label2rgb
 
 
 class FixedColorMap:
     def _match_label_with_color(self, label, colors, bg_label, bg_color):
         mm, color_cycle = self._old_match_label_with_color(
-            label=label, colors=colors, bg_label=bg_label, bg_color=bg_color,
+            label=label,
+            colors=colors,
+            bg_label=bg_label,
+            bg_color=bg_color,
         )
-        mapped_labels = (label.flatten() % len(colors))
+        mapped_labels = label.flatten() % len(colors)
         return mapped_labels, color_cycle
 
     def __enter__(self):
@@ -71,7 +75,9 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
 
         object_type = self._get_object_type()
         for grid_var in ["xt", "yt"]:
-            ops = ["mean",]
+            ops = [
+                "mean",
+            ]
             if self.show_label_bounding_box:
                 ops += ["minimum", "maximum"]
 
@@ -126,19 +132,27 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
         da_x_object = self.input()[f"x_{object_type}_mean"].open()
         da_y_object = self.input()[f"y_{object_type}_mean"].open()
 
-        (da_scalar.sel(**kws).plot(ax=ax, vmax=0.1, add_colorbar=True, cmap="Blues", zorder=1))
+        (
+            da_scalar.sel(**kws).plot(
+                ax=ax, vmax=0.1, add_colorbar=True, cmap="Blues", zorder=1
+            )
+        )
 
         if self.coloured_labels:
             da_ = da_labels.sel(**kws).fillna(0).astype(int)
             with FixedColorMap():
-                rgb_values = label2rgb(da_.values, alpha=0.2, bg_label=0, bg_color=(255, 255, 255))
-            rgba_values = np.zeros((lambda nx, ny, nc: (nx, ny, nc+1))(*rgb_values.shape))
-            rgba_values[:,:,:-1] = rgb_values
-            rgba_values[:,:,-1] = 0.2
-            da_rgb = xr.DataArray(rgb_values,
-                coords=da_.coords, dims=list(da_.dims) + ['rgb']
+                rgb_values = label2rgb(
+                    da_.values, alpha=0.2, bg_label=0, bg_color=(255, 255, 255)
+                )
+            rgba_values = np.zeros(
+                (lambda nx, ny, nc: (nx, ny, nc + 1))(*rgb_values.shape)
             )
-            da_rgb.plot.imshow(ax=ax, rgb='rgb', alpha=0.5, zorder=10)
+            rgba_values[:, :, :-1] = rgb_values
+            rgba_values[:, :, -1] = 0.2
+            da_rgb = xr.DataArray(
+                rgb_values, coords=da_.coords, dims=list(da_.dims) + ["rgb"]
+            )
+            da_rgb.plot.imshow(ax=ax, rgb="rgb", alpha=0.5, zorder=10)
         else:
             (
                 da_labels.astype(int)
@@ -171,8 +185,13 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
                 o_ymin = da_ymin_object.sel(object_id=c_id)
                 o_ymax = da_ymax_object.sel(object_id=c_id)
                 rect = mpl_patches.Rectangle(
-                    (o_xmin, o_ymin), (o_xmax-o_xmin), (o_ymax-o_ymin), linewidth=1,
-                    edgecolor='r',facecolor='none', linestyle='--', 
+                    (o_xmin, o_ymin),
+                    (o_xmax - o_xmin),
+                    (o_ymax - o_ymin),
+                    linewidth=1,
+                    edgecolor="r",
+                    facecolor="none",
+                    linestyle="--",
                 )
                 ax.add_patch(rect)
 
@@ -198,10 +217,7 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
         if self.coloured_labels:
             name_parts.append("coloured")
 
-        name_parts += [
-            self.time.isoformat().replace(":", ""),
-            "png"
-        ]
+        name_parts += [self.time.isoformat().replace(":", ""), "png"]
 
         fn = ".".join(name_parts)
         return luigi.LocalTarget(fn)
@@ -213,7 +229,8 @@ class CloudCrossSectionAnimationSpan(CloudCrossSectionAnimationFrame):
 
     def requires(self):
         return data.extraction.TimeCrossSectionSlices2D(
-            base_name=self.base_name, var_name=self.var_name,
+            base_name=self.base_name,
+            var_name=self.var_name,
         )
 
     def _build_subtasks(self):
@@ -251,6 +268,6 @@ class CloudCrossSectionAnimationSpan(CloudCrossSectionAnimationFrame):
     def output(self):
         tasks = self._build_subtasks()
         if tasks is None:
-            return luigi.LocalTarget('__invalid_file__')
+            return luigi.LocalTarget("__invalid_file__")
         else:
             return [t.output() for t in tasks]

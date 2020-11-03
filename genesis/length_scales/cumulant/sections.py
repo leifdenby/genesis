@@ -100,7 +100,10 @@ if __name__ == "__main__":
         "input", nargs="+", help="input datasets, e.g. no_shear/rico.tn6"
     )
     argparser.add_argument(
-        "--z_max", help="max height", default=700, type=float,
+        "--z_max",
+        help="max height",
+        default=700,
+        type=float,
     )
     argparser.add_argument("--z_step", default=4)
 

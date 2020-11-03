@@ -147,9 +147,7 @@ class ObjectSet:
 
         ds_new = self.ds.sel(object_id=object_ids)
 
-        return ObjectSet(
-            ds=ds_new, parent=self, object_type=self.object_type
-        )
+        return ObjectSet(ds=ds_new, parent=self, object_type=self.object_type)
 
     def __len__(self):
         return int(self.ds.object_id.count())

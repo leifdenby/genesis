@@ -10,7 +10,10 @@ class DomainMeanVerticalFlux(luigi.Task):
     field_name = luigi.Parameter()
 
     def requires(self):
-        return ExtractField3D(base_name=self.base_name, field_name=self.field_name,)
+        return ExtractField3D(
+            base_name=self.base_name,
+            field_name=self.field_name,
+        )
 
     def run(self):
         da_3d = input.input().open().squeeze()
@@ -24,7 +27,8 @@ class DomainMeanVerticalFlux(luigi.Task):
 
     def output(self):
         fn = "{base_name}.{field_name}__mean_flux.{filetype}".format(
-            base_name=self.base_name, filetype="nc",
+            base_name=self.base_name,
+            filetype="nc",
         )
 
         p = WORKDIR / self.base_name / fn

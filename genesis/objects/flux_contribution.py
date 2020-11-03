@@ -230,7 +230,9 @@ def plot_with_areafrac(ds, figsize=(12, 8), legend_ncols=3):
     """
     fig, axes = plt.subplots(ncols=3, figsize=figsize, sharey=True)
 
-    SCALAR_TO_LATEX = dict(qv="q_v",)
+    SCALAR_TO_LATEX = dict(
+        qv="q_v",
+    )
     s_latex = SCALAR_TO_LATEX.get(ds.scalar, ds.scalar)
 
     ax = axes[0]

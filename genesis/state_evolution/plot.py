@@ -27,7 +27,10 @@ sns.despine()
 
 VARS = [
     ("zbmn", "zcmn", "zb", "zc"),
-    ("lwp_bar", "rwp_bar",),
+    (
+        "lwp_bar",
+        "rwp_bar",
+    ),
     ("cfrac",),
 ]
 
@@ -78,7 +81,10 @@ def _plot_overview(dataset_name, t_hrs_used):
         ).squeeze()
 
         (da_ > 0.001).plot.pcolormesh(
-            cmap=plot.get_cmap("Greys_r"), rasterized=True, ax=ax, add_colorbar=False,
+            cmap=plot.get_cmap("Greys_r"),
+            rasterized=True,
+            ax=ax,
+            add_colorbar=False,
         )
 
         plot.title("t={}hrs".format(t_))

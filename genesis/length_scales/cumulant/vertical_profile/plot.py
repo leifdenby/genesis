@@ -323,7 +323,10 @@ if __name__ == "__main__":
         type=_parse_cumulant_arg,
     )
     argparser.add_argument(
-        "--z_max", help="max height", default=None, type=float,
+        "--z_max",
+        help="max height",
+        default=None,
+        type=float,
     )
     argparser.add_argument(
         "--plot-angles", help="plot angles", default=False, action="store_true"

@@ -65,8 +65,20 @@ def test_mink_scales_near_spherical(shape):
 # Distribution"
 SPHEROID_SOLUTIONS = [
     # rechneronline.de:
-    dict(ac=(20.0, 100.0), VA=(167551.608, 20077.004,)),
-    dict(ac=(100.0, 20.0), VA=(837758.041, 68712.169,)),
+    dict(
+        ac=(20.0, 100.0),
+        VA=(
+            167551.608,
+            20077.004,
+        ),
+    ),
+    dict(
+        ac=(100.0, 20.0),
+        VA=(
+            837758.041,
+            68712.169,
+        ),
+    ),
     # F. Gruy. NB: the paper has swapped meaning of a and c axis, and curvature
     # value given is actually C/3 as the Minkowski functionals (with their
     # definition, missing the pi factor) is given

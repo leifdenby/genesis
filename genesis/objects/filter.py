@@ -198,7 +198,8 @@ def filter_objects_by_tracking(
 
 
 def filter_objects_by_tracking_old(
-    objects, base_name,
+    objects,
+    base_name,
 ):
     t0 = objects.time.values
     valid_units = ["seconds since 2000-01-01 00:00:00", "seconds since 2000-01-01"]

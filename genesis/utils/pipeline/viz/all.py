@@ -402,7 +402,10 @@ class CumulantSlices(luigi.Task):
         import ipdb
 
         with ipdb.launch_ipdb_on_exception():
-            ax = plot_fn(datasets=datasets, var_names=[self.v1, self.v2],)
+            ax = plot_fn(
+                datasets=datasets,
+                var_names=[self.v1, self.v2],
+            )
 
         return ax
 
@@ -717,7 +720,8 @@ class FilamentarityPlanarityComparison(ObjectScalesComparison):
         # NOTE: using bbox_extra_artists is disabled because that removes the
         # legend on the joint plot...
         plt.savefig(
-            self.output().fn, bbox_inches="tight",
+            self.output().fn,
+            bbox_inches="tight",
         )
 
     def get_base_name_labels(self):
@@ -989,7 +993,10 @@ class ObjectsScaleDist(luigi.Task):
             bbox_extra_artists.append(st)
 
         ax_lgd = axes[len(axes) // 2]
-        lgd = plt.figlegend(*ax_lgd.get_legend_handles_labels(), loc="lower center",)
+        lgd = plt.figlegend(
+            *ax_lgd.get_legend_handles_labels(),
+            loc="lower center",
+        )
 
         plot_types.adjust_fig_to_fit_figlegend(
             fig=fig, figlegend=lgd, direction="bottom"
@@ -1292,7 +1299,8 @@ class ObjectScaleVsHeightComposition(luigi.Task):
 
         reqs = dict(
             base=data.ComputeObjectScaleVsHeightComposition(
-                object_filters=self.object_filters, **kwargs,
+                object_filters=self.object_filters,
+                **kwargs,
             )
         )
 
@@ -1558,7 +1566,9 @@ class Suite(luigi.Task):
                     z_max=1000.0,
                 )
         else:
-            reqs["mean_profile"] = HorizontalMeanProfile(base_name=self.base_name,)
+            reqs["mean_profile"] = HorizontalMeanProfile(
+                base_name=self.base_name,
+            )
         return reqs
 
     def run(self):

@@ -70,7 +70,9 @@ boundary_layer_moist_updrafts.description = (
 
 
 def coldpool_edge(
-    tv0100, l_smoothing=L_SMOOTHING_DEFUALT, l_edge=L_EDGE_DEFAULT,
+    tv0100,
+    l_smoothing=L_SMOOTHING_DEFUALT,
+    l_edge=L_EDGE_DEFAULT,
 ):
     ds = xr.Dataset(coords=tv0100.coords)
 

@@ -613,7 +613,10 @@ class ComputePerObjectProfiles(luigi.Task):
 
     def requires(self):
         return dict(
-            field=ExtractField3D(base_name=self.base_name, field_name=self.field_name,),
+            field=ExtractField3D(
+                base_name=self.base_name,
+                field_name=self.field_name,
+            ),
             objects=IdentifyObjects(
                 base_name=self.base_name,
                 mask_method=self.mask_method,
@@ -658,7 +661,8 @@ class ComputePerObjectProfiles(luigi.Task):
         da.name = "{}__{}".format(da_.name, kwargs["op"])
         da.attrs["units"] = da_.units
         da.attrs["long_name"] = "{} of {} per object".format(
-            kwargs["op"], da_.long_name,
+            kwargs["op"],
+            da_.long_name,
         )
         return da
 
@@ -740,7 +744,8 @@ class ComputeObjectScaleVsHeightComposition(luigi.Task):
                     z_max=self.z_max,
                 ),
                 da_3d=ExtractField3D(
-                    base_name=self.base_name, field_name=self.field_name,
+                    base_name=self.base_name,
+                    field_name=self.field_name,
                 ),
                 scales=ComputeObjectScales(
                     base_name=self.base_name,

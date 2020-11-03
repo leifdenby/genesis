@@ -126,7 +126,7 @@ class ExtractField3D(luigi.Task):
                     dataset_meta=meta,
                     path_out=p_out,
                     field_name=self.field_name,
-                    **opened_inputs
+                    **opened_inputs,
                 )
         else:
             raise NotImplementedError(fn_out.fn)
@@ -245,29 +245,34 @@ class ExtractCrossSection2D(luigi.Task):
 
     def requires(self):
         return TimeCrossSectionSlices2D(
-            base_name=self.base_name, var_name=self.var_name,
+            base_name=self.base_name,
+            var_name=self.var_name,
         )
 
     def _ensure_has_coord(self, da, coord):
         assert coord in ["xt", "yt"]
         if not coord in da.coords:
             meta = _get_dataset_meta_info(self.base_name)
-            dx = meta.get('dx')
+            dx = meta.get("dx")
             if dx is None:
-                raise Exception(f"The grid variable `{coord}` is missing from the"
-                                f" `{self.var_name}` 2D cross-section field. To"
-                                " create the missing grid coordinate you need"
-                                " to define the variable `dx` in the dataset"
-                                " meta information")
+                raise Exception(
+                    f"The grid variable `{coord}` is missing from the"
+                    f" `{self.var_name}` 2D cross-section field. To"
+                    " create the missing grid coordinate you need"
+                    " to define the variable `dx` in the dataset"
+                    " meta information"
+                )
 
             nx = int(da[coord].count())
-            x = dx*np.arange(-nx//2, nx//2)
+            x = dx * np.arange(-nx // 2, nx // 2)
             da.coords[coord] = (coord,), x
-            warnings.warn(f"Coordinate values for `{coord}` is missing for variable"
-                          f" `{self.var_name}`, creating it from `dx` in meta-info"
-                          f" for `{self.base_name}`")
-            da.coords[coord].attrs['units'] = 'm'
-            da.coords[coord].attrs['long_name'] = 'cell-center position'
+            warnings.warn(
+                f"Coordinate values for `{coord}` is missing for variable"
+                f" `{self.var_name}`, creating it from `dx` in meta-info"
+                f" for `{self.base_name}`"
+            )
+            da.coords[coord].attrs["units"] = "m"
+            da.coords[coord].attrs["long_name"] = "cell-center position"
 
     def run(self):
         da_timedep = self.input().open()
@@ -280,8 +285,8 @@ class ExtractCrossSection2D(luigi.Task):
             da = remove_gal_transform(da=da, tref=tref, base_name=self.base_name)
 
         if "longname" in da.attrs and not "long_name" in da.attrs:
-            da.attrs['long_name'] = da.attrs['longname']
-            del(da.attrs['longname'])
+            da.attrs["long_name"] = da.attrs["longname"]
+            del da.attrs["longname"]
 
         Path(self.output().fn).parent.mkdir(exist_ok=True, parents=True)
         da.to_netcdf(self.output().fn)

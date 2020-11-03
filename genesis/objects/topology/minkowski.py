@@ -39,7 +39,9 @@ def calc_scales(object_labels, dx):
         units = "m" if v != "genus_m" else "1"
         ds[v] = xr.DataArray(
             data=mf[n, :],
-            coords=dict(object_id=object_ids,),
+            coords=dict(
+                object_id=object_ids,
+            ),
             dims=("object_id",),
             attrs=dict(
                 units=units, long_name="Minkowski {}".format(v.replace("_m", ""))
@@ -48,14 +50,18 @@ def calc_scales(object_labels, dx):
 
     ds["planarity"] = xr.DataArray(
         data=planarity,
-        coords=dict(object_id=object_ids,),
+        coords=dict(
+            object_id=object_ids,
+        ),
         dims=("object_id",),
         attrs=dict(units="1"),
     )
 
     ds["filamentarity"] = xr.DataArray(
         data=filamentarity,
-        coords=dict(object_id=object_ids,),
+        coords=dict(
+            object_id=object_ids,
+        ),
         dims=("object_id",),
         attrs=dict(units="1"),
     )
@@ -63,14 +69,18 @@ def calc_scales(object_labels, dx):
     volume = V0 * dx ** 3.0
     ds["volume"] = xr.DataArray(
         data=volume,
-        coords=dict(object_id=object_ids,),
+        coords=dict(
+            object_id=object_ids,
+        ),
         dims=("object_id",),
         attrs=dict(units="m^3"),
     )
 
     ds["num_cells"] = xr.DataArray(
         data=V0,
-        coords=dict(object_id=object_ids,),
+        coords=dict(
+            object_id=object_ids,
+        ),
         dims=("object_id",),
         attrs=dict(units="1"),
     )

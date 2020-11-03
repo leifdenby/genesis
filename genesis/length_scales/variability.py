@@ -215,7 +215,9 @@ def get_variability_lengthscale_with_height(
         )
 
         bl_l = find_variability_lengthscale(
-            d, dx=dx, retained_target=variability_target,
+            d,
+            dx=dx,
+            retained_target=variability_target,
         )
 
         _arr.append((z, bl_l))

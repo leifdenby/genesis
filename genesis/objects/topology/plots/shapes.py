@@ -69,9 +69,16 @@ def cylinder(ax, x_c, y_c, l, r, color, r_label="r", h_label="h"):
 
 def spheroid(ax, x_c, y_c, l, r, color, r_label="r", h_label="h", render_back=True):
 
-    kwargs = dict(transform=ax.transAxes, facecolor="None", edgecolor=color,)
+    kwargs = dict(
+        transform=ax.transAxes,
+        facecolor="None",
+        edgecolor=color,
+    )
 
-    ln_kwargs = dict(transform=ax.transAxes, color=color,)
+    ln_kwargs = dict(
+        transform=ax.transAxes,
+        color=color,
+    )
 
     w = 2 * r
 

@@ -177,7 +177,10 @@ def main(  # noqa
                 yd = yd[~np.isnan(yd)]
 
                 (x_bins, y_bins), bin_counts, cnt = joint_hist_contoured(
-                    xd=xd, yd=yd, normed_levels=normed_levels, ax=ax,
+                    xd=xd,
+                    yd=yd,
+                    normed_levels=normed_levels,
+                    ax=ax,
                 )
 
                 if add_cb_peak_ref_line:
@@ -212,7 +215,10 @@ def main(  # noqa
             handles=lines,
             labels=[l.get_label() for l in lines],
             loc="center left",
-            bbox_to_anchor=(x_loc, 0.5,),
+            bbox_to_anchor=(
+                x_loc,
+                0.5,
+            ),
             borderaxespad=0,
         )
 

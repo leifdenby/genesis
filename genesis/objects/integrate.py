@@ -290,7 +290,10 @@ if __name__ == "__main__":
         raise Exception("Couldn't find objects file `{}`".format(fn_objects))
     objects = xr.open_dataarray(fn_objects, decode_times=False, chunks=CHUNKS).squeeze()
 
-    name = make_name(variable=args.scalar_field, operator=op,)
+    name = make_name(
+        variable=args.scalar_field,
+        operator=op,
+    )
     out_filename = FN_OUT_FORMAT.format(
         base_name=base_name.replace("/", "__"), objects_name=objects.name, name=name
     )

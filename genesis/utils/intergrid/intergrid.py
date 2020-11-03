@@ -184,12 +184,13 @@ class Intergrid:
 
     # ...............................................................................
     def __call__(self, X, out=None):
-        """ query_values = Intergrid(...) ( query_points npt x dim )
-        """
+        """query_values = Intergrid(...) ( query_points npt x dim )"""
         X = np.asanyarray(X)
-        assert X.shape[-1] == self.dim, (
-            "the query array must have %d columns, "
-            "but its shape is %s" % (self.dim, X.shape)
+        assert (
+            X.shape[-1] == self.dim
+        ), "the query array must have %d columns, " "but its shape is %s" % (
+            self.dim,
+            X.shape,
         )
         Xdim = X.ndim
         if Xdim == 1:

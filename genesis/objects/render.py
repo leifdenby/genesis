@@ -130,7 +130,11 @@ def plot_orientation_triangle(ax, x_cl, y_cl, z_cl, phi, theta):
     z_arc = z0 + r_srf_arc * np.sin(t_)
 
     ax.plot(
-        x_arc, y_arc, z_arc, color="blue", linestyle="-",
+        x_arc,
+        y_arc,
+        z_arc,
+        color="blue",
+        linestyle="-",
     )
     ax.plot([x0, x0], [y0, y0], [z0, z0 + r_srf_arc * 2.0], color="blue", linestyle="-")
 

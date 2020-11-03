@@ -182,7 +182,11 @@ def main(ds, auto_scale=True, reference_shape="spheroid"):
     else:
 
         g = multi_jointplot(
-            x="planarity", y="filamentarity", z="dataset", ds=ds, joint_type="kde",
+            x="planarity",
+            y="filamentarity",
+            z="dataset",
+            ds=ds,
+            joint_type="kde",
         )
 
         LABEL_FORMAT = "{name}: {count} objects"

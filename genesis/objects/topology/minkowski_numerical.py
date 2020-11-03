@@ -143,7 +143,12 @@ def make_mask(h, l, dx, shape, l_shear, with_plot):
         grid = grid.sel(x=slice(-lx_noshear, None))
 
     if shape == "plume":
-        ds = make_plume_mask(grid, r0=r0, h=h, shear_distance=l_shear,)
+        ds = make_plume_mask(
+            grid,
+            r0=r0,
+            h=h,
+            shear_distance=l_shear,
+        )
     elif shape == "thermal":
         ds = make_thermal_mask(grid, r0=r0, h=h, shear_distance=l_shear)
 
@@ -245,7 +250,11 @@ def mask_plot_example():
         ax = axes[ii, jj]
         # only one object so can cast mask to int
         im = ds.sel(y=0, method="nearest").mask.plot.pcolormesh(
-            ax=ax, y="z", cmap="Greys", linewidth=0, rasterized=True,
+            ax=ax,
+            y="z",
+            cmap="Greys",
+            linewidth=0,
+            rasterized=True,
         )
         # d = ds.sel(y=0, method='nearest').mask
         # ax.pcolormesh(d.x.values, d.z.values, d.values, alpha=0.1, cmap='Greys', linewidth=0, rasterized=True)
@@ -271,7 +280,10 @@ def example2():
     ds_study = xr.Dataset(
         coords=dict(
             h=[1000.0],
-            l=[2.0, 3.0,],  # 4., 5., 6., 7., 8.],  # noqa
+            l=[
+                2.0,
+                3.0,
+            ],  # 4., 5., 6., 7., 8.],  # noqa
             l_shear=[0.0, 500.0],  # 1000.], #[600., 400., 200., 0.],
             dx=[4.0],
             shape=["thermal"],

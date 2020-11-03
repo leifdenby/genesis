@@ -12,8 +12,8 @@ import intergrid  # http://denis-bz.github.com/docs/intergrid.html
 
 
 def productgrid(*xyz):
-    """ productgrid( 1d arrays x, y, z )
-        -> [[x0 y0 z0] [x0 y0 z1] ... [xlast ylast zlast]]
+    """productgrid( 1d arrays x, y, z )
+    -> [[x0 y0 z0] [x0 y0 z1] ... [xlast ylast zlast]]
     """
     # meshgrid mgrid ogrid ? mttiw
     from itertools import product

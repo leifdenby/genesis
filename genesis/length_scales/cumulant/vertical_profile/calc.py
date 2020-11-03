@@ -246,7 +246,10 @@ def get_data(base_name, var_name):
         return _check_coords(phi_da)
     else:
         fn_w = get_fn(base_name, var_name, "w")
-        w_da = xr.open_dataarray(fn_w, decode_times=False,)
+        w_da = xr.open_dataarray(
+            fn_w,
+            decode_times=False,
+        )
 
         phi_flux_da = compute_vertical_flux(phi_da=phi_da, w_da=w_da)
         phi_flux_da.name = "{}_flux".format(var_name)
@@ -270,7 +273,8 @@ if __name__ == "__main__":
     import argparse
 
     argparser = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        description=__doc__,
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
     DEFAULT_VARS = "w_zt,w_zt d_q,d_q d_t,d_t w_zt,d_q w_zt,d_t".split(" ")

@@ -16,7 +16,13 @@ def Rot_z(t):
 def rotate_points(p, theta, phi):
     p_flat = np.array([np.asarray(c).flatten() for c in p])
 
-    p_flat_rot = np.dot(Rot_z(-phi), np.dot(Rot_x(-theta), p_flat,))
+    p_flat_rot = np.dot(
+        Rot_z(-phi),
+        np.dot(
+            Rot_x(-theta),
+            p_flat,
+        ),
+    )
 
     return [p_flat_rot[n].reshape(c.shape) for (n, c) in enumerate(p)]
 

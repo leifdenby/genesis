@@ -42,20 +42,16 @@ def per_object_histogram(da_nrobj, da, bin_size):
     # get a 2D array
     histogram = np.array(histogram.tolist())
 
-    da_bins = xr.DataArray(
-        v_bins_c,
-        dims=da.name,
-        attrs=da.attrs
-    )
+    da_bins = xr.DataArray(v_bins_c, dims=da.name, attrs=da.attrs)
 
     return xr.DataArray(
         histogram,
-        dims=('object_id', da.name),
-        coords={ 'object_id': object_ids, da.name: da_bins },
+        dims=("object_id", da.name),
+        coords={"object_id": object_ids, da.name: da_bins},
         attrs=dict(
             long_name=f"{da.long_name} count",
             units="1",
-        )
+        ),
     )
 
 
@@ -127,6 +123,6 @@ def cloudbase_max_height_by_histogram_peak(da_nrcloud, da_cldbase, dx):
         coords=dict(cloud_id=cloud_ids),
         attrs=dict(
             long_name="Cloud-base height (from underside height dist peak)",
-            units=da_cldbase.units
-        )
+            units=da_cldbase.units,
+        ),
     )
