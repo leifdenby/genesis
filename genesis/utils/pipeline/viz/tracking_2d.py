@@ -1,5 +1,6 @@
 import luigi
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpl_patches
 import numpy as np
 import datetime
 import xarray as xr
@@ -36,6 +37,7 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
     var_name = luigi.Parameter(default="lwp")
     label_var = luigi.Parameter(default="cloud")
     coloured_labels = luigi.BoolParameter(default=False)
+    show_label_bounding_box = luigi.BoolParameter(default=True)
     tracking_timestep_interval = luigi.ListParameter(default=[])
 
     def _remove_gal_transform(self):
@@ -69,20 +71,25 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
 
         object_type = self._get_object_type()
         for grid_var in ["xt", "yt"]:
-            v = "{}_{}".format(grid_var[0], object_type)
-            var_name = grid_var
+            ops = ["mean",]
+            if self.show_label_bounding_box:
+                ops += ["minimum", "maximum"]
 
-            tasks[v] = data.tracking_2d.Aggregate2DCrossSectionOnTrackedObjects(
-                base_name=self.base_name,
-                var_name=var_name,
-                op="mean",
-                label_var=self.label_var,
-                time=self.time,
-                track_without_gal_transform=self.track_without_gal_transform,
-                tracking_type=tracking_type,
-                offset_labels_by_gal_transform=self.remove_gal_transform,
-                tracking_timestep_interval=self.tracking_timestep_interval,
-            )
+            for op in ops:
+                v = f"{grid_var[0]}_{object_type}_{op}"
+                var_name = grid_var
+
+                tasks[v] = data.tracking_2d.Aggregate2DCrossSectionOnTrackedObjects(
+                    base_name=self.base_name,
+                    var_name=var_name,
+                    op=op,
+                    label_var=self.label_var,
+                    time=self.time,
+                    track_without_gal_transform=self.track_without_gal_transform,
+                    tracking_type=tracking_type,
+                    offset_labels_by_gal_transform=self.remove_gal_transform,
+                    tracking_timestep_interval=self.tracking_timestep_interval,
+                )
 
         return tasks
 
@@ -116,8 +123,8 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
         da_labels = self.input()["labels"].open()
 
         object_type = self._get_object_type()
-        da_x_object = self.input()[f"x_{object_type}"].open()
-        da_y_object = self.input()[f"y_{object_type}"].open()
+        da_x_object = self.input()[f"x_{object_type}_mean"].open()
+        da_y_object = self.input()[f"y_{object_type}_mean"].open()
 
         (da_scalar.sel(**kws).plot(ax=ax, vmax=0.1, add_colorbar=True, cmap="Blues", zorder=1))
 
@@ -139,6 +146,12 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
                 .plot.contour(ax=ax, colors=["red"], levels=[0.5])
             )
 
+        if self.show_label_bounding_box:
+            da_xmin_object = self.input()[f"x_{object_type}_minimum"].open()
+            da_xmax_object = self.input()[f"x_{object_type}_maximum"].open()
+            da_ymin_object = self.input()[f"y_{object_type}_minimum"].open()
+            da_ymax_object = self.input()[f"y_{object_type}_maximum"].open()
+
         # plot object centers computed by aggregating over object label masks
         text_bbox = dict(facecolor="white", alpha=0.5, edgecolor="none")
         object_ids = np.unique(da_labels.sel(**kws))
@@ -151,6 +164,17 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
 
             ax.scatter(x_t, y_t, marker="x", color="red")
             ax.text(x_t, y_t, int(c_id), color="red", bbox=text_bbox)
+
+            if self.show_label_bounding_box:
+                o_xmin = da_xmin_object.sel(object_id=c_id)
+                o_xmax = da_xmax_object.sel(object_id=c_id)
+                o_ymin = da_ymin_object.sel(object_id=c_id)
+                o_ymax = da_ymax_object.sel(object_id=c_id)
+                rect = mpl_patches.Rectangle(
+                    (o_xmin, o_ymin), (o_xmax-o_xmin), (o_ymax-o_ymin), linewidth=1,
+                    edgecolor='r',facecolor='none', linestyle='--', 
+                )
+                ax.add_patch(rect)
 
         if len(self.center_pt) == 2:
             x_c, y_c = self.center_pt
@@ -214,7 +238,8 @@ class CloudCrossSectionAnimationSpan(CloudCrossSectionAnimationFrame):
                 var_name=self.var_name,
                 label_var=self.label_var,
                 coloured_labels=self.coloured_labels,
-                remove_gal_transform=self.remove_gal_transform
+                remove_gal_transform=self.remove_gal_transform,
+                show_label_bounding_box=self.show_label_bounding_box,
             )
             for t in da_times
         ]
