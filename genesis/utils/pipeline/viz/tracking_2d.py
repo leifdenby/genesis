@@ -172,7 +172,6 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
             y_t = da_y_object.sel(object_id=c_id)
 
             ax.scatter(x_t, y_t, marker="x", color="red")
-            ax.text(x_t, y_t, int(c_id), color="red", bbox=text_bbox)
 
             if self.show_label_bounding_box:
                 o_xmin = da_xmin_object.sel(object_id=c_id)
@@ -189,6 +188,17 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
                     linestyle="--",
                 )
                 ax.add_patch(rect)
+                ax.text(
+                    o_xmin,
+                    o_ymax,
+                    int(c_id),
+                    color="red",
+                    bbox=text_bbox,
+                    horizontalalignment="left",
+                    verticalalignment="bottom",
+                )
+            else:
+                ax.text(x_t, y_t, int(c_id), color="red", bbox=text_bbox)
 
         if len(self.center_pt) == 2:
             x_c, y_c = self.center_pt

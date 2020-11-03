@@ -292,10 +292,14 @@ class ExtractCrossSection2D(luigi.Task):
         da.to_netcdf(self.output().fn)
 
     def output(self):
-        fn = "{}.{}_gal_transform.{}.nc".format(
-            self.var_name,
-            ["with", "without"][self.remove_gal_transform],
-            self.time.isoformat(),
-        )
+        name_parts = [self.var_name, self.time.isoformat().replace(":", ""), "nc"]
+
+        if self.remove_gal_transform:
+            meta = _get_dataset_meta_info(self.base_name)
+            u_gal, v_gal = meta["U_gal"]
+            name_parts.insert(1, f"go_{u_gal}_{v_gal}")
+
+        fn = ".".join(name_parts)
+
         p = get_workdir() / self.base_name / "cross_sections" / "runtime_slices" / fn
         return XArrayTarget(str(p))

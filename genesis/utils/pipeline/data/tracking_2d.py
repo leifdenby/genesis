@@ -395,7 +395,9 @@ class TrackingLabels2D(_Tracking2DExtraction):
         ]
 
         if self.offset_labels_by_gal_transform:
-            name_parts.append("go_labels")
+            meta = _get_dataset_meta_info(self.base_name)
+            u_gal, v_gal = meta["U_gal"]
+            name_parts.append(f"go_labels_{u_gal}_{v_gal}")
 
         if self.track_without_gal_transform:
             name_parts.append("go_track")
@@ -605,7 +607,9 @@ class Aggregate2DCrossSectionOnTrackedObjects(luigi.Task):
             name_parts.insert(1, self.op)
 
         if self.offset_labels_by_gal_transform:
-            name_parts.append("go_labels")
+            meta = _get_dataset_meta_info(self.base_name)
+            u_gal, v_gal = meta["U_gal"]
+            name_parts.append(f"go_labels_{u_gal}_{v_gal}")
 
         if self.track_without_gal_transform:
             name_parts.append("go_track")
