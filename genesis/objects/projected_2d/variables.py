@@ -74,55 +74,58 @@ def cloudbase_max_height_by_histogram_peak(da_nrcloud, da_cldbase, dx):
     class MultilevelCloudbaseException(Exception):
         pass
 
-    z_clb_points = da_cldbase.squeeze()
-    nrcloud = da_nrcloud.squeeze().astype(int)
+    raise NotImplementedError
 
-    assert nrcloud.time == z_clb_points.time
 
-    z_base_max = np.zeros(object_ids.shape)
-    for n, c_id in enumerate(cloud_ids):
-        try:
-            bin_counts = histogram[n]
-
-            # insert zero number of cells at ends so that ends can be peaks too
-            n_ext = np.append(np.insert(bin_counts, 0, 0), 0)
-
-            is_peak = np.logical_and(n_ext[0:-2] < n_ext[1:-1], n_ext[1:-1] > n_ext[2:])
-
-            peaks = np.nonzero(is_peak)[0]
-
-            if len(peaks) == 0:
-                raise InSuficientPointsException(
-                    "Couldn't find a peak in the" " cldbase points histogram"
-                )
-
-            first_peak = peaks[0]
-
-            # include up to twice the peak index height as part of the cloud base
-            try:
-                z_base_lim = z_bins_c[first_peak * 2]
-            except IndexError:
-                raise TopheavyCloudException
-
-            # Is there a second peak nearby?
-            if len(peaks) > 1 and first_peak * 2 > peaks[1]:
-                raise MultilevelCloudbaseException
-
-            z_base_max[n] = z_base_lim
-
-        except (
-            InSuficientPointsException,
-            TopheavyCloudException,
-            MultilevelCloudbaseException,
-        ):
-            z_base_max[n] = np.nan
-
-    return xr.DataArray(
-        z_base_max,
-        dims="cloud_id",
-        coords=dict(cloud_id=cloud_ids),
-        attrs=dict(
-            long_name="Cloud-base height (from underside height dist peak)",
-            units=da_cldbase.units,
-        ),
-    )
+#    z_clb_points = da_cldbase.squeeze()
+#    nrcloud = da_nrcloud.squeeze().astype(int)
+#
+#    assert nrcloud.time == z_clb_points.time
+#
+#    z_base_max = np.zeros(object_ids.shape)
+#    for n, c_id in enumerate(cloud_ids):
+#        try:
+#            bin_counts = histogram[n]
+#
+#            # insert zero number of cells at ends so that ends can be peaks too
+#            n_ext = np.append(np.insert(bin_counts, 0, 0), 0)
+#
+#            is_peak = np.logical_and(n_ext[0:-2] < n_ext[1:-1], n_ext[1:-1] > n_ext[2:])
+#
+#            peaks = np.nonzero(is_peak)[0]
+#
+#            if len(peaks) == 0:
+#                raise InSuficientPointsException(
+#                    "Couldn't find a peak in the" " cldbase points histogram"
+#                )
+#
+#            first_peak = peaks[0]
+#
+#            # include up to twice the peak index height as part of the cloud base
+#            try:
+#                z_base_lim = z_bins_c[first_peak * 2]
+#            except IndexError:
+#                raise TopheavyCloudException
+#
+#            # Is there a second peak nearby?
+#            if len(peaks) > 1 and first_peak * 2 > peaks[1]:
+#                raise MultilevelCloudbaseException
+#
+#            z_base_max[n] = z_base_lim
+#
+#        except (
+#            InSuficientPointsException,
+#            TopheavyCloudException,
+#            MultilevelCloudbaseException,
+#        ):
+#            z_base_max[n] = np.nan
+#
+#    return xr.DataArray(
+#        z_base_max,
+#        dims="cloud_id",
+#        coords=dict(cloud_id=cloud_ids),
+#        attrs=dict(
+#            long_name="Cloud-base height (from underside height dist peak)",
+#            units=da_cldbase.units,
+#        ),
+#    )

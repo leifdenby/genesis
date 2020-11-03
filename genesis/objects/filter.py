@@ -23,13 +23,13 @@ except ImportError:
     HAS_CLOUD_TRACKING = False
 
 from . import property_filters
+from ..utils.pipeline.data.tracking_2d import TrackingType
 
 
 def latex_format(filter_defs):
     if filter_defs is None:
         return ""
     s_latex = []
-    s_filters = filter_defs.split(",")
 
     for (f_type, f_def) in _defs_iterator(filter_defs):
         if f_type == "prop":
@@ -57,7 +57,7 @@ def _defs_iterator(filter_defs):
                 raise NotImplementedError(
                     "Filter type `{}` not recognised" "".format(f_type)
                 )
-        except (IndexError, ValueError) as e:
+        except (IndexError, ValueError):
             raise Exception("Malformed filter definition: `{}`".format(s_filter))
 
 
@@ -83,9 +83,6 @@ def parse_defs(filter_defs):
                 filter["extra_kws"]["extra_filter"]["value"] = float(
                     filter["extra_kws"]["extra_filter"]["value"]
                 )
-            else:
-                filter_op = None
-                op_value = None
 
             fn = filter_objects_by_tracking
             filter["fn"] = fn
@@ -200,6 +197,7 @@ def filter_objects_by_tracking(
 def filter_objects_by_tracking_old(
     objects,
     base_name,
+    dt_pad,
 ):
     t0 = objects.time.values
     valid_units = ["seconds since 2000-01-01 00:00:00", "seconds since 2000-01-01"]

@@ -44,11 +44,6 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
     show_label_bounding_box = luigi.BoolParameter(default=True)
     tracking_timestep_interval = luigi.ListParameter(default=[])
 
-    def _remove_gal_transform(self):
-        if self.offset_labels_by_gal_transform:
-            tref = da_timedep.isel(time=0).time
-            da = remove_gal_transform(da=da, tref=tref, base_name=self.base_name)
-
     def requires(self):
         if self.label_var == "thrm":
             tracking_type = data.tracking_2d.TrackingType.CLOUD_CORE_THERMAL
