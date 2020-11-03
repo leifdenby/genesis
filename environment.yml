@@ -22,5 +22,6 @@ dependencies:
   - luigi
   - jupyter
   - notebook
+  - numba
   - pip:
     - hues
