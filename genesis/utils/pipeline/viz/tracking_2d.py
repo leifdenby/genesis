@@ -43,6 +43,7 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
     coloured_labels = luigi.BoolParameter(default=False)
     show_label_bounding_box = luigi.BoolParameter(default=True)
     tracking_timestep_interval = luigi.ListParameter(default=[])
+    scalar_cmap = luigi.Parameter(default="Blues")
 
     def requires(self):
         if self.label_var == "thrm":
@@ -129,7 +130,11 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
 
         (
             da_scalar.sel(**kws).plot(
-                ax=ax, vmax=0.1, add_colorbar=True, cmap="Blues", zorder=1
+                ax=ax,
+                add_colorbar=True,
+                cmap=self.scalar_cmap,
+                zorder=1,
+                robust=True,
             )
         )
 
@@ -205,6 +210,17 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
             ax.axhline(y=y_c, linestyle="--", color="grey")
             ax.axvline(x=x_c, linestyle="--", color="grey")
 
+        title_parts = [
+            f"{self.var_name} field with {self.label_var} labels",
+            "{} gal offset tracking, {} gal offset labels".format(
+                ["without", "with"][self.track_without_gal_transform],
+                ["without", "with"][self.remove_gal_transform],
+            ),
+            self.time.isoformat(),
+        ]
+
+        ax.set_title("\n".join(title_parts))
+
         ax.set_aspect(1)
         plt.savefig(str(self.output().fn))
 
@@ -268,6 +284,7 @@ class CloudCrossSectionAnimationSpan(CloudCrossSectionAnimationFrame):
                 coloured_labels=self.coloured_labels,
                 remove_gal_transform=self.remove_gal_transform,
                 show_label_bounding_box=self.show_label_bounding_box,
+                scalar_cmap=self.scalar_cmap,
             )
             for t in da_times
         ]
