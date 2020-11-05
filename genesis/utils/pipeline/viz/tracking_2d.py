@@ -229,7 +229,6 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
 
 
 class CloudCrossSectionAnimationSpan(CloudCrossSectionAnimationFrame):
-    t_start_offset_hrs = luigi.IntParameter()
     t_duration_mins = luigi.IntParameter()
 
     def requires(self):
@@ -243,9 +242,16 @@ class CloudCrossSectionAnimationSpan(CloudCrossSectionAnimationFrame):
             return None
 
         da_scalar_2d = self.input().open()
-        t0 = da_scalar_2d.time.min()
-        t_start = t0 + np.timedelta64(self.t_start_offset_hrs, "h")
-        t_end = t_start + np.timedelta64(self.t_duration_mins, "m")
+        t_start = self.time
+        t_end = t_start + datetime.timedelta(minutes=self.t_duration_mins)
+
+        # if t_start < da_scalar_2d.isel(time=0).time:
+        if da_scalar_2d.sel(time=slice(None, t_start)).time.count() == 0:
+            raise Exception(
+                f"The start time chosen `{t_start}` is before the"
+                f" first time for which the scalar field `{self.var_name}`"
+                " is available"
+            )
 
         da_times = da_scalar_2d.sel(time=slice(t_start, t_end)).time
 
