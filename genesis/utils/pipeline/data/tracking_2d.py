@@ -9,7 +9,10 @@ import numpy as np
 import dask_image.ndmeasure as dmeasure
 from tqdm import tqdm
 
-from .... import objects
+from ..data_sources import uclales_2d_tracking
+from ..data_sources.uclales_2d_tracking import TrackingType
+from ..data_sources.uclales import _fix_time_units as fix_time_units
+
 from .extraction import (
     ExtractCrossSection2D,
     ExtractField3D,
@@ -23,10 +26,6 @@ from .masking import MakeMask
 from ....bulk_statistics import cross_correlation_with_height
 from ....utils import find_vertical_grid_spacing, find_horizontal_grid_spacing
 from ....objects.tracking_2d.family import create_tracking_family_2D_field
-
-from ..data_sources import uclales_2d_tracking
-from ..data_sources.uclales_2d_tracking import TrackingType
-from ..data_sources.uclales import _fix_time_units as fix_time_units
 
 
 class XArrayTargetUCLALES(XArrayTarget):
@@ -863,7 +862,7 @@ class FilterTriggeringThermalsByMask(luigi.Task):
         )
         reqs["tracking"] = PerformObjectTracking2D(
             base_name=self.base_name,
-            tracking_type=objects.filter.TrackingType.THERMALS_ONLY,
+            tracking_type=TrackingType.THERMALS_ONLY,
         )
 
         return reqs

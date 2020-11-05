@@ -95,8 +95,8 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
         return tasks
 
     def _get_object_type(self):
-        if self.label_var == "cloud":
-            object_type = "cloud"
+        if self.label_var.startswith("cloud"):
+            object_type = self.label_var
         elif self.label_var == "thrm":
             object_type = "thermal"
         elif self.label_var == "cldthrm_family":
