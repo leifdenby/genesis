@@ -19,6 +19,7 @@ FIELD_NAME_MAPPING = dict(
     theta_l_v="theta_l_v",
     theta_l_v_hack="theta_l_v_hack",
     qv="qv",
+    qv__norain="qv",
 )
 
 FIELD_DESCRIPTIONS = dict(
@@ -45,6 +46,7 @@ DERIVED_FIELDS = dict(
         "qc",
     ),
     qv=("qt", "qc", "qr"),
+    qv__norain=("qt", "qc"),
 )
 
 FN_FORMAT_3D = "3d_blocks/full_domain/{experiment_name}.tn{timestep}.{field_name}.nc"
@@ -170,6 +172,9 @@ def extract_field_to_filename(dataset_meta, path_out, field_name, **kwargs):  # 
     elif field_name == "qv":
         da = _calc_qv(**kwargs)
         can_symlink = False
+    elif field_name == "qv__norain":
+        da = _calc_qv__norain(**kwargs)
+        can_symlink = False
     else:
         if not path_in.exists():
             raise Exception(
@@ -245,5 +250,15 @@ def _calc_qv(qt, qc, qr):
     qv = qt - qc - qr
     qv.attrs["units"] = "g/kg"
     qv.attrs["long_name"] = "water vapour mixing ratio"
+    qv.name = "qv"
+    return qv
+
+
+def _calc_qv__norain(qt, qc):
+    assert qt.units.lower() == "g/kg" and qt.max() > 1.0
+
+    qv = qt - qc
+    qv.attrs["units"] = "g/kg"
+    qv.attrs["long_name"] = "water vapour mixing ratio (assumed zero rain)"
     qv.name = "qv"
     return qv
