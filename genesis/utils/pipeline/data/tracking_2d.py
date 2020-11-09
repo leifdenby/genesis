@@ -2,6 +2,7 @@ import warnings
 import shutil
 import os
 from pathlib import Path
+import tempfile
 
 import luigi
 import xarray as xr
@@ -152,6 +153,7 @@ class PerformObjectTracking2D(luigi.Task):
     tracking_type = luigi.EnumParameter(enum=TrackingType)
     timestep_interval = luigi.ListParameter(default=[])
     U_offset = luigi.ListParameter(default=[])
+    run_in_temp_dir = luigi.BoolParameter(default=True)
 
     def requires(self):
         if REGEX_INSTANTENOUS_BASENAME.match(self.base_name):
@@ -220,7 +222,19 @@ class PerformObjectTracking2D(luigi.Task):
         else:
             dataset_name = meta["experiment_name"]
 
-            p_data = Path(self.input()[0].fn).parent
+            if self.run_in_temp_dir:
+                tempdir = tempfile.TemporaryDirectory()
+                p_data = Path(tempdir.name)
+                # symlink the source data files to the temporary directory
+                for input in self.input():
+                    os.symlink(Path(input.fn).absolute(), p_data / Path(input.fn).name)
+                fn_track = f"{dataset_name}.out.xy.track.nc"
+                # and the file for the tracking tool to write to
+                Path(self.output().fn).parent.mkdir(exist_ok=True, parents=True)
+                os.symlink(Path(self.output().fn).absolute(), p_data / fn_track)
+            else:
+                p_data = Path(self.input()[0].fn).parent
+
             fn_tracking = uclales_2d_tracking.call(
                 data_path=p_data,
                 dataset_name=dataset_name,
@@ -230,8 +244,9 @@ class PerformObjectTracking2D(luigi.Task):
                 U_offset=self.U_offset,
             )
 
-            Path(self.output().fn).parent.mkdir(exist_ok=True, parents=True)
-            shutil.move(fn_tracking, self.output().fn)
+            if not self.run_in_temp_dir:
+                Path(self.output().fn).parent.mkdir(exist_ok=True, parents=True)
+                shutil.move(fn_tracking, self.output().fn)
 
     def output(self):
         type_id = uclales_2d_tracking.TrackingType.make_identifier(self.tracking_type)
