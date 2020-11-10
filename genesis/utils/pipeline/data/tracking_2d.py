@@ -88,7 +88,9 @@ class XArrayTargetUCLALESTracking(XArrayTarget):
                 else:
                     new_units = "seconds"
 
-                if old_units == "day as %Y%m%d.%f":
+                if new_units == old_units:
+                    da_new = da_old
+                elif old_units == "day as %Y%m%d.%f":
                     if (
                         np.max(da_old.values - da_old.astype(int).values) == 0
                         and np.max(da_old) > 1000.0
