@@ -309,6 +309,10 @@ class _Tracking2DExtraction(luigi.Task):
 
 
 class TrackingVariable2D(_Tracking2DExtraction):
+    """
+    Extract variable from 2D tracking
+    """
+
     var_name = luigi.Parameter()
 
     def run(self):
@@ -808,6 +812,7 @@ class AllObjectsAll2DCrossSectionAggregations(luigi.Task):
             self.var_name,
             f"of_{self.label_var}",
             f"tracked_{type_id}",
+            self.op + ["", f"__{str(self.dx)}"][self.dx != None],
             interval_id,
         ]
 
