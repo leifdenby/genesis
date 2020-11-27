@@ -87,9 +87,10 @@ def _scale_field(da):
     # later if we don't fix it
     # qv is already scaled because it has been calculated from qt and qr
     # which were scaled
-    elif da.name.startswith("q") and da.name != "qv":
+    elif da.name in ['q', 'l', 'r']:
         assert da.max() < 1.0 and da.units == "g/kg"
         da.values *= 1000.0
+        da.attrs['scaling'] = "correcting for wrong units in UCLALES output"
         modified = True
     return da, modified
 
