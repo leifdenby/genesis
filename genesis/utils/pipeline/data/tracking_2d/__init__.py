@@ -5,6 +5,4 @@ from .base import (
     TrackingLabels2D,
 )
 
-from .aggregation import (
-    Aggregate2DCrossSectionOnTrackedObjects
-)
+from .aggregation import Aggregate2DCrossSectionOnTrackedObjects

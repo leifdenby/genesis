@@ -1101,5 +1101,3 @@ class MakeMaskWithObjects(MakeMask):
         )
         p = get_workdir() / self.base_name / fn
         return XArrayTarget(str(p))
-
-

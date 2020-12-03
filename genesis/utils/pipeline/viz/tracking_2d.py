@@ -43,7 +43,9 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
     coloured_labels = luigi.BoolParameter(default=False)
     tracking_timestep_interval = luigi.ListParameter(default=[])
     scalar_cmap = luigi.Parameter(default="Blues")
-    label_annotation = luigi.ChoiceParameter(choices=["", "bounding_box", "object_id"], var_type=str, default="")
+    label_annotation = luigi.ChoiceParameter(
+        choices=["", "bounding_box", "object_id"], var_type=str, default=""
+    )
 
     def requires(self):
         if self.label_var == "thrm":

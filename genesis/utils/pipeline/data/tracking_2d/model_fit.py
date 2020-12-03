@@ -35,34 +35,32 @@ class ParcelRiseModelFit(luigi.Task):
             cloudtype=TrackingVariable2D(
                 var_name="smcloudtype",
                 **common_kws,
-            )
+            ),
         )
-
 
     def run(self):
         input = self.inpput()
-        da_z = input['z'].open()
-        da_cloudtype = input['cloudtype'].open()
+        da_z = input["z"].open()
+        da_cloudtype = input["cloudtype"].open()
 
-        da.attrs['long_name'] = "number of cells"
-        da.attrs['units'] = "1"
+        da.attrs["long_name"] = "number of cells"
+        da.attrs["units"] = "1"
 
         da_obj = da_.sel(object_id=object_id)
 
         da_cloudtype = (
-            da_cloudtype
-            .rename(smcloudid="object_id")
-            .astype(int)
-            .drop("smcloud")
+            da_cloudtype.rename(smcloudid="object_id").astype(int).drop("smcloud")
         )
-        da_cloudtype['object_id'] = da_cloudtype.coords['object_id'].astype(int)
+        da_cloudtype["object_id"] = da_cloudtype.coords["object_id"].astype(int)
 
         da_single_cloud = da_cloudtype.where(da_cloudtype == 2, drop=True)
         da_single_cloud
 
         da_ = da.sel(object_id=da_single_cloud.object_id)
 
-        ds_model_summary = parcel_rise.fit_model_and_summarise(z=z, t=t, predictions="mean_with_quantiles")
+        ds_model_summary = parcel_rise.fit_model_and_summarise(
+            z=z, t=t, predictions="mean_with_quantiles"
+        )
 
     def output(self):
         type_id = uclales_2d_tracking.TrackingType.make_identifier(self.tracking_type)
@@ -91,4 +89,3 @@ class ParcelRiseModelFit(luigi.Task):
         fn = f"{'.'.join(name_parts)}.nc"
         p = get_workdir() / self.base_name / "cross_sections" / "aggregated" / fn
         return XArrayTarget(str(p))
-

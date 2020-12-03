@@ -10,7 +10,7 @@ from .base import (
     NumpyDatetimeParameter,
     XArrayTarget,
     _get_dataset_meta_info,
-    get_workdir
+    get_workdir,
 )
 
 
@@ -163,7 +163,7 @@ class Timespan3DShiftedCropCollection(luigi.Task):
 
         fn = ".".join(name_parts)
         if self.store_in_rundir:
-            p = Path(".")/fn
+            p = Path(".") / fn
         else:
             p = get_workdir() / self.base_name / "3d_crops" / fn
         return XArrayTarget(str(p))
