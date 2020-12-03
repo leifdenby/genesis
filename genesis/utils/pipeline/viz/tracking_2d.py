@@ -41,9 +41,9 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
     var_name = luigi.Parameter(default="lwp")
     label_var = luigi.Parameter(default="cloud")
     coloured_labels = luigi.BoolParameter(default=False)
-    show_label_bounding_box = luigi.BoolParameter(default=True)
     tracking_timestep_interval = luigi.ListParameter(default=[])
     scalar_cmap = luigi.Parameter(default="Blues")
+    label_annotation = luigi.ChoiceParameter(choices=["", "bounding_box", "object_id"], var_type=str, default="")
 
     def requires(self):
         if self.label_var == "thrm":
@@ -74,7 +74,7 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
             ops = [
                 "mean",
             ]
-            if self.show_label_bounding_box:
+            if self.label_annotation == "bounding_box":
                 ops += ["minimum", "maximum"]
 
             for op in ops:
@@ -160,7 +160,7 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
                 .plot.contour(ax=ax, colors=["red"], levels=[0.5])
             )
 
-        if self.show_label_bounding_box:
+        if self.label_annotation == "bounding_box":
             da_xmin_object = self.input()[f"x_{object_type}_minimum"].open()
             da_xmax_object = self.input()[f"x_{object_type}_maximum"].open()
             da_ymin_object = self.input()[f"y_{object_type}_minimum"].open()
@@ -178,7 +178,7 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
 
             ax.scatter(x_t, y_t, marker="x", color="red")
 
-            if self.show_label_bounding_box:
+            if self.label_annotation == "bounding_box":
                 o_xmin = da_xmin_object.sel(object_id=c_id)
                 o_xmax = da_xmax_object.sel(object_id=c_id)
                 o_ymin = da_ymin_object.sel(object_id=c_id)
@@ -202,7 +202,7 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
                     horizontalalignment="left",
                     verticalalignment="bottom",
                 )
-            else:
+            elif self.label_annotation == "object_id":
                 ax.text(x_t, y_t, int(c_id), color="red", bbox=text_bbox)
 
         if len(self.center_pt) == 2:
@@ -283,7 +283,7 @@ class CloudCrossSectionAnimationSpan(CloudCrossSectionAnimationFrame):
                 label_var=self.label_var,
                 coloured_labels=self.coloured_labels,
                 remove_gal_transform=self.remove_gal_transform,
-                show_label_bounding_box=self.show_label_bounding_box,
+                label_annotation=self.label_annotation,
                 scalar_cmap=self.scalar_cmap,
             )
             for t in da_times
