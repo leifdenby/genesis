@@ -4,6 +4,7 @@ matplotlib.use("Agg")  # noqa
 
 from pathlib import Path
 import re
+import warnings
 
 import luigi
 import xarray as xr
@@ -22,6 +23,19 @@ from ....utils.calc_flux import scale_flux_to_watts
 from .. import data
 
 figure_metadata.patch_savefig_for_argv_metadata()
+
+
+def _scale_dist(da_):
+    units = getattr(da_, "units", None)
+    if units is None:
+        warnings.warn(f"No units given for `{da_.name}`, assuming `m`")
+        units = "m"
+
+    if units == "m":
+        da_ = da_ / 1000.0
+        da_.attrs["units"] = "km"
+        da_.attrs["long_name"] = "horz. dist."
+    return da_
 
 
 class CumulantScalesProfile(luigi.Task):
@@ -500,54 +514,60 @@ class HorizontalMeanProfile(luigi.Task):
 
 
 class CrossSection(luigi.Task):
-    base_names = luigi.Parameter()
-    var_name = luigi.Parameter()
-    z = luigi.Parameter()
+    base_name = luigi.ListParameter()
+    field_name = luigi.Parameter()
+    z = luigi.ListParameter()
+    no_title = luigi.BoolParameter(default=False)
 
     def requires(self):
         return dict(
             [
                 (
                     base_name,
-                    data.ExtractField3D(base_name=base_name, field_name=self.var_name),
+                    data.ExtractField3D(
+                        base_name=base_name, field_name=self.field_name
+                    ),
                 )
-                for base_name in self.base_names.split(",")
+                for base_name in np.atleast_1d(self.base_name)
             ]
         )
 
     def run(self):
         da_ = []
+        base_names = []
         for base_name, input in self.input().items():
             da_bn = input.open()
             da_bn["base_name"] = base_name
             da_.append(da_bn)
+            base_names.append(base_name)
 
         da = xr.concat(da_, dim="base_name")
 
-        da.coords["xt"] /= 1000.0
-        da.coords["yt"] /= 1000.0
-        da.coords["xt"].attrs["units"] = "km"
-        da.coords["yt"].attrs["units"] = "km"
-        da.coords["xt"].attrs["long_name"] = "horz. dist."
-        da.coords["yt"].attrs["long_name"] = "horz. dist."
+        da = da.assign_coords(xt=_scale_dist(da.xt), yt=_scale_dist(da.yt))
 
-        z = sorted([float(v) for v in self.z.split(",")], reverse=True)
+        z = sorted([float(v) for v in np.atleast_1d(self.z)], reverse=True)
         da_sliced = da.sel(zt=z, method="nearest")
         da_sliced.attrs.update(da_[0].attrs)
 
         kws = {}
-        if len(self.base_names.split(",")) > 1:
+        if len(base_names) > 1:
             kws["col"] = "base_name"
         if len(z) > 1:
             kws["row"] = "zt"
-        if self.var_name.startswith("d_"):
+        if self.field_name.startswith("d_"):
             kws["center"] = 0.0
-        da_sliced.plot(rasterized=True, robust=True, **kws)
 
+        g = da_sliced.plot(rasterized=True, robust=True, **kws)
+
+        if self.no_title:
+            [ax.set_title("") for ax in np.atleast_1d(g.axes).flatten()]
+
+        plt.tight_layout()
         plt.savefig(self.output().fn, bbox_inches="tight")
 
     def output(self):
-        fn = "{}.{}.png".format(self.base_names.replace(",", "__"), self.var_name)
+        base_names = self.input().keys()
+        fn = "{}.{}.png".format("__".join(base_names), self.field_name)
         return luigi.LocalTarget(fn)
 
 

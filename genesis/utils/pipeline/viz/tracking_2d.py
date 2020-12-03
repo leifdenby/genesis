@@ -6,6 +6,7 @@ import datetime
 import xarray as xr
 
 from .. import data
+from .all import _scale_dist
 
 from skimage.color import colorlabel
 
@@ -46,6 +47,8 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
     label_annotation = luigi.ChoiceParameter(
         choices=["", "bounding_box", "object_id"], var_type=str, default=""
     )
+    figsize = luigi.ListParameter(default=(16, 12))
+    no_title = luigi.BoolParameter(default=False)
 
     def requires(self):
         if self.label_var == "thrm":
@@ -120,11 +123,17 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
         else:
             kws = {}
 
-        fig, ax = plt.subplots(figsize=(16, 12))
+        fig, ax = plt.subplots(figsize=self.figsize)
 
         da_scalar = self.input()["scalar"].open()
-
         da_labels = self.input()["labels"].open()
+
+        da_labels = da_labels.assign_coords(
+            xt=_scale_dist(da_labels.xt), yt=_scale_dist(da_labels.yt)
+        )
+        da_scalar = da_scalar.assign_coords(
+            xt=_scale_dist(da_scalar.xt), yt=_scale_dist(da_scalar.yt)
+        )
 
         object_type = self._get_object_type()
         da_x_object = self.input()[f"x_{object_type}_mean"].open()
@@ -159,7 +168,7 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
             (
                 da_labels.astype(int)
                 .sel(**kws)
-                .plot.contour(ax=ax, colors=["red"], levels=[0.5])
+                .plot.contour(ax=ax, colors=["black"], levels=[0.5])
             )
 
         if self.label_annotation == "bounding_box":
@@ -178,7 +187,8 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
             x_t = da_x_object.sel(object_id=c_id)
             y_t = da_y_object.sel(object_id=c_id)
 
-            ax.scatter(x_t, y_t, marker="x", color="red")
+            if self.label_annotation in ["bounding_box", "object_id"]:
+                ax.scatter(x_t, y_t, marker="x", color="red")
 
             if self.label_annotation == "bounding_box":
                 o_xmin = da_xmin_object.sel(object_id=c_id)
@@ -212,18 +222,22 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
             ax.axhline(y=y_c, linestyle="--", color="grey")
             ax.axvline(x=x_c, linestyle="--", color="grey")
 
-        title_parts = [
-            f"{self.var_name} field with {self.label_var} labels",
-            "{} gal offset tracking, {} gal offset labels".format(
-                ["without", "with"][self.track_without_gal_transform],
-                ["without", "with"][self.remove_gal_transform],
-            ),
-            self.time.isoformat(),
-        ]
+        if not self.no_title:
+            title_parts = [
+                f"{self.var_name} field with {self.label_var} labels",
+                "{} gal offset tracking, {} gal offset labels".format(
+                    ["without", "with"][self.track_without_gal_transform],
+                    ["without", "with"][self.remove_gal_transform],
+                ),
+                self.time.isoformat(),
+            ]
 
-        ax.set_title("\n".join(title_parts))
+            ax.set_title("\n".join(title_parts))
+        else:
+            ax.set_title("")
 
         ax.set_aspect(1)
+        plt.tight_layout()
         plt.savefig(str(self.output().fn))
 
     def output(self):
@@ -287,6 +301,8 @@ class CloudCrossSectionAnimationSpan(CloudCrossSectionAnimationFrame):
                 remove_gal_transform=self.remove_gal_transform,
                 label_annotation=self.label_annotation,
                 scalar_cmap=self.scalar_cmap,
+                figsize=self.figsize,
+                no_title=self.no_title,
             )
             for t in da_times
         ]
