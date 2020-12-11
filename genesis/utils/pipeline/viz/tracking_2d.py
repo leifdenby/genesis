@@ -111,7 +111,7 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
             raise NotImplementedError(self.label_var)
         return object_type
 
-    def run(self):
+    def _make_plot(self, ax=None):
         if len(self.center_pt) == 2:
             x_c, y_c = self.center_pt
             l_pad = self.l_pad
@@ -122,8 +122,6 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
             )
         else:
             kws = {}
-
-        fig, ax = plt.subplots(figsize=self.figsize)
 
         da_scalar = self.input()["scalar"].open()
         da_labels = self.input()["labels"].open()
@@ -238,6 +236,10 @@ class CloudCrossSectionAnimationFrame(luigi.Task):
 
         ax.set_aspect(1)
         plt.tight_layout()
+
+    def run(self):
+        fig, ax = plt.subplots(figsize=self.figsize)
+        self._make_plot(ax=ax)
         plt.savefig(str(self.output().fn))
 
     def output(self):

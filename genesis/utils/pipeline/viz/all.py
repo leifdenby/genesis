@@ -533,6 +533,10 @@ class CrossSection(luigi.Task):
         )
 
     def run(self):
+        self._make_plot()
+        plt.savefig(self.output().fn, bbox_inches="tight")
+
+    def _make_plot(self):
         da_ = []
         base_names = []
         for base_name, input in self.input().items():
@@ -563,7 +567,7 @@ class CrossSection(luigi.Task):
             [ax.set_title("") for ax in np.atleast_1d(g.axes).flatten()]
 
         plt.tight_layout()
-        plt.savefig(self.output().fn, bbox_inches="tight")
+        return g
 
     def output(self):
         base_names = self.input().keys()
