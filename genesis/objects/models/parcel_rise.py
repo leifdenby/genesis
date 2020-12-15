@@ -9,16 +9,6 @@ import matplotlib.pyplot as plt
 import xarray as xr
 import numpy as np
 
-from genesis.utils.pipeline.data.tracking_2d import (
-    ExtractCloudbaseState,
-    PerformObjectTracking2D,
-    TrackingType,
-    AllObjectsAll2DCrossSectionAggregations,
-    TrackingVariable2D,
-)
-
-from genesis.utils.pipeline.viz.tracking_2d import CloudCrossSectionAnimationFrame
-
 import datetime
 
 import pymc3 as pm
@@ -26,12 +16,6 @@ from pymc3.ode import DifferentialEquation
 import theano
 from scipy.integrate import odeint
 import arviz as az
-
-
-get_ipython().run_line_magic("matplotlib", "inline")
-
-
-# In[2]:
 
 
 def plot_ballistic(object_id):
@@ -73,9 +57,18 @@ def plot_ballistic(object_id):
     return z_top["t"], z_top
 
 
-# plot_ballistic(5007)
-# plot_ballistic(5074)
-plot_ballistic(da_.isel(object_id=-500).object_id)
+def _extract_time(da_obj, var_name="cldtop"):
+    # remove nans, times where the cloud isn't defined
+    idx = da_obj.argmax(dim="cldtop")
+    idx = idx.where(idx != 0, other=np.nan).dropna(dim="time_relative").astype(int)
+
+    # make the units be seconds
+    z_top = da_obj.sel(time_relative=idx.time_relative).isel(cldtop=idx)[var_name]
+    z_top["t"] = z_top.time_relative * 60.0
+    z_top.t.attrs["units"] = "seconds"
+    z_top = z_top.swap_dims(dict(time_relative="t"))
+
+    return z_top["t"], z_top
 
 
 def parcel_rise(t, p):
@@ -83,7 +76,7 @@ def parcel_rise(t, p):
     return x0 + v0 * t + 0.5 * a0 * 1.0e-3 * t ** 2.0
 
 
-def fit_model(z, t):
+def fit_model(z, t, verbose=False):
     """
     Fit parcel-rise model with height `z` [m] at time `t` [s]
     """
@@ -103,34 +96,50 @@ def fit_model(z, t):
         )
 
         # Explore and Sample the Parameter Space!
-        trace_g = pm.sample(1000, tune=500, cores=2)
+        trace_g = pm.sample(1000, tune=500, progressbar=verbose)
 
     return trace_g, model_g
 
 
-def fit_model_and_summarise(z, t, predictions=None):
+def fit_model_and_summarise(da_obj, var_name="cldtop", predictions=None, verbose=False):
     """
     predictions:
         None: only returns the fitting parameters
         mean: includes the mean fit over time
         mean_with_quantiles: include lower 2.5% and upper 92.5% quantiles of predictions
     """
-    trace_g, model_g = fit_model()
+    ds = xr.Dataset(coords=dict(object_id=da_obj.object_id))
+    t, z = _extract_time(da_obj=da_obj, var_name=var_name)
 
-    chain_count = trace_g.get_values("a0").shape[0]
-    y_pred_g = pm.sample_posterior_predictive(
-        trace_g, samples=chain_count, model=model_g
-    )
+    trace_g, model_g = fit_model(z=z, t=t, verbose=verbose)
 
-    crit_l = np.percentile(
-        y_pred_g["z_pred"], q=2.5, axis=0
-    )  # grab lower 2.5% quantiles
-    crit_u = np.percentile(
-        y_pred_g["z_pred"], q=97.5, axis=0
-    )  # grab Upper 92.5% quantiles
-    mean_spp = np.mean(y_pred_g["z_pred"], axis=0)  # Median
+    if "quantiles" in predictions:
+        chain_count = trace_g.get_values("a0").shape[0]
+        y_pred_g = pm.sample_posterior_predictive(
+            trace_g,
+            samples=chain_count,
+            model=model_g,
+            progressbar=verbose,
+        )
+
+        crit_l = np.percentile(
+            y_pred_g["z_pred"], q=2.5, axis=0
+        )  # grab lower 2.5% quantiles
+        crit_u = np.percentile(
+            y_pred_g["z_pred"], q=97.5, axis=0
+        )  # grab Upper 92.5% quantiles
+        mean_spp = np.mean(y_pred_g["z_pred"], axis=0)  # Median
 
     y0, v0, a0 = trace_g["x0"].mean(), trace_g["v0"].mean(), trace_g["a0"].mean()
+    y0_stderr = trace_g["x0"].std()
+
+    ds["y0"] = y0
+    ds["y0_stderr"] = y0_stderr
+    ds["mu"] = trace_g["mu"].mean()
+    ds["v0"] = v0
+    ds["a0"] = a0
+
+    return ds
 
 
 def plot_fitted_model():

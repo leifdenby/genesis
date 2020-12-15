@@ -10,8 +10,6 @@ import numpy as np
 import dask_image.ndmeasure as dmeasure
 from tqdm import tqdm
 
-from ...data_sources import uclales_2d_tracking
-from ...data_sources.uclales_2d_tracking import TrackingType
 from ...data_sources.uclales import _fix_time_units as fix_time_units
 
 from ..extraction import (
@@ -21,6 +19,7 @@ from ..extraction import (
     REGEX_INSTANTENOUS_BASENAME,
     remove_gal_transform,
 )
+from . import TrackingType, uclales_2d_tracking
 from ..base import get_workdir, _get_dataset_meta_info, XArrayTarget
 from ..base import NumpyDatetimeParameter
 from ..masking import MakeMask

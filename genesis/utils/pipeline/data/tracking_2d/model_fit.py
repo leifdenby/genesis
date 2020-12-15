@@ -1,5 +1,16 @@
 import luigi
+from tqdm import tqdm
+import xarray as xr
+from pathlib import Path
 
+from . import (
+    TrackingType,
+    AllObjectsAll2DCrossSectionAggregations,
+    TrackingVariable2D,
+    uclales_2d_tracking,
+)
+
+from ..base import get_workdir, XArrayTarget
 
 from .....objects.models import parcel_rise
 
@@ -7,7 +18,7 @@ from .....objects.models import parcel_rise
 class ParcelRiseModelFit(luigi.Task):
     base_name = luigi.Parameter()
     label_var = "cloud"
-    var_name = "cloudtop"
+    var_name = "cldtop"
     op = luigi.Parameter()
     dx = 25.0
     use_relative_time_axis = luigi.BoolParameter(default=True)
@@ -39,28 +50,31 @@ class ParcelRiseModelFit(luigi.Task):
         )
 
     def run(self):
-        input = self.inpput()
-        da_z = input["z"].open()
+        input = self.input()
+        da = input["z"].open()
         da_cloudtype = input["cloudtype"].open()
 
         da.attrs["long_name"] = "number of cells"
         da.attrs["units"] = "1"
-
-        da_obj = da_.sel(object_id=object_id)
 
         da_cloudtype = (
             da_cloudtype.rename(smcloudid="object_id").astype(int).drop("smcloud")
         )
         da_cloudtype["object_id"] = da_cloudtype.coords["object_id"].astype(int)
 
-        da_single_cloud = da_cloudtype.where(da_cloudtype == 2, drop=True)
-        da_single_cloud
+        single_cloud_ids = da_cloudtype.where(da_cloudtype == 2, drop=True).object_id
 
-        da_ = da.sel(object_id=da_single_cloud.object_id)
+        datasets = []
+        for cloud_id in tqdm(single_cloud_ids):
+            da_obj = da.sel(object_id=cloud_id)
+            ds_model_summary = parcel_rise.fit_model_and_summarise(
+                da_obj=da_obj, predictions="mean_with_quantiles", var_name=self.var_name
+            )
+            datasets.append(ds_model_summary)
 
-        ds_model_summary = parcel_rise.fit_model_and_summarise(
-            z=z, t=t, predictions="mean_with_quantiles"
-        )
+        ds = xr.concat(datasets, dim="object_id")
+        Path(self.output().fn).parent.mkdir(exist_ok=True, parents=True)
+        ds.to_netcdf(self.output().fn)
 
     def output(self):
         type_id = uclales_2d_tracking.TrackingType.make_identifier(self.tracking_type)
@@ -80,12 +94,16 @@ class ParcelRiseModelFit(luigi.Task):
         if not self.use_relative_time_axis:
             name_parts.append("absolute_time")
 
-        if self.timestep_skip is not None:
-            name_parts.append(f"{self.timestep_skip}tn_skip")
-
         if self.track_without_gal_transform:
             name_parts.append("go_track")
 
         fn = f"{'.'.join(name_parts)}.nc"
-        p = get_workdir() / self.base_name / "cross_sections" / "aggregated" / fn
+        p = (
+            get_workdir()
+            / self.base_name
+            / "tracking_2d"
+            / "model_fit"
+            / "parcel_rise"
+            / fn
+        )
         return XArrayTarget(str(p))
