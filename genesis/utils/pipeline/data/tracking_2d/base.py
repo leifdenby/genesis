@@ -10,8 +10,6 @@ import numpy as np
 import dask_image.ndmeasure as dmeasure
 from tqdm import tqdm
 
-from ...data_sources.uclales import _fix_time_units as fix_time_units
-
 from ..extraction import (
     ExtractCrossSection2D,
     ExtractField3D,
@@ -21,22 +19,11 @@ from ..extraction import (
 )
 from . import TrackingType, uclales_2d_tracking
 from ..base import get_workdir, _get_dataset_meta_info, XArrayTarget
-from ..base import NumpyDatetimeParameter
+from ..base import NumpyDatetimeParameter, XArrayTargetUCLALES
 from ..masking import MakeMask
 from .....bulk_statistics import cross_correlation_with_height
 from .....utils import find_vertical_grid_spacing, find_horizontal_grid_spacing
 from .....objects.tracking_2d.family import create_tracking_family_2D_field
-
-
-class XArrayTargetUCLALES(XArrayTarget):
-    def open(self, *args, **kwargs):
-        kwargs["decode_times"] = False
-        da = super().open(*args, **kwargs)
-        da["time"], _ = fix_time_units(da["time"])
-        if hasattr(da, "to_dataset"):
-            return xr.decode_cf(da.to_dataset())
-        else:
-            return xr.decode_cf(da)
 
 
 class XArrayTargetUCLALESTracking(XArrayTarget):

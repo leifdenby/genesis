@@ -45,10 +45,13 @@ moist_updrafts.description = (
 )
 
 
-def outside_coldpool(tv0100, l_smoothing=L_SMOOTHING_DEFUALT, l_edge=L_EDGE_DEFAULT):
+def outside_coldpool(
+    tv0100__2d, l_smoothing=L_SMOOTHING_DEFUALT, l_edge=L_EDGE_DEFAULT
+):
     """
     Computes mask for area outside smoothed coldpool
     """
+    tv0100 = tv0100__2d
     ds_edge = coldpool_edge(tv0100=tv0100, l_smoothing=l_smoothing, l_edge=l_edge)
 
     m_outer = ds_edge.m_outer
