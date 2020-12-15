@@ -33,6 +33,27 @@ COMPOSITE_FIELD_METHODS = dict(
     _prefix__d=(calc_flux.get_horz_devition, []),
 )
 
+class XArrayTarget3DExtraction(XArrayTarget):
+    def open(self, *args, **kwargs):
+        ds = super(XArrayTarget3DExtraction, self).open(*args, **kwargs)
+        ds = self._ensure_coord_units(ds)
+        return ds
+
+    @staticmethod
+    def _ensure_coord_units(da):
+        coord_names = ["xt", "yt"]
+        for v in coord_names:
+            if not "units" in da[v].attrs:
+                warnings.warn(
+                    f"The coordinate `{v}` for `{da.name}` is missing "
+                    "units which are required for the cumulant calculation. "
+                    "Assuming `meters`"
+                )
+                da_ = da[v]
+                da_.attrs["units"] = "m"
+                da = da.assign_coords(**{v: da_})
+        return da
+
 
 class ExtractField3D(luigi.Task):
     base_name = luigi.Parameter()
@@ -142,7 +163,7 @@ class ExtractField3D(luigi.Task):
 
         p = get_workdir() / self.base_name / fn
 
-        t = XArrayTarget(str(p))
+        t = XArrayTarget3DExtraction(str(p))
 
         if t.exists():
             data = t.open()
