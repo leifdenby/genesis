@@ -47,16 +47,13 @@ class ExtractCumulantScaleProfile(luigi.Task):
         if self.mask:
             mask = self.input()["mask"].open(decode_times=False)
 
-        import ipdb
-
-        with ipdb.launch_ipdb_on_exception():
-            da = calc_fn(
-                v1_3d=da_v1,
-                v2_3d=da_v2,
-                width_method=self.width_method,
-                z_max=self.z_max,
-                mask=mask,
-            )
+        da = calc_fn(
+            v1_3d=da_v1,
+            v2_3d=da_v2,
+            width_method=self.width_method,
+            z_max=self.z_max,
+            mask=mask,
+        )
 
         da.to_netcdf(self.output().path)
 
@@ -113,7 +110,12 @@ class ExtractCumulantScaleProfiles(luigi.Task):
         ds.to_netcdf(self.output().fn)
 
     def output(self):
-        unique_props = self.base_names + self.cumulants + self.mask + self.mask_args
+        unique_props = self.base_names + self.cumulants
+        if self.mask is not None:
+            unique_props += self.mask
+            if self.mask_args is not None:
+                unique_props += self.mask_args
+
         unique_identifier = hashlib.md5(unique_props.encode("utf-8")).hexdigest()
         fn = "cumulant_profile.{}.nc".format(unique_identifier)
         p = get_workdir() / fn
