@@ -113,7 +113,7 @@ class ExtractCumulantScaleProfiles(luigi.Task):
         ds.to_netcdf(self.output().fn)
 
     def output(self):
-        unique_props = self.base_names + self.cumulants
+        unique_props = self.base_names + self.cumulants + self.mask + self.mask_args
         unique_identifier = hashlib.md5(unique_props.encode("utf-8")).hexdigest()
         fn = "cumulant_profile.{}.nc".format(unique_identifier)
         p = get_workdir() / fn
