@@ -1,4 +1,5 @@
 import hashlib
+import warnings
 
 import xarray as xr
 import luigi
@@ -34,9 +35,27 @@ class ExtractCumulantScaleProfile(luigi.Task):
 
         return reqs
 
+    @staticmethod
+    def _ensure_coord_units(da):
+        coord_names = ["xt", "yt"]
+        for v in coord_names:
+            if not "units" in da[v].attrs:
+                warnings.warn(
+                    f"The coordinate `{v}` for `{da.name}` is missing "
+                    "units which are required for the cumulant calculation. "
+                    "Assuming `meters`"
+                )
+                da_ = da[v]
+                da_.attrs["units"] = "m"
+                da = da.assign_coords(**{v: da_})
+        return da
+
     def run(self):
         da_v1 = self.input()["fields"][0].open(decode_times=False)
         da_v2 = self.input()["fields"][1].open(decode_times=False)
+
+        da_v1 = self._ensure_coord_units(da_v1)
+        da_v2 = self._ensure_coord_units(da_v2)
 
         calc_fn = (
             length_scales.cumulant.vertical_profile.calc.get_height_variation_of_characteristic_scales
