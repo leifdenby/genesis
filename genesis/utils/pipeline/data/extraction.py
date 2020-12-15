@@ -33,6 +33,7 @@ COMPOSITE_FIELD_METHODS = dict(
     _prefix__d=(calc_flux.get_horz_devition, []),
 )
 
+
 class XArrayTarget3DExtraction(XArrayTarget):
     def open(self, *args, **kwargs):
         ds = super(XArrayTarget3DExtraction, self).open(*args, **kwargs)

@@ -275,8 +275,8 @@ def covariance_plot(
     x_c, y_c = x[Nx // 2], y[Ny // 2]
     x = x - x_c
     y = y - y_c
-    x.attrs['units'] = dist_units
-    y.attrs['units'] = dist_units
+    x.attrs["units"] = dist_units
+    y.attrs["units"] = dist_units
 
     C_vv = calc_2nd_cumulant(v1, v2, mask=mask)
     if sample_angle is not None:
