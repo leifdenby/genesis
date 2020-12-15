@@ -267,11 +267,16 @@ def covariance_plot(
 
     assert np.all(v1.coords["x"] == v2.coords["x"])
     assert np.all(v1.coords["y"] == v2.coords["y"])
+    all_dist_units = set([v1.x.units, v2.x.units, v1.y.units, v2.y.units])
+    assert len(all_dist_units)
+    dist_units = all_dist_units.pop()
 
     x, y = v1.coords["x"], v1.coords["y"]
     x_c, y_c = x[Nx // 2], y[Ny // 2]
-    x -= x_c
-    y -= y_c
+    x = x - x_c
+    y = y - y_c
+    x.attrs['units'] = dist_units
+    y.attrs['units'] = dist_units
 
     C_vv = calc_2nd_cumulant(v1, v2, mask=mask)
     if sample_angle is not None:
