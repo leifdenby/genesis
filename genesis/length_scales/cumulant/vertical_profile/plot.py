@@ -173,6 +173,7 @@ def plot(
     fill_between_alpha=0.2,
     **kwargs
 ):
+    scale_limits = kwargs.pop("scale_limits", {})
 
     if plot_type not in ["angles", "scales"]:
         raise Exception
@@ -262,6 +263,10 @@ def plot(
                         ax=ax, y="zt", color=line.get_color(), marker="_", linestyle=""
                     )
                 ax.set_xlabel("characteristic width [m]")
+
+                if cumulant in scale_limits:
+                    ax.set_xlim(0, scale_limits[cumulant])
+
             else:
                 raise NotImplementedError(plot_type)
             lines.append(line)

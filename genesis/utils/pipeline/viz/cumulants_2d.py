@@ -85,6 +85,7 @@ class CumulantScalesProfile(luigi.Task):
     z_max = luigi.FloatParameter(default=700.0)
     plot_type = luigi.Parameter(default="scales")
     filetype = luigi.Parameter(default="pdf")
+    scale_limits = luigi.Parameter(default="")
 
     mask = luigi.Parameter(default=None)
     mask_args = luigi.Parameter(default="")
@@ -92,6 +93,25 @@ class CumulantScalesProfile(luigi.Task):
     def _parse_cumulant_arg(self):
         cums = [c.split(":") for c in self.cumulants.split(",")]
         return [c for (n, c) in enumerate(cums) if cums.index(c) == n]
+
+    def _parse_scale_limits(self):
+        """
+        format: `C(w,w)=100.0;C(q,q)=2000.0`
+        """
+
+        def _make_item(l):
+            if "=" in l:
+                k, v = l.split("=")
+                return (k, float(v))
+
+        limits = {}
+        for l in self.scale_limits.split(":"):
+            item = _make_item(l)
+            if item:
+                k, v = item
+                limits[k] = v
+
+        return limits
 
     def requires(self):
         return data.ExtractCumulantScaleProfiles(
@@ -112,7 +132,12 @@ class CumulantScalesProfile(luigi.Task):
         import ipdb
 
         with ipdb.launch_ipdb_on_exception():
-            plot_fn(data=ds, cumulants=cumulants_s, plot_type=self.plot_type)
+            plot_fn(
+                data=ds,
+                cumulants=cumulants_s,
+                plot_type=self.plot_type,
+                scale_limits=self._parse_scale_limits(),
+            )
 
         plt.savefig(self.output().path, bbox_inches="tight")
 
