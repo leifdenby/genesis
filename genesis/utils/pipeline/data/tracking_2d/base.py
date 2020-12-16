@@ -19,7 +19,8 @@ from ..extraction import (
 )
 from . import TrackingType, uclales_2d_tracking
 from ..base import get_workdir, _get_dataset_meta_info, XArrayTarget
-from ..base import NumpyDatetimeParameter, XArrayTargetUCLALES
+from ..base import NumpyDatetimeParameter
+from ..extraction_uclales import XArrayTargetUCLALES
 from ..masking import MakeMask
 from .....bulk_statistics import cross_correlation_with_height
 from .....utils import find_vertical_grid_spacing, find_horizontal_grid_spacing

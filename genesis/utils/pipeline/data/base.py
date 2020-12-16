@@ -106,14 +106,3 @@ class NumpyDatetimeParameter(luigi.DateSecondParameter):
                 return super().normalize(x)
             except TypeError:
                 return super().normalize(dateutil.parser.parse(x))
-
-
-class XArrayTargetUCLALES(XArrayTarget):
-    def open(self, *args, **kwargs):
-        kwargs["decode_times"] = False
-        da = super().open(*args, **kwargs)
-        da["time"], _ = fix_time_units(da["time"])
-        if hasattr(da, "to_dataset"):
-            return xr.decode_cf(da.to_dataset())
-        else:
-            return xr.decode_cf(da)
