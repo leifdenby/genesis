@@ -45,6 +45,7 @@ def fix_cumulant_name(name):
         "w_zt": r"w",
         "theta_l": r"\theta_l",
         "qv": r"q_v",
+        "qv__norain": r"q_v*",
         "qc": r"q_c",
         "theta_l_v": r"\theta_{l,v}",
     }
