@@ -11,6 +11,7 @@ from scipy.constants import pi
 L_SMOOTHING_DEFUALT = 1000.0
 L_EDGE_DEFAULT = 2000.0
 SHEAR_DIRECTION_Z_MAX_DEFAULT = 600.0
+COLDPOOL_THRESHOLD_DEFAULT = -0.1
 
 
 def w_pos(w_zt):
@@ -27,8 +28,8 @@ def w_1(w_zt):
 w_pos.description = "1 m/s vertical velocity"
 
 
-def coldpool_coarse(tv0100):
-    return tv0100 < -0.1
+def coldpool_coarse(tv0100, d_theta_v=COLDPOOL_THRESHOLD_DEFAULT):
+    return tv0100 < d_theta_v
 
 
 coldpool_coarse.description = (
@@ -46,13 +47,18 @@ moist_updrafts.description = (
 
 
 def outside_coldpool(
-    tv0100__2d, l_smoothing=L_SMOOTHING_DEFUALT, l_edge=L_EDGE_DEFAULT
+    tv0100__2d,
+    l_smoothing=L_SMOOTHING_DEFUALT,
+    l_edge=L_EDGE_DEFAULT,
+    d_theta_v=COLDPOOL_THRESHOLD_DEFAULT,
 ):
     """
     Computes mask for area outside smoothed coldpool
     """
     tv0100 = tv0100__2d
-    ds_edge = coldpool_edge(tv0100=tv0100, l_smoothing=l_smoothing, l_edge=l_edge)
+    ds_edge = coldpool_edge(
+        tv0100=tv0100, l_smoothing=l_smoothing, l_edge=l_edge, d_theta_v=d_theta_v
+    )
 
     m_outer = ds_edge.m_outer
 
@@ -76,10 +82,11 @@ def coldpool_edge(
     tv0100,
     l_smoothing=L_SMOOTHING_DEFUALT,
     l_edge=L_EDGE_DEFAULT,
+    d_theta_v=COLDPOOL_THRESHOLD_DEFAULT,
 ):
     ds = xr.Dataset(coords=tv0100.coords)
 
-    ds["coldpool_coarse"] = coldpool_coarse(tv0100=tv0100)
+    ds["coldpool_coarse"] = coldpool_coarse(tv0100=tv0100, d_theta_v=d_theta_v)
 
     # remove holes in coldpool mask
     print("Removing holes in coldpool mask")
@@ -134,6 +141,7 @@ def coldpool_edge_shear_direction_split(
     ds_profile,
     l_smoothing=L_SMOOTHING_DEFUALT,
     l_edge=L_EDGE_DEFAULT,
+    d_theta_v=COLDPOOL_THRESHOLD_DEFAULT,
     shear_calc_z_max=SHEAR_DIRECTION_Z_MAX_DEFAULT,
     profile_time_tolerance=60.0,
 ):
@@ -142,7 +150,9 @@ def coldpool_edge_shear_direction_split(
     comparing the direction of the coldpool edge to the mean shear (up to
     `shear_calc_z_max`)
     """
-    ds_edge = coldpool_edge(tv0100=tv0100, l_smoothing=l_smoothing, l_edge=l_edge)
+    ds_edge = coldpool_edge(
+        tv0100=tv0100, l_smoothing=l_smoothing, l_edge=l_edge, d_theta_v=d_theta_v
+    )
 
     ds = xr.Dataset(coords=ds_edge.coldpool.coords)
 
