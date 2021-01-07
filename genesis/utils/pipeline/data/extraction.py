@@ -8,8 +8,9 @@ import ipdb
 import luigi
 import xarray as xr
 import numpy as np
+from tqdm import tqdm
 
-from ....utils import calc_flux, transforms
+from ....utils import calc_flux, transforms, find_vertical_grid_spacing
 from ... import mask_functions
 from .base import (
     get_workdir,
@@ -324,4 +325,59 @@ class ExtractCrossSection2D(luigi.Task):
         fn = ".".join(name_parts)
 
         p = get_workdir() / self.base_name / "cross_sections" / "runtime_slices" / fn
+        return XArrayTarget(str(p))
+
+
+class Extract2DCloudbaseStateFrom3D(luigi.Task):
+    """
+    Extract 2D field from 3D field near or below cloud-base from 3D dataset
+    using `cldbase` 2D field. Where `cldbase` indicates the column contains no
+    cloud the value will be nan
+    """
+
+    base_name = luigi.Parameter()
+    field_name = luigi.Parameter()
+    tn_3d = luigi.IntParameter()
+
+    def requires(self):
+        return dict(
+            field=ExtractField3D(
+                base_name=f"{self.base_name}.tn{self.tn_3d}", field_name=self.field_name
+            ),
+            cldbase=TimeCrossSectionSlices2D(
+                base_name=self.base_name,
+                var_name="cldbase",
+            ),
+        )
+
+    @staticmethod
+    def _extract_from_3d_at_heights_in_2d(da_3d, z_2d):
+        z_unique = da_3d.sel(zt=slice(z_2d.min(), z_2d.max())).zt
+        v = xr.concat(
+            [da_3d.sel(zt=z_).where(z_2d == z_, other=np.nan) for z_ in tqdm(z_unique)],
+            dim="zt",
+        )
+        return v.max(dim="zt", skipna=True)
+
+    def run(self):
+        da_cldbase_2d = self.input()["cldbase"].open()
+        da_scalar_3d = self.input()["field"].open()
+
+        dz = find_vertical_grid_spacing(da_scalar_3d)
+        z_cb = da_cldbase_2d.sel(time=da_scalar_3d.time).squeeze()
+
+        import ipdb
+
+        with ipdb.launch_ipdb_on_exception():
+            da_cb = self._extract_from_3d_at_heights_in_2d(
+                da_3d=da_scalar_3d, z_2d=z_cb - dz
+            )
+        da_cb = da_cb.squeeze()
+        da_cb.name = self.field_name
+        Path(self.output().fn).parent.mkdir(exist_ok=True, parents=True)
+        da_cb.to_netcdf(self.output().fn)
+
+    def output(self):
+        fn = f"{self.base_name}.{self.field_name}.cldbase.tn{self.tn_3d}.xy.nc"
+        p = get_workdir() / f"{self.base_name}.tn{self.tn_3d}" / "cross_sections" / fn
         return XArrayTarget(str(p))

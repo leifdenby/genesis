@@ -3,7 +3,6 @@ from ...data_sources import uclales_2d_tracking
 
 from .base import (
     PerformObjectTracking2D,
-    ExtractCloudbaseState,
     TrackingLabels2D,
     TrackingVariable2D,
 )

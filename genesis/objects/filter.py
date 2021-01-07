@@ -281,6 +281,12 @@ def filter_objects_by_property(objects, da_property, op, value):
     return objects_filtered
 
 
+def filter_objects_by_id(objects, ids_to_keep):
+    labels = np.asarray(objects)
+    labels[~np.isin(labels, ids_to_keep)] = 0
+    return labels
+
+
 if __name__ == "__main__":
     import argparse
 

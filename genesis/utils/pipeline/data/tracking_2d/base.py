@@ -23,7 +23,7 @@ from ..base import NumpyDatetimeParameter
 from ..extraction_uclales import XArrayTargetUCLALES
 from ..masking import MakeMask
 from .....bulk_statistics import cross_correlation_with_height
-from .....utils import find_vertical_grid_spacing, find_horizontal_grid_spacing
+from .....utils import find_vertical_grid_spacing
 from .....objects.tracking_2d.family import create_tracking_family_2D_field
 
 
@@ -449,92 +449,6 @@ class FilterTriggeringThermalsByMask(luigi.Task):
 
     def output(self):
         fn = "triggering_thermals.mask.nc"
-        p = get_workdir() / self.base_name / fn
-        return XArrayTarget(str(p))
-
-
-class ExtractCloudbaseState(luigi.Task):
-    base_name = luigi.Parameter()
-    field_name = luigi.Parameter()
-
-    cloud_age_max = luigi.FloatParameter(default=200.0)
-
-    def requires(self):
-        if uclales_2d_tracking.HAS_TRACKING:
-            return dict(
-                field=ExtractField3D(
-                    base_name=self.base_name, field_name=self.field_name
-                ),
-                cldbase=ExtractCrossSection2D(
-                    base_name=self.base_name,
-                    field_name="cldbase",
-                ),
-            )
-        else:
-            warnings.warn(
-                "cloud tracking isn't available. Using approximate"
-                " method for finding cloud-base height rather than"
-                "tracking"
-            )
-            return dict(
-                qc=ExtractField3D(base_name=self.base_name, field_name="qc"),
-                field=ExtractField3D(
-                    base_name=self.base_name, field_name=self.field_name
-                ),
-            )
-
-    def run(self):
-        if uclales_2d_tracking.HAS_TRACKING:
-            ds_tracking = self.input()["tracking"].open()
-
-            da_scalar_3d = self.input()["field"].open()
-
-            dx = find_vertical_grid_spacing(da_scalar_3d)
-
-            t0 = da_scalar_3d.time
-            z_cb = cross_correlation_with_height.get_cloudbase_height(
-                ds_tracking=ds_tracking,
-                t0=t0,
-                t_age_max=self.cloud_age_max,
-                da_cldbase_2d=self.input()["cldbase"].open(),
-                dx=dx,
-            )
-            dz = find_vertical_grid_spacing(da_scalar_3d)
-            method = "tracked clouds"
-        else:
-            qc = self.input()["qc"].open()
-            z_cb = cross_correlation_with_height.get_approximate_cloudbase_height(
-                qc=qc, z_tol=50.0
-            )
-            da_scalar_3d = self.input()["field"].open()
-            try:
-                dz = find_vertical_grid_spacing(da_scalar_3d)
-                method = "approximate"
-            except Exception:
-                warnings.warn(
-                    "Using cloud-base state because vertical grid"
-                    " spacing is non-uniform"
-                )
-                dz = 0.0
-                method = "approximate, in-cloud"
-
-        da_cb = cross_correlation_with_height.extract_from_3d_at_heights_in_2d(
-            da_3d=da_scalar_3d, z_2d=z_cb - dz
-        )
-        da_cb = da_cb.squeeze()
-        da_cb.name = self.field_name
-        da_cb.attrs["method"] = method
-        da_cb.attrs["cloud_age_max"] = self.cloud_age_max
-        da_cb.attrs["num_clouds"] = z_cb.num_clouds
-
-        da_cb.to_netcdf(self.output().fn)
-
-    def output(self):
-        fn = "{}.{}.max_t_age__{:.0f}s.cloudbase.xy.nc".format(
-            self.base_name,
-            self.field_name,
-            self.cloud_age_max,
-        )
         p = get_workdir() / self.base_name / fn
         return XArrayTarget(str(p))
 

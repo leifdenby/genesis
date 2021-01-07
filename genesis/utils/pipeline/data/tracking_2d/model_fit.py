@@ -64,13 +64,29 @@ class ParcelRiseModelFit(luigi.Task):
 
         single_cloud_ids = da_cloudtype.where(da_cloudtype == 2, drop=True).object_id
 
-        datasets = []
-        for cloud_id in tqdm(single_cloud_ids):
-            da_obj = da.sel(object_id=cloud_id)
-            ds_model_summary = parcel_rise.fit_model_and_summarise(
-                da_obj=da_obj, predictions="mean_with_quantiles", var_name=self.var_name
+        partial_fn = "__partial__run__.model_fit.nc"
+        if Path(partial_fn).exists():
+            ds = xr.open_dataset(partial_fn)
+            single_cloud_ids = single_cloud_ids.sel(
+                object_id=slice(max(ds.object_id), None)
             )
-            datasets.append(ds_model_summary)
+
+        datasets = [
+            ds,
+        ]
+        try:
+            for cloud_id in tqdm(single_cloud_ids):
+                da_obj = da.sel(object_id=cloud_id)
+                ds_model_summary = parcel_rise.fit_model_and_summarise(
+                    da_obj=da_obj,
+                    predictions="mean_with_quantiles",
+                    var_name=self.var_name,
+                )
+                datasets.append(ds_model_summary)
+        except Exception as e:
+            ds = xr.concat(datasets, dim="object_id")
+            ds.to_netcdf(partial_fn)
+            raise
 
         ds = xr.concat(datasets, dim="object_id")
         Path(self.output().fn).parent.mkdir(exist_ok=True, parents=True)
