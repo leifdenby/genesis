@@ -1,4 +1,7 @@
 from pathlib import Path
+import subprocess
+import signal
+
 import luigi
 import xarray as xr
 
@@ -17,6 +20,40 @@ SOURCE_BLOCK_FILENAME_FORMAT = "{base_name}.{i:04d}{j:04d}.nc"
 SINGLE_VAR_BLOCK_FILENAME_FORMAT = "{base_name}.{i:04d}{j:04d}.{var_name}.tn{tn}.nc"
 SINGLE_VAR_STRIP_FILENAME_FORMAT = "{base_name}.{dim}.{idx:04d}.{var_name}.tn{tn}.nc"
 SINGLE_VAR_FILENAME_FORMAT = "{base_name}.{var_name}.tn{tn}.nc"
+
+STORE_PARTIALS_LOCALLY = False
+
+
+def _execute(cmd):
+    print(" ".join(cmd))
+    # https://stackoverflow.com/a/4417735
+    popen = subprocess.Popen(cmd, stdout=subprocess.PIPE, universal_newlines=True)
+    for stdout_line in iter(popen.stdout.readline, ""):
+        yield stdout_line
+    popen.stdout.close()
+    return_code = popen.wait()
+
+    if return_code:
+        raise subprocess.CalledProcessError(return_code, cmd)
+
+
+def _call_cdo(args, verbose=True):
+    try:
+        cmd = ["cdo"] + args
+        for output in _execute(cmd):
+            if verbose:
+                print((output.strip()))
+
+    except subprocess.CalledProcessError as ex:
+        return_code = ex.returncode
+        error_extra = ""
+        if -return_code == signal.SIGSEGV:
+            error_extra = ", the utility segfaulted "
+
+        raise Exception(
+            "There was a problem when calling the tracking "
+            "utility (errno={}): {} {}".format(error_extra, return_code, ex)
+        )
 
 
 class XArrayTargetUCLALES(XArrayTarget):
@@ -97,6 +134,8 @@ class UCLALESBlockSelectVariable(luigi.Task):
     def run(self):
         ds_block = self.input().open()
         da_block_var = ds_block[self.var_name].isel(time=self.tn)
+        # to use cdo the dimensions have to be (z, y, x)...
+        da_block_var = da_block_var.transpose("zt", "yt", "xt")
         Path(self.output().fn).parent.mkdir(exist_ok=True, parents=True)
         da_block_var.to_netcdf(self.output().fn)
 
@@ -109,9 +148,12 @@ class UCLALESBlockSelectVariable(luigi.Task):
             tn=self.tn,
         )
         meta = _get_dataset_meta_info(self.base_name)
-        p = Path(meta["path"]) / RAW_DATA_PATH / PARTIALS_3D_PATH / fn
+        if STORE_PARTIALS_LOCALLY:
+            p = get_workdir() / OUTPUT_DATA_PATH / PARTIALS_3D_PATH / fn
+        else:
+            p = Path(meta["path"]) / RAW_DATA_PATH / PARTIALS_3D_PATH / fn
 
-        return XArrayTarget(str(p))
+        return XArrayTargetUCLALES(str(p))
 
 
 class UCLALESStripSelectVariable(luigi.Task):
@@ -129,6 +171,7 @@ class UCLALESStripSelectVariable(luigi.Task):
     idx = luigi.IntParameter()
     dim = luigi.Parameter()
     tn = luigi.IntParameter()
+    use_cdo = luigi.BoolParameter(default=True)
 
     def requires(self):
         nx_b, ny_b = _find_number_of_blocks(base_name=self.base_name)
@@ -143,11 +186,16 @@ class UCLALESStripSelectVariable(luigi.Task):
             raise NotImplementedError(self.dim)
 
         return [
-            UCLALESOutputBlock(base_name=self.base_name, **make_kws(n=n))
+            UCLALESBlockSelectVariable(
+                base_name=self.base_name,
+                tn=self.tn,
+                var_name=self.var_name,
+                **make_kws(n=n),
+            )
             for n in range(nidx)
         ]
 
-    def run(self):
+    def _run_xarray(self):
         ortho_dim = "x" if self.dim == "y" else "y"
 
         dataarrays = [inp.open() for inp in self.input()]
@@ -156,9 +204,16 @@ class UCLALESStripSelectVariable(luigi.Task):
         dims = dict([(d.replace("t", "").replace("m", ""), d) for d in da.dims])
 
         ds_strip = xr.concat(dataarrays, dim=dims[ortho_dim])
-        da_strip_var = ds_strip[self.var_name].isel(time=self.tn)
+        da_strip_var = ds_strip[self.var_name]
         Path(self.output().fn).parent.mkdir(exist_ok=True, parents=True)
         da_strip_var.to_netcdf(self.output().fn)
+
+    def run(self):
+        if self.use_cdo:
+            args = ["gather,1"] + [inp.fn for inp in self.input()] + [self.output().fn]
+            _call_cdo(args)
+        else:
+            self._run_xarray()
 
     def output(self):
         fn = SINGLE_VAR_STRIP_FILENAME_FORMAT.format(
@@ -169,9 +224,12 @@ class UCLALESStripSelectVariable(luigi.Task):
             tn=self.tn,
         )
         meta = _get_dataset_meta_info(self.base_name)
-        p = Path(meta["path"]) / RAW_DATA_PATH / PARTIALS_3D_PATH / fn
+        if STORE_PARTIALS_LOCALLY:
+            p = get_workdir() / OUTPUT_DATA_PATH / PARTIALS_3D_PATH / fn
+        else:
+            p = Path(meta["path"]) / RAW_DATA_PATH / PARTIALS_3D_PATH / fn
 
-        return XArrayTarget(str(p))
+        return XArrayTargetUCLALES(str(p))
 
 
 class _Merge3DBaseTask(luigi.Task):
@@ -191,10 +249,7 @@ class _Merge3DBaseTask(luigi.Task):
             )
         )
 
-    def run(self):
-        opened_inputs = dict([(inp, inp.open()) for inp in self.input()["parts"]])
-        self._check_inputs(opened_inputs)
-        da = xr.merge(opened_inputs.values())[self.var_name]
+    def _check_output(self, da):
         # x -> `xt` or `xm` mapping, similar for other dims
         dims = dict([(d.replace("t", "").replace("m", ""), d) for d in da.dims])
 
@@ -216,6 +271,12 @@ class _Merge3DBaseTask(luigi.Task):
             raise Exception(
                 "Resulting data is the the wrong size " f"( {ny_da} != {b_ny} x {ny_b})"
             )
+
+    def run(self):
+        opened_inputs = dict([(inp, inp.open()) for inp in self.input()["parts"]])
+        self._check_inputs(opened_inputs)
+        da = xr.merge(opened_inputs.values())[self.var_name]
+        self._check_output(da=da)
 
         Path(self.output().fn).parent.mkdir(exist_ok=True, parents=True)
         da.to_netcdf(self.output().fn)
@@ -271,6 +332,7 @@ class Extract3DbyStrips(_Merge3DBaseTask):
     var_name = luigi.Parameter()
     tn = luigi.IntParameter()
     dim = luigi.Parameter(default="x")
+    use_cdo = luigi.BoolParameter(default=True)
 
     def _check_inputs(self, opened_inputs):
         nx_b, ny_b = _find_number_of_blocks(base_name=self.base_name)
@@ -295,18 +357,37 @@ class Extract3DbyStrips(_Merge3DBaseTask):
                 int(da_strip[dims["y"]].count()),
             )
             if strip_shape != expected_shape:
-                invalid_shape[inp.fn] = da_strip.shape
+                invalid_shape[inp.fn] = strip_shape
 
         if len(invalid_shape) > 0:
             err_str = (
                 "The following input strip files don't have the expected shape "
-                f"{expected_shape}:\n"
+                f"{expected_shape}:\n\t"
             )
 
             err_str += "\n\t".join(
                 [f"{shape}: {fn}" for (fn, shape) in invalid_shape.items()]
             )
             raise Exception(err_str)
+
+    def run(self):
+        if self.use_cdo:
+            args = (
+                ["gather"]
+                + [inp.fn for inp in self.input()["parts"]]
+                + [self.output().fn]
+            )
+            Path(self.output().fn).parent.mkdir(exist_ok=True, parents=True)
+            _call_cdo(args)
+            # after running cdo we need to check it has the expected content
+            da = self.output().open()
+            try:
+                self._check_output(da=da)
+            except:
+                Path(self.output().fn).unlink()
+                raise
+        else:
+            super(Extract3DbyStrips, self).run()
 
     def requires(self):
         nx, ny = _find_number_of_blocks(base_name=self.base_name)
@@ -337,7 +418,7 @@ class Extract3D(luigi.WrapperTask):
     base_name = luigi.Parameter()
     var_name = luigi.Parameter()
     tn = luigi.IntParameter()
-    mode = luigi.Parameter(default="x_strips")
+    mode = luigi.Parameter(default="y_strips")
 
     def requires(self):
         if self.mode == "blocks":
