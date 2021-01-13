@@ -83,25 +83,38 @@ def fix_cumulant_name(name):
         return r"$c_{{{},{}}}$".format(v1_latex, v2_latex)
 
 
-def calc_2nd_cumulant(v1, v2=None, mask=None):
+def calc_2nd_cumulant(v1, v2=None, mask=None, axes=(-2, -1)):
     """
     Calculate 2nd-order cumulant of v1 and v2 in Fourier space. If mask is
     supplied the region outside the mask is set to the mean of the masked
     region, so that this region does not contribute to the cumulant
+
+    If axes is a sequence with only one item then the cumulant is only
+    calculated along that axis and the others are left unchanged.
     """
+
     if v2 is not None:
         assert v1.shape == v2.shape
-    if v1.dims == ("x", "y"):
-        Nx, Ny = v1.shape
+        assert v1.dims == v2.dims
+
+    assert len(axes) in [1, 2]
+    v_shape = v1.shape
+
+    x_dim = v1.dims[axes[0]]
+    Nx = v_shape[axes[0]]
+    if len(axes) == 1:
+        mean_axis = axes[0]
     else:
-        Ny, Nx = v1.shape
+        mean_axis = None
+        y_dim = v1.dims[axes[1]]
+        Ny = v_shape[axes[1]]
 
     old_attrs = v1.attrs
-    v1 = v1 - v1.mean()
+    v1 = v1 - v1.mean(axis=mean_axis)
     v1.attrs = old_attrs
     if v2 is not None:
         v2_old_attrs = v2.attrs
-        v2 = v2 - v2.mean()
+        v2 = v2 - v2.mean(axis=mean_axis)
         v2.attrs = v2_old_attrs
 
     if mask is not None:
@@ -115,25 +128,22 @@ def calc_2nd_cumulant(v1, v2=None, mask=None):
         if v2 is not None:
             v2 = v2.where(mask.values, other=0.0)
 
-    V1 = fft.fft2(v1)
+    V1 = fft.fft2(v1, axes=axes)
     if v2 is None:
         v2 = v1
         V2 = V1
     else:
-        V2 = fft.fft2(v2)
+        V2 = fft.fft2(v2, axes=axes)
 
-    c_vv_fft = fft.ifft2(V1 * V2.conjugate())
+    c_vv_fft = fft.ifft2(V1 * V2.conjugate(), axes=axes)
 
+    c_vv = c_vv_fft.real / Nx
+    if len(axes) == 2:
+        c_vv /= Ny
     # it's most handy to have this centered on (0,0)
-    c_vv = c_vv_fft.real / (Nx * Ny)
-    if v1.dims == ("x", "y"):
-        c_vv = np.roll(
-            np.roll(c_vv, shift=int(Ny / 2), axis=1), shift=int(Nx / 2), axis=0
-        )
-    else:
-        c_vv = np.roll(
-            np.roll(c_vv, shift=int(Ny / 2), axis=0), shift=int(Nx / 2), axis=1
-        )
+    c_vv = np.roll(c_vv, shift=int(Nx / 2), axis=axes[0])
+    if len(axes) == 2:
+        c_vv = np.roll(c_vv, shift=int(Ny / 2), axis=axes[1])
 
     # let's give it a useful name and description
     long_name = r"$C({},{})$".format(
@@ -145,13 +155,29 @@ def calc_2nd_cumulant(v1, v2=None, mask=None):
     name = "C({},{})".format(v1_name, v2_name)
 
     # create displacement coordinate for cumulant data
-    x_c = 0.5 * (v1.x.min() + v1.x.max())
-    y_c = 0.5 * (v1.y.min() + v1.y.max())
-    x_cvv = v1.x - x_c
-    y_cvv = v1.y - y_c
-    x_cvv.attrs.update(v1.x.attrs)
-    y_cvv.attrs.update(v1.y.attrs)
-    coords_cvv = dict(x=x_cvv, y=y_cvv)
+    def _calc_offset_coord(v_coord):
+        if np.issubdtype(v_coord.dtype, np.datetime64):
+            # for datetime we could use timedelta, but matplotlib can't plot
+            # these and so we convert to number of seconds here
+            v_center = v_coord.min() + 0.5 * (v_coord.max() - v_coord.min())
+            v_coord_new = v_coord - v_center
+            v_coord_new = xr.DataArray(
+                v_coord_new.values.astype("timedelta64[ns]").astype(int) / 1.0e9,
+                dims=v_coord.dims,
+                attrs=dict(units="s"),
+            )
+        else:
+            v_coord_new = v_coord - 0.5 * (v_coord.min() + v_coord.max())
+        v_coord_new.attrs.update(v_coord.attrs)
+        return v_coord_new
+
+    x_cvv = _calc_offset_coord(v1[x_dim])
+    # start of with original coords
+    coords_cvv = v1.coords
+    coords_cvv[x_dim] = x_cvv
+    if len(axes) == 2:
+        y_cvv = _calc_offset_coord(v1[y_dim])
+        coords_cvv[y_dim] = y_cvv
 
     if mask is not None:
         long_name = "{} masked by {}".format(long_name, mask.long_name)
