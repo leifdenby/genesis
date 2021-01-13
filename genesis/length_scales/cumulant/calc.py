@@ -144,12 +144,21 @@ def calc_2nd_cumulant(v1, v2=None, mask=None):
     v2_name = v2.name if v2.name is not None else v2.long_name
     name = "C({},{})".format(v1_name, v2_name)
 
+    # create displacement coordinate for cumulant data
+    x_c = 0.5 * (v1.x.min() + v1.x.max())
+    y_c = 0.5 * (v1.y.min() + v1.y.max())
+    x_cvv = v1.x - x_c
+    y_cvv = v1.y - y_c
+    x_cvv.attrs.update(v1.x.attrs)
+    y_cvv.attrs.update(v1.y.attrs)
+    coords_cvv = dict(x=x_cvv, y=y_cvv)
+
     if mask is not None:
         long_name = "{} masked by {}".format(long_name, mask.long_name)
 
     attrs = dict(units="{} {}".format(v1.units, v2.units), long_name=long_name)
 
-    return xr.DataArray(c_vv, dims=v1.dims, coords=v1.coords, attrs=attrs, name=name)
+    return xr.DataArray(c_vv, dims=v1.dims, coords=coords_cvv, attrs=attrs, name=name)
 
 
 def identify_principle_axis(C, sI_N=100):
