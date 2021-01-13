@@ -66,13 +66,13 @@ class ParcelRiseModelFit(luigi.Task):
 
         partial_fn = "__partial__run__.model_fit.nc"
         if Path(partial_fn).exists():
-            ds = xr.open_dataset(partial_fn)
+            ds_partial = xr.open_dataset(partial_fn)
             single_cloud_ids = single_cloud_ids.sel(
-                object_id=slice(max(ds.object_id), None)
+                object_id=slice(max(ds_partial.object_id), None)
             )
 
         datasets = [
-            ds,
+            ds_partial,
         ]
         try:
             for cloud_id in tqdm(single_cloud_ids):
@@ -85,6 +85,7 @@ class ParcelRiseModelFit(luigi.Task):
                 datasets.append(ds_model_summary)
         except Exception as e:
             ds = xr.concat(datasets, dim="object_id")
+            ds_partial.close()
             ds.to_netcdf(partial_fn)
             raise
 
