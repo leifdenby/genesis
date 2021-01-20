@@ -16,7 +16,6 @@ import numpy as np
 import seaborn as sns
 
 from ..calc import fix_cumulant_name
-from .plot_angles import plot as plot_angles
 from ....utils import wrap_angles
 
 # marker for more than x0, x1, x2, ... asymmetry

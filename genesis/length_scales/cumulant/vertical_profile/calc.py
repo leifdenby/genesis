@@ -267,7 +267,7 @@ def get_cross_section(base_name, var_name, z, z_max=700.0, method=None):
     return da
 
 
-FN_FORMAT = "{base_name}.cumulant_scales_profile.{v1}.{v2}.{mask}.nc"
+FN_FORMAT = "{base_name}.cumulant_scales_profile.{v1}.{v2}.{mask}.{z_max}.nc"
 
 if __name__ == "__main__":
     import argparse

@@ -119,6 +119,7 @@ class CumulantScalesProfile(luigi.Task):
             cumulants=self.cumulants,
             mask=self.mask,
             mask_args=self.mask_args,
+            z_max=self.z_max,
         )
 
     def run(self):
@@ -129,15 +130,12 @@ class CumulantScalesProfile(luigi.Task):
 
         plot_fn = length_scales.cumulant.vertical_profile.plot.plot
 
-        import ipdb
-
-        with ipdb.launch_ipdb_on_exception():
-            plot_fn(
-                data=ds,
-                cumulants=cumulants_s,
-                plot_type=self.plot_type,
-                scale_limits=self._parse_scale_limits(),
-            )
+        plot_fn(
+            data=ds,
+            cumulants=cumulants_s,
+            plot_type=self.plot_type,
+            scale_limits=self._parse_scale_limits(),
+        )
 
         plt.savefig(self.output().path, bbox_inches="tight")
 

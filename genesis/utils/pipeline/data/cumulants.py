@@ -63,6 +63,7 @@ class ExtractCumulantScaleProfile(luigi.Task):
             v1=self.v1,
             v2=self.v2,
             mask=self.mask or "no_mask",
+            z_max=self.z_max,
         )
         p = get_workdir() / self.base_name / fn
         return XArrayTarget(str(p))
@@ -71,6 +72,7 @@ class ExtractCumulantScaleProfile(luigi.Task):
 class ExtractCumulantScaleProfiles(luigi.Task):
     base_names = luigi.Parameter()
     cumulants = luigi.Parameter()
+    z_max = luigi.FloatParameter(default=700.0)
 
     mask = luigi.Parameter(default=None)
     mask_args = luigi.Parameter(default="")
@@ -90,6 +92,7 @@ class ExtractCumulantScaleProfiles(luigi.Task):
                     v2=c[1],
                     mask=self.mask,
                     mask_args=self.mask_args,
+                    z_max=self.z_max,
                 )
                 for c in self._parse_cumulant_arg()
             ]
@@ -110,7 +113,7 @@ class ExtractCumulantScaleProfiles(luigi.Task):
         ds.to_netcdf(self.output().fn)
 
     def output(self):
-        unique_props = self.base_names + self.cumulants
+        unique_props = self.base_names + self.cumulants + str(self.z_max)
         if self.mask is not None:
             unique_props += self.mask
             if self.mask_args is not None:
