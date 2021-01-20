@@ -10,12 +10,17 @@ import warnings
 
 import xarray as xr
 from matplotlib.gridspec import GridSpec
+import matplotlib.lines as mlines
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 
 from ..calc import fix_cumulant_name
+from .plot_angles import plot as plot_angles
 from ....utils import wrap_angles
+
+# marker for more than x0, x1, x2, ... asymmetry
+ASYMMETRY_MARKERS = ["", "", "_", "^", "s", "p", "h"]
 
 
 FULL_SUITE_PLOT_PARTS = dict(
@@ -88,79 +93,100 @@ def plot_full_suite(data, marker=""):
     _ = plt.figlegend(lines, [l.get_label() for l in lines], loc="lower center", ncol=2)
 
 
-def plot_angles(
-    data,
-    marker=".",
-    linestyle="",
-    z_max=None,
-    cumulants=[],
-    split_subplots=True,
-    with_legend=True,
-    fig=None,
-    **kwargs
-):
+def _calc_marker_style(ds_point):
+    r = int(np.floor(ds_point.width_principle / ds_point.width_perpendicular))
 
-    if len(cumulants) == 0:
-        cumulants = data.cumulant.values
+    try:
+        return ASYMMETRY_MARKERS[r]
+    except IndexError:
+        return ASYMMETRY_MARKERS[-1]
 
-    if z_max is not None:
-        data = data.copy().where(data.zt < z_max, drop=True)
 
-    if fig is None and split_subplots:
-        fig = plt.figure(figsize=(2.5 * len(cumulants), 4))
+def _make_marker_legend():
+    marker_handles = []
+    for n, marker in enumerate(ASYMMETRY_MARKERS):
+        if n < 2:
+            continue
+        marker_line = mlines.Line2D(
+            [],
+            [],
+            color="black",
+            markerfacecolor="none",
+            marker=marker,
+            linestyle="None",
+            markersize=10,
+            label=f"$r_a$ > {n}",
+        )
+        marker_handles.append(marker_line)
 
-    ax = None
+    return marker_handles
 
-    axes = []
 
-    data.principle_axis.values = np.rad2deg(
-        wrap_angles(np.deg2rad(data.principle_axis))
-    )
+def _add_asymmetry_markers(ax, ds, color):
+    ylim = ax.get_ylim()
+    y_vals = np.array(list(filter(lambda v: ylim[0] < v < ylim[1], ax.get_yticks())))
 
-    for i, cumulant in enumerate(cumulants):
-        lines = []
-        n = data.cumulant.values.tolist().index(cumulant)
-        _ = data.isel(cumulant=n, drop=True).squeeze()
-        if split_subplots:
-            ax = plt.subplot(1, len(cumulants), i + 1, sharey=ax)
-        else:
-            ax = plt.gca()
-        for p in data.dataset_name.values:
-            d = data.sel(dataset_name=p, drop=True).sel(cumulant=cumulant, drop=True)
-
-            (line,) = plt.plot(
-                d.principle_axis,
-                d.zt,
-                marker=marker,
-                linestyle=linestyle,
-                label="{}, principle axis orientation".format(str(p)),
-                **kwargs
-            )
-
-            lines.append(line)
-
-        plt.title(fix_cumulant_name(cumulant))
-        plt.tight_layout()
-        plt.xlabel("angle [deg]")
-
-        if i == 0:
-            plt.ylabel("height [m]")
-        else:
-            plt.setp(ax.get_yticklabels(), visible=False)
-
-        axes.append(ax)
-
-    if with_legend:
-        plt.subplots_adjust(bottom=0.24)
-        _ = plt.figlegend(
-            lines, [l.get_label() for l in lines], loc="lower center", ncol=2
+    for y_ in y_vals:
+        ds_point = ds.sel(zt=y_, method="nearest")
+        marker = _calc_marker_style(ds_point)
+        kws = dict(marker=marker)
+        if marker != "_":
+            kws["facecolor"] = "none"
+        ax.scatter(
+            ds_point.principle_axis,
+            ds_point.zt,
+            color=color,
+            s=100.0,
+            **kws,
         )
 
-    [axes[0].get_shared_x_axes().join(axes[0], ax) for ax in axes[1:]]
-    axes[0].autoscale()
-    [ax.axvline(0, linestyle="--", color="grey") for ax in axes]
 
-    return axes
+def _plot_angles_profile(d, d_, ax, p, **kwargs):
+    (line,) = d.principle_axis.plot(
+        ax=ax, y="zt", label="{} principle orientation".format(str(p)), **kwargs
+    )
+    if d_.zt.count() > 0:
+        d_ = d.where(~d.is_covariant, drop=True)
+        d_.principle_axis.plot(
+            ax=ax, y="zt", color=line.get_color(), marker="_", linestyle=""
+        )
+    ax.set_xlabel("principle axis [deg]")
+    return line
+
+
+def _plot_scales_profile(d, d_, ax, p, fill_between_alpha, **kwargs):
+    (line,) = d.width_principle.plot(
+        ax=ax, y="zt", label="{} principle".format(str(p)), **kwargs
+    )
+
+    (line2,) = d.width_perpendicular.plot(
+        ax=ax,
+        y="zt",
+        label="{} perpendicular".format(str(p)),
+        color=line.get_color(),
+        linestyle="--",
+        **kwargs,
+    )
+
+    ax.fill_betweenx(
+        y=line.get_ydata(),
+        x1=line.get_xdata(),
+        x2=line2.get_xdata(),
+        color=line.get_color(),
+        alpha=fill_between_alpha,
+    )
+
+    if d_.zt.count() > 0:
+        d_ = d.where(d.is_covariant, drop=True)
+        d_.width_principle.plot(
+            ax=ax, y="zt", color=line.get_color(), marker="_", linestyle=""
+        )
+        d_.width_perpendicular.plot(
+            ax=ax, y="zt", color=line.get_color(), marker="_", linestyle=""
+        )
+    ax.set_xlabel("characteristic width [m]")
+
+    return line, line2
 
 
 def plot(
@@ -171,7 +197,8 @@ def plot(
     split_subplots=True,
     with_legend=True,
     fill_between_alpha=0.2,
-    **kwargs
+    add_asymmetry_markers=True,
+    **kwargs,
 ):
     scale_limits = kwargs.pop("scale_limits", {})
 
@@ -221,48 +248,19 @@ def plot(
             d_ = d.where(d.is_covariant == 0, drop=True)
 
             if plot_type == "angles":
-                (line,) = d.principle_axis.plot(
-                    ax=ax,
-                    y="zt",
-                    label="{} principle orientation".format(str(p)),
-                    **kwargs
-                )
-                if d_.zt.count() > 0:
-                    d_ = d.where(~d.is_covariant, drop=True)
-                    d_.principle_axis.plot(
-                        ax=ax, y="zt", color=line.get_color(), marker="_", linestyle=""
-                    )
-                ax.set_xlabel("principle axis [deg]")
-            elif plot_type == "scales":
-                (line,) = d.width_principle.plot(
-                    ax=ax, y="zt", label="{} principle".format(str(p)), **kwargs
-                )
+                line = _plot_angles_profile(d=d, d_=d_, ax=ax, p=p, **kwargs)
+                if add_asymmetry_markers:
+                    _add_asymmetry_markers(ax=ax, ds=d, color=line.get_color())
 
-                (line2,) = d.width_perpendicular.plot(
+            elif plot_type == "scales":
+                line, line2 = _plot_scales_profile(
+                    d=d,
+                    d_=d_,
                     ax=ax,
-                    y="zt",
-                    label="{} perpendicular".format(str(p)),
-                    color=line.get_color(),
-                    linestyle="--",
-                    **kwargs
+                    p=p,
+                    fill_between_alpha=fill_between_alpha,
+                    **kwargs,
                 )
-                lines.append(line2)
-                ax.fill_betweenx(
-                    y=line.get_ydata(),
-                    x1=line.get_xdata(),
-                    x2=line2.get_xdata(),
-                    color=line.get_color(),
-                    alpha=fill_between_alpha,
-                )
-                if d_.zt.count() > 0:
-                    d_ = d.where(d.is_covariant, drop=True)
-                    d_.width_principle.plot(
-                        ax=ax, y="zt", color=line.get_color(), marker="_", linestyle=""
-                    )
-                    d_.width_perpendicular.plot(
-                        ax=ax, y="zt", color=line.get_color(), marker="_", linestyle=""
-                    )
-                ax.set_xlabel("characteristic width [m]")
 
                 if cumulant in scale_limits:
                     ax.set_xlim(0, scale_limits[cumulant])
@@ -277,12 +275,22 @@ def plot(
 
     plt.tight_layout()
     if with_legend:
-        _ = plt.figlegend(
+        lgd = plt.figlegend(
             lines, [l.get_label() for l in lines], loc="lower center", ncol=2
         )
         fig.text(
             0.5, 0.1 - data.dataset_name.count() * 0.1, " ", transform=fig.transFigure
         )
+        if add_asymmetry_markers:
+            n = data.dataset_name.count()
+            plt.figlegend(
+                handles=_make_marker_legend(),
+                title="asymmetry\nratio ($r_a$)",
+                bbox_to_anchor=(1, 0),
+                loc="lower left",
+                bbox_transform=fig.transFigure,
+            )
+            fig.add_artist(lgd)
 
     return axes
 
