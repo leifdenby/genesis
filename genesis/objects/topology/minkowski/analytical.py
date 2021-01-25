@@ -4,7 +4,7 @@ import numpy as np
 from scipy.constants import pi
 import xarray as xr
 
-from .shapes import ellipsoid, cylinder, spheroid
+from ..shapes import ellipsoid, cylinder, spheroid
 
 
 def length_scales(V0, V1, V2, V3):

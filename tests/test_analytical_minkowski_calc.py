@@ -2,7 +2,7 @@ import pytest
 import numpy as np
 from scipy.constants import pi
 
-from genesis.objects.topology import minkowski_analytical
+from genesis.objects.topology.minkowski import analytical as minkowski_analytical
 from genesis.objects.topology import shapes
 
 
