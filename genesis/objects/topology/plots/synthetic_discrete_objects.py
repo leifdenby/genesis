@@ -20,17 +20,39 @@ from ...synthetic.discrete import make_mask
 from .filamentarity_planarity import plot_reference as plot_fp_ref
 
 
-IMAGE_FILENAME_FORMAT = "{h}_{length}_{dx}_{l_shear}_{shape}.{filetype}"
+TEMP_FILENAME_FORMAT = "{h}_{length}_{dx}_{l_shear}_{shape}.{filetype}"
+
+
+def _make_filename(ds_params, filetype):
+    h, length, dx, shape = (
+        ds_params.h.values,
+        ds_params.length.values,
+        ds_params.dx.values,
+        ds_params.shape.values,
+    )
+    l_shear = ds_params.l_shear.values
+    return TEMP_FILENAME_FORMAT.format(
+        h=h, length=length, dx=dx, l_shear=l_shear, shape=shape, filetype=filetype
+    )
 
 
 def _calc_scales(ds_params, output_path):
     """
     `ds_synth`: xr.Dataset which contains `mask`
     """
-    ds_synth = _get_mask(ds_params, output_path=output_path)
-    object_labels = ds_synth.mask.values.astype(int)
-    scales = minkowski_discrete.calc_scales(object_labels=object_labels, dx=ds_synth.dx)
-    return scales
+    fn = _make_filename(ds_params=ds_params, filetype="scales.nc")
+    p = Path(output_path) / fn
+
+    if not p.exists():
+        ds_synth = _get_mask(ds_params, output_path=output_path)
+        object_labels = ds_synth.mask.values.astype(int)
+        ds_scales = minkowski_discrete.calc_scales(
+            object_labels=object_labels, dx=ds_synth.dx
+        )
+        ds_scales.to_netcdf(str(p))
+    else:
+        ds_scales = xr.open_dataset(str(p))
+    return ds_scales
 
 
 def _create_single_mask_plot(ds_synth):
@@ -43,17 +65,8 @@ def _create_single_mask_plot(ds_synth):
 
 
 def _get_mask_image(ds_params, output_path):
-    h, length, dx, shape = (
-        ds_params.h.values,
-        ds_params.length.values,
-        ds_params.dx.values,
-        ds_params.shape.values,
-    )
-    l_shear = ds_params.l_shear.values
-    fn_img = IMAGE_FILENAME_FORMAT.format(
-        h=h, length=length, dx=dx, l_shear=l_shear, shape=shape, filetype="png"
-    )
-    p = Path(output_path) / fn_img
+    fn = _make_filename(ds_params=ds_params, filetype="png")
+    p = Path(output_path) / fn
 
     if not p.exists():
         ds_synth = _get_mask(ds_params, output_path=output_path)
@@ -65,19 +78,17 @@ def _get_mask_image(ds_params, output_path):
 
 
 def _get_mask(ds_params, output_path):
-    h, length, dx, shape = (
-        ds_params.h.values,
-        ds_params.length.values,
-        ds_params.dx.values,
-        ds_params.shape.values,
-    )
-    l_shear = ds_params.l_shear.values
-    fn_nc = IMAGE_FILENAME_FORMAT.format(
-        h=h, length=length, dx=dx, l_shear=l_shear, shape=shape, filetype="nc"
-    )
+    fn = _make_filename(ds_params=ds_params, filetype="mask.nc")
+    p = Path(output_path) / fn
 
-    p = Path(output_path) / fn_nc
     if not p.exists():
+        h, length, dx, shape = (
+            ds_params.h.values,
+            ds_params.length.values,
+            ds_params.dx.values,
+            ds_params.shape.values,
+        )
+        l_shear = ds_params.l_shear.values
         ds_synth = make_mask(h=h, length=length, dx=dx, shape=shape, l_shear=l_shear)
         ds_synth.to_netcdf(str(p))
     else:
@@ -102,6 +113,7 @@ def create_figure(
         shape=reference_shape,
         lm_range=slice(1.0 / 4.0, 9),
         calc_kwargs=dict(N_points=400),
+        reference_data_path=temp_files_path,
     )
 
     ds_study = xr.Dataset(
@@ -130,11 +142,13 @@ def create_figure(
     else:
         iterator = lambda v: v  # noqa
 
+    datasets = []
     for i in iterator(range(len(ds_flat.i))):
         ds_params = ds_flat.isel(i=i)
 
         img = _get_mask_image(ds_params=ds_params, output_path=temp_files_path)
         ds_scales = _calc_scales(ds_params=ds_params, output_path=temp_files_path)
+        ds_scales = ds_scales.assign_coords(object_id=[i])
 
         lx, ly = 0.04, 0.04
         extent = np.array(
@@ -146,6 +160,7 @@ def create_figure(
             ]
         ).T[0]
         ax.imshow(img, extent=extent)
+        datasets.append(xr.merge([ds_scales, ds_params]))
 
     ax.set_xlim(-0.01, 0.25)
     ax.set_ylim(-0.01, 0.55)
@@ -153,7 +168,7 @@ def create_figure(
     sns.despine()
     ax.legend(loc="upper right")
 
-    return fig
+    return ax, xr.concat(datasets, dim="object_id")
 
 
 if __name__ == "__main__":

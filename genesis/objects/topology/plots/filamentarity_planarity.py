@@ -1,6 +1,7 @@
 from . import shapes as plot_shapes
 from ..minkowski import analytical as minkowski_analytical
 from ....utils.plot_types import multi_jointplot
+from ....utils import xarray as xarray_utils
 
 import seaborn as sns
 import numpy as np
@@ -19,8 +20,12 @@ def plot_reference(  # noqa
     include_shape_diagram=True,
     calc_kwargs={},
     lm_label_sel=lambda lm: lm != 1.0,  # usually outside since lm=1 is at the origin
+    reference_data_path=None,
     **kwargs,
 ):
+    """
+    If `reference_data_path` is provided the calculations will be cache there
+    """
     # the ellipsoid lines are plotted using the spheroid lambda values and so
     # we show the spheroid lines too
     plot_ellipsoid_lines = False
@@ -33,7 +38,13 @@ def plot_reference(  # noqa
     except AttributeError:
         raise NotImplementedError(shape)
 
-    ds = minkowski_analytical.calc_analytical_scales(shape=shape, **calc_kwargs)
+    ds = xarray_utils.cache_to_file(
+        path=reference_data_path,
+        fname=f"fp_scales_reference_{str(lm_range)}.nc",
+        func=minkowski_analytical.calc_analytical_scales,
+        shape=shape,
+        **calc_kwargs,
+    )
 
     if lm_range is not None:
         ds = ds.swap_dims(dict(i="lm")).sel(lm=lm_range).swap_dims(dict(lm="i"))
@@ -84,9 +95,15 @@ def plot_reference(  # noqa
         for lm_pt in lm_[lm_ > 1.0]:
             calc_kwargs["N_points"] = int(N_points_calc / 5 * int(lm_pt ** 0.4))
             kwargs["linestyle"] = ":"
-            ds_ellip = minkowski_analytical.calc_analytical_scales(
-                shape="ellipsoid", lm=lm_pt, **calc_kwargs
+            ds_ellip = xarray_utils.cache_to_file(
+                path=reference_data_path,
+                fname=f"fp_scales_reference_ellipsoid_{lm_pt}.nc",
+                func=minkowski_analytical.calc_analytical_scales,
+                shape="ellipsoid",
+                lm=lm_pt,
+                **calc_kwargs,
             )
+
             ax.plot(ds_ellip.planarity, ds_ellip.filamentarity, zorder=0.9, **kwargs)
 
             alpha = _find_integer_values(ds_ellip.alpha.values)
