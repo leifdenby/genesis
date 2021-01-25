@@ -1,6 +1,6 @@
-from genesis.objects.topology.plots import shapes as plot_shapes
-from genesis.objects.topology import minkowski_analytical
-from genesis.utils.plot_types import multi_jointplot
+from . import shapes as plot_shapes
+from ..minkowski import analytical as minkowski_analytical
+from ....utils.plot_types import multi_jointplot
 
 import seaborn as sns
 import numpy as np

@@ -73,16 +73,34 @@ def cylinder(ax, x_c, y_c, l, r, color, r_label="r", h_label="h"):
     )
 
 
-def spheroid(ax, x_c, y_c, l, r, color, y_axis_3d_len=0.05, r_label="r", h_label="h", render_back=True):
+def spheroid(
+    ax,
+    x_c,
+    y_c,
+    l,
+    r,
+    color,
+    y_axis_3d_len=0.05,
+    r_label="r",
+    h_label="h",
+    render_back=True,
+):
     """
     Spheroid rendered at (x_c, y_c) with height `2*l` and width `2*r`. The length
     of the projected cutout y-axis is given by `y_axis_3d_len`, changing this
     value changes the effective viewing angle.
     """
 
-    kwargs = dict(transform=ax.transAxes, facecolor="None", edgecolor=color,)
+    kwargs = dict(
+        transform=ax.transAxes,
+        facecolor="None",
+        edgecolor=color,
+    )
 
-    ln_kwargs = dict(transform=ax.transAxes, color=color,)
+    ln_kwargs = dict(
+        transform=ax.transAxes,
+        color=color,
+    )
 
     w = 2 * r
 

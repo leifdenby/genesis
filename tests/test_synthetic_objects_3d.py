@@ -7,9 +7,13 @@ import numpy as np
 import xarray as xr
 import seaborn as sns
 import matplotlib.pyplot as plt
+import tempfile
 
 from genesis.utils.xarray import apply_all
 from genesis.objects.synthetic import discrete, ellipsoid
+from genesis.objects.topology.plots import synthetic_discrete_objects
+
+TEMP_DATA_PATH = tempfile.TemporaryDirectory().name
 
 
 def test_create_object_masks_3d():
@@ -134,3 +138,9 @@ def test_make_ellipsoid_mask():
     ds["mask_rot"] = (ds.x_3d.dims, mask)
 
     ellipsoid.plot_shape_mask(ds)
+
+
+def test_plot_fp_reference_figure():
+    synthetic_discrete_objects.create_figure(
+        temp_files_path=TEMP_DATA_PATH, dx=10.0, l_shear_max=1000.0, length_max=4.0
+    )

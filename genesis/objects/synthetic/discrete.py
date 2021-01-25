@@ -138,6 +138,7 @@ def make_mask(h, length, dx, shape, l_shear):
         ds = make_thermal_mask(grid, r0=r0, h=h, shear_distance=l_shear)
 
     ds["r0"] = r0
+    ds.attrs["dx"] = dx
 
     return ds
 
