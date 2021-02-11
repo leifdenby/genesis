@@ -87,6 +87,8 @@ class CumulantScalesProfile(luigi.Task):
     filetype = luigi.Parameter(default="pdf")
     scale_limits = luigi.Parameter(default="")
 
+    reference_line_heights = luigi.ListParameter(default=[])
+
     mask = luigi.Parameter(default=None)
     mask_args = luigi.Parameter(default="")
 
@@ -130,11 +132,12 @@ class CumulantScalesProfile(luigi.Task):
 
         plot_fn = length_scales.cumulant.vertical_profile.plot.plot
 
-        plot_fn(
+        axes = plot_fn(
             data=ds,
             cumulants=cumulants_s,
             plot_type=self.plot_type,
             scale_limits=self._parse_scale_limits(),
+            reference_line_heights=self.reference_line_heights,
         )
 
         plt.savefig(self.output().path, bbox_inches="tight")

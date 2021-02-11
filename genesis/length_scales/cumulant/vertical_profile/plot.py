@@ -196,13 +196,17 @@ def plot(
     split_subplots=True,
     with_legend=True,
     fill_between_alpha=0.2,
-    add_asymmetry_markers=True,
+    add_asymmetry_markers=None,
+    reference_line_heights=[],
     **kwargs,
 ):
     scale_limits = kwargs.pop("scale_limits", {})
 
     if plot_type not in ["angles", "scales"]:
         raise Exception
+
+    if plot_type == "angles" and add_asymmetry_markers is None:
+        add_asymmetry_markers = True
 
     if len(cumulants) == 0:
         cumulants = data.cumulant.values
@@ -237,6 +241,9 @@ def plot(
                 ax = axes[i]
             else:
                 ax = axes
+
+        for z_ in reference_line_heights:
+            ax.axhline(z_, linestyle="--", color="grey", alpha=0.6)
 
         for p in data.dataset_name.values:
             d = (
