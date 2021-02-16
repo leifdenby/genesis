@@ -14,6 +14,8 @@ import xarray as xr
 import seaborn as sns
 import matplotlib.pyplot as plt
 import tqdm
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+
 
 from ..minkowski import discrete as minkowski_discrete
 from ...synthetic.discrete import make_mask
@@ -21,6 +23,22 @@ from .filamentarity_planarity import plot_reference as plot_fp_ref
 
 
 TEMP_FILENAME_FORMAT = "{h}_{length}_{dx}_{l_shear}_{shape}.{filetype}"
+
+
+def _add_text_fp_diagram(ax):
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    ax.set_xlabel("planarity")
+    ax.set_ylabel("filamentarity")
+
+    ax.text(0.25, 0.25, "$L \\approx W \\approx T$", ha="center")
+    ax.text(0.25, 0.75, "$L > W \\approx T$", ha="center")
+    ax.text(0.75, 0.75, "$L > W > T$", ha="center")
+    ax.text(0.75, 0.25, "$L \\approx W > T$", ha="center")
+    ax.set_xticks([])
+    ax.set_yticks([])
+
+    sns.despine(ax=ax)
 
 
 def _make_filename(ds_params, filetype):
@@ -104,16 +122,33 @@ def create_figure(
     length_max=8.0,
     l_shear_max=1500.0,
     dx=4.0,
+    xlim=(-0.01, 0.25),
+    ylim=(-0.01, 0.55),
+    aspect=0.5,
+    figsize=(5, 5),
 ):
-    Path(temp_files_path).mkdir(exist_ok=True, parents=True)
-    fig, ax = plt.subplots(figsize=(5, 5))
+    if reference_shape == "ellipsoid":
+        x_pos_shape = 1.2
+        y_pos_shape = 0.3
+    else:
+        x_pos_shape = 0.8
+        y_pos_shape = 0.5
+
+    temp_files_path = Path(temp_files_path).expanduser()
+
+    temp_files_path.mkdir(exist_ok=True, parents=True)
+    fig, ax = plt.subplots(figsize=figsize)
     ax.set_aspect(1)
-    plot_fp_ref(
+    reference_lines = plot_fp_ref(
         ax=ax,
         shape=reference_shape,
         lm_range=slice(1.0 / 4.0, 9),
         calc_kwargs=dict(N_points=400),
         reference_data_path=temp_files_path,
+        include_shape_diagram="at_reference_points",
+        marker="shape",
+        x_pos=x_pos_shape,
+        y_pos=y_pos_shape,
     )
 
     ds_study = xr.Dataset(
@@ -162,13 +197,23 @@ def create_figure(
         ax.imshow(img, extent=extent)
         datasets.append(xr.merge([ds_scales, ds_params]))
 
-    ax.set_xlim(-0.01, 0.25)
-    ax.set_ylim(-0.01, 0.55)
-    ax.set_aspect(0.5)
+    ax.set_xlim(*xlim)
+    ax.set_ylim(*ylim)
+    ax.set_aspect(aspect)
     sns.despine()
-    ax.legend(loc="upper right")
 
-    return ax, xr.concat(datasets, dim="object_id")
+    ax_inset = inset_axes(
+        parent_axes=ax,
+        width="100%",
+        height="100%",
+        bbox_to_anchor=(0.47, ylim[0], 0.16, 0.25),
+        bbox_transform=ax.transData,
+        borderpad=0,
+        axes_kwargs=dict(facecolor="none"),
+    )
+    _add_text_fp_diagram(ax=ax_inset)
+
+    return ax, xr.concat(datasets, dim="object_id"), reference_lines
 
 
 if __name__ == "__main__":
