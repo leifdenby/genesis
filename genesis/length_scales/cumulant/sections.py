@@ -62,7 +62,8 @@ def plot(datasets, var_names, est_method=WidthEstimationMethod.MASS_WEIGHTED):
 
         ax2.grid(which="minor", axis="both", linestyle="--")
 
-    for n, z_ in enumerate(tqdm(z)):
+    # plot in order of decreasing height
+    for n, z_ in enumerate(tqdm(z[::-1])):
 
         for n_d in range(len(datasets)):
             ds_ = datasets[n_d].sel(zt=z_).squeeze().rename(dict(xt="x", yt="y"))
