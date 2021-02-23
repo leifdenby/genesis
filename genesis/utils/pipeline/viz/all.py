@@ -1218,7 +1218,7 @@ class ObjectScaleVsHeightComposition(luigi.Task):
 
         return reqs
 
-    def run(self):
+    def make_plot(self):
         if self.ref_profile_object_filters is None:
             ds = self.input()["base"].open()
             mean_profile_components = ["full domain", "objects"]
@@ -1263,7 +1263,7 @@ class ObjectScaleVsHeightComposition(luigi.Task):
         import ipdb
 
         with ipdb.launch_ipdb_on_exception():
-            ax = objects.flux_contribution.plot(
+            g = objects.flux_contribution.plot(
                 ds=ds,
                 x=self.x,
                 v=self.field_name,
@@ -1280,6 +1280,10 @@ class ObjectScaleVsHeightComposition(luigi.Task):
         N_objects = int(ds.object_id.count())
         plt.suptitle(self.get_suptitle(N_objects=N_objects), y=1.0)
 
+        return g
+
+    def run(self):
+        self.make_plot()
         plt.savefig(self.output().fn, bbox_inches="tight")
 
     def get_suptitle(self, N_objects):

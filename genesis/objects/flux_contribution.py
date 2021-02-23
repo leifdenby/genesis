@@ -150,6 +150,9 @@ def plot(
         y="zt", ax=g.ax_marg_y, hue="sampling", add_legend=add_profile_legend
     )
 
+    # make the underlying dataarray available later
+    setattr(g.ax_marg_y, "_source_data", da_flux_tot)
+
     # add a square marker for the mask
     mask_marker = "s"
     mask_markersize = 4
@@ -220,7 +223,7 @@ def plot(
 
     g.ax_marg_y.set_xlabel(add_newline(g.ax_marg_y.get_xlabel()))
 
-    return g.ax_joint
+    return g
 
 
 def plot_with_areafrac(ds, figsize=(12, 8), legend_ncols=3):
