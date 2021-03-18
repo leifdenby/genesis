@@ -1275,7 +1275,7 @@ class ObjectScaleVsHeightComposition(luigi.Task):
             )
 
         if self.x_max is not None:
-            ax.set_xlim(0.0, self.x_max)
+            g.ax_joint.set_xlim(0.0, self.x_max)
 
         N_objects = int(ds.object_id.count())
         plt.suptitle(self.get_suptitle(N_objects=N_objects), y=1.0)

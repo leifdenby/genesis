@@ -85,6 +85,13 @@ def plot(
     add_profile_legend=True,
     fig_width=7.0,
 ):  # noqa
+    """
+    Using values in `ds` plot a decomposition of the scalar variable `v` with
+    height (assumed to be `zt`) and the variable `x` (with resolution `dx`)
+
+    Mean profiles are assumed to be named `{v}__mean` and the bins in `x` given
+    by `{v}__sum`.
+    """
     def _get_finite_range(vals):
         # turns infs into nans and then we can uses nanmax nanmin
         v = vals.where(~np.isinf(vals), np.nan)
