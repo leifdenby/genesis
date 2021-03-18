@@ -73,7 +73,9 @@ def _integrate_scalar(objects, da, operator):
         fn = getattr(dask_image.ndmeasure, operator)
         operator_units = ""
 
-    vals = fn(da, labels=objects.values, index=object_ids)
+    # NB: the argument to `ndmeasure` functions used to be `labels` rather than
+    # `label_image` before dask-iamge v0.5.0
+    vals = fn(da, label_image=objects.values, index=object_ids)
     if hasattr(vals, "compute"):
         vals = vals.compute()
 
@@ -219,6 +221,8 @@ def integrate(objects, variable, operator=None, **kwargs):
         "volume_integral",
         "maximum",
         "maximum_pos_z",
+        "mean",
+        "sum"
     ]:
         da_scalar = kwargs[variable].squeeze()
         if not objects.zt.equals(da_scalar.zt):
@@ -236,9 +240,15 @@ def integrate(objects, variable, operator=None, **kwargs):
         with ipdb.launch_ipdb_on_exception():
             ds_out = _integrate_scalar(objects=objects, da=da_scalar, operator=operator)
     else:
-        raise NotImplementedError(
-            "Don't know how to calculate `{}`" "".format(variable)
-        )
+        if operator:
+            raise NotImplementedError(
+                f"Don't know how to calculate `{operator}` of `{variable}` with fields"
+                f"{', '.join(kwargs.keys())}`"
+            )
+        else:
+            raise NotImplementedError(
+                "Don't know how to calculate `{}`" "".format(variable)
+            )
     # else:
     # fn_scalar = "{}.{}.nc".format(base_name, variable)
     # if not os.path.exists(fn_scalar):

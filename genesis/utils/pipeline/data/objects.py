@@ -122,6 +122,12 @@ class IdentifyObjects(luigi.Task):
 
 
 class ComputeObjectScales(luigi.Task):
+    """
+    Compute scales given by `variables` (multiple can be given by
+    comma-separation, e.g. variables=`r_equiv,qv_flux__mean`) on objects
+    defined by `mask_method` (optionally with extra mask method arguments with
+    `mask_method_extra_args`) and splitting-scalar `object_splitting_scalar`.
+    """
     object_splitting_scalar = luigi.Parameter()
     base_name = luigi.Parameter()
     mask_method = luigi.Parameter()
