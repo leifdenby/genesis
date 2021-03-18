@@ -307,5 +307,19 @@ rad_tracer_thermals.description = (
 )
 
 
+def rad_tracer_thermals_cb_crop(base_name, cvrxp, z_cb=650.0, num_std_div=1.0):
+    """
+    Same as `rad_tracer_thermals` but clipped to only be defined below cloud-base heigth `z_cb`
+    """
+    mask = rad_tracer_thermals(base_name=base_name, cvrxp=cvrxp, num_std_div=num_std_div)
+    mask = mask.where(mask.zt < z_cb, other=0)
+    return mask
+
+
+rad_tracer_thermals_cb_crop.description = (
+    r"radioactive tracer-based envelope ($\phi' > {num_std_div} \sigma(\phi)$) clipped by cloud-base at z={z_cb}"
+)
+
+
 def clouds(qc, qc_crit=0.1e-3):
     return qc > qc_crit
