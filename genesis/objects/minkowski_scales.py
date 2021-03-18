@@ -10,8 +10,8 @@ from . import topology
 
 
 def main(da_objects):
-    dx = topology.minkowski.find_grid_spacing(da_objects)
-    return topology.minkowski.calc_scales(object_labels=da_objects, dx=dx)
+    dx = topology.minkowski.discrete.find_grid_spacing(da_objects)
+    return topology.minkowski.discrete.calc_scales(object_labels=da_objects, dx=dx)
 
 
 FN_FORMAT = "{base_name}.objects.{objects_name}.minkowski_scales.nc"
