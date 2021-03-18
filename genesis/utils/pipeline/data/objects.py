@@ -607,7 +607,12 @@ class ComputeObjectScale(luigi.Task):
         ds.to_netcdf(self.output().fn)
 
 
-class ComputePerObjectProfiles(luigi.Task):
+class ComputePerObjectAtHeight(luigi.Task):
+    """
+    For each object defined by `mask_method`, `mask_method_extra_args` and
+    `object_splitting_scalar` compute the operation of `op` applied
+    on `field_name` at height `z`
+    """
     base_name = luigi.Parameter()
     mask_method = luigi.Parameter()
     mask_method_extra_args = luigi.Parameter(default="")
@@ -615,7 +620,7 @@ class ComputePerObjectProfiles(luigi.Task):
 
     field_name = luigi.Parameter()
     op = luigi.Parameter()
-    z_max = luigi.FloatParameter(default=None)
+    z = luigi.FloatParameter()
 
     def requires(self):
         return dict(
@@ -632,37 +637,23 @@ class ComputePerObjectProfiles(luigi.Task):
         )
 
     def run(self):
-        input = self.input()
-        da = input["field"].open().squeeze()
-        da_objects = input["objects"].open()
+        inputs = self.input()
+        da_field = inputs["field"].open().squeeze()
+        da_objects = inputs["objects"].open()
 
         object_ids = np.unique(da_objects.chunk(None).values)
         if object_ids[0] == 0:
             object_ids = object_ids[1:]
 
         kwargs = dict(
-            scalar=da.name, objects=da_objects.name, object_ids=object_ids, op=self.op
+            scalar=da_field.name, objects=da_objects.name, object_ids=object_ids, op=self.op
         )
 
-        ds = xr.merge([da, da_objects])
+        da_ = da_field.sel(zt=self.z).compute()
+        da_objects_ = da_objects.sel(zt=self.z).compute()
 
-        if self.z_max is not None:
-            ds = ds.sel(zt=slice(None, self.z_max))
-
-        da_by_height = ds.groupby("zt").apply(self._apply_on_slice, kwargs=kwargs)
-
-        da_by_height.to_netcdf(self.output().fn)
-
-    @staticmethod
-    def _apply_on_slice(ds, kwargs):
-        da_ = ds[kwargs["scalar"]].compute()
-        da_objects_ = ds[kwargs["objects"]].compute()
-        object_ids = kwargs["object_ids"]
         fn = getattr(dask_image.ndmeasure, kwargs["op"])
-        try:
-            v = fn(da_, labels=da_objects_, index=object_ids).compute()
-        except TypeError:
-            v = fn(da_, label_image=da_objects_, index=object_ids).compute()
+        v = fn(da_, label_image=da_objects_, index=object_ids).compute()
         da = xr.DataArray(data=v, dims=["object_id"], coords=dict(object_id=object_ids))
         da.name = "{}__{}".format(da_.name, kwargs["op"])
         da.attrs["units"] = da_.units
@@ -670,7 +661,64 @@ class ComputePerObjectProfiles(luigi.Task):
             kwargs["op"],
             da_.long_name,
         )
-        return da
+        da.coords['zt'] = self.z
+        da.coords['time'] = da_field.time
+
+        da.to_netcdf(self.output().fn)
+
+    def output(self):
+        mask_name = MakeMask.make_mask_name(
+            base_name=self.base_name,
+            method_name=self.mask_method,
+            method_extra_args=self.mask_method_extra_args,
+        )
+        fn = f"{self.base_name}.{mask_name}.{self.field_name}__{self.op}_at_z{self.z}.nc"
+        p = get_workdir() / self.base_name / fn
+        target = XArrayTarget(str(p))
+        return target
+
+
+class ComputePerObjectProfiles(luigi.Task):
+    """
+    For each object defined by `mask_method`, `mask_method_extra_args` and
+    `object_splitting_scalar` compute a profile of the operation `op` applied
+    on `field_name` as a function of height
+    """
+    base_name = luigi.Parameter()
+    mask_method = luigi.Parameter()
+    mask_method_extra_args = luigi.Parameter(default="")
+    object_splitting_scalar = luigi.Parameter()
+
+    field_name = luigi.Parameter()
+    op = luigi.Parameter()
+    z_max = luigi.FloatParameter(default=None)
+
+    def requires(self):
+        return ExtractField3D(
+                base_name=self.base_name,
+                field_name=self.field_name,
+        )
+
+    def run(self):
+        da_field = self.input().open()
+
+        z_values = da_field.sel(zt=slice(None, self.z_max)).zt.values
+
+        tasks = [ComputePerObjectAtHeight(
+            base_name=self.base_name,
+            mask_method=self.mask_method,
+            mask_method_extra_args=self.mask_method_extra_args,
+            object_splitting_scalar=self.object_splitting_scalar,
+            field_name=self.field_name,
+            op=self.op,
+            z=z)
+            for z in z_values
+        ]
+
+        outputs = yield tasks
+
+        da_by_height = xr.concat([output.open() for output in outputs], dim="zt")
+        da_by_height.to_netcdf(self.output().fn)
 
     def output(self):
         mask_name = MakeMask.make_mask_name(
