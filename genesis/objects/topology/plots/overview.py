@@ -10,10 +10,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from genesis.objects import get_data
-
-from genesis.objects.topology.plots import filamentarity_planarity
-
+from ... import get_data
+from . import filamentarity_planarity
 from ....utils import wrap_angles
 
 
