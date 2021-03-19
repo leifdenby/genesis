@@ -949,17 +949,14 @@ class ComputeObjectScaleVsHeightComposition(luigi.Task):
         return ds
 
     def run(self):
-        import ipdb
+        if "+" in self.base_name:
+            ds = self._run_multiple()
+        else:
+            ds = self._run_single()
 
-        with ipdb.launch_ipdb_on_exception():
-            if "+" in self.base_name:
-                ds = self._run_multiple()
-            else:
-                ds = self._run_single()
-
-            fn = self.output().fn
-            Path(fn).parent.mkdir(parents=True, exist_ok=True)
-            ds.to_netcdf(fn)
+        fn = self.output().fn
+        Path(fn).parent.mkdir(parents=True, exist_ok=True)
+        ds.to_netcdf(fn)
 
     def output(self):
         mask_name = MakeMask.make_mask_name(

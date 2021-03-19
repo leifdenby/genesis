@@ -143,23 +143,20 @@ class Aggregate2DCrossSectionOnTrackedObjects(luigi.Task):
         else:
             values = np.nan * np.ones(object_ids.shape)
 
-        import ipdb
+        da = xr.DataArray(
+            values,
+            dims=("object_id"),
+            coords={"object_id": object_ids},
+        )
 
-        with ipdb.launch_ipdb_on_exception():
-            da = xr.DataArray(
-                values,
-                dims=("object_id"),
-                coords={"object_id": object_ids},
-            )
+        if "long_name" in da_values:
+            da.attrs["long_name"] = da_values.long_name + "__{}".format(op)
 
-            if "long_name" in da_values:
-                da.attrs["long_name"] = da_values.long_name + "__{}".format(op)
+        if "units" in da_values:
+            da.attrs["units"] = da_values.units
 
-            if "units" in da_values:
-                da.attrs["units"] = da_values.units
-
-            # include time
-            da = da.expand_dims(dict(time=da_values.expand_dims("time").time))
+        # include time
+        da = da.expand_dims(dict(time=da_values.expand_dims("time").time))
 
         return da
 
@@ -324,31 +321,29 @@ class AllObjectsAll2DCrossSectionAggregations(luigi.Task):
                 continue
 
             # find all objects that were present at this time
-            import ipdb
 
-            with ipdb.launch_ipdb_on_exception():
-                object_ids = da_agg_all.object_id
-                # XXX: it appears there may be another bug here, this time with
-                # the start/end time of object appearance
-                # object_ids = all_object_ids.where(
-                # ((da_tstart <= time) * (time <= da_tend)), drop=True
-                # )
+            object_ids = da_agg_all.object_id
+            # XXX: it appears there may be another bug here, this time with
+            # the start/end time of object appearance
+            # object_ids = all_object_ids.where(
+            # ((da_tstart <= time) * (time <= da_tend)), drop=True
+            # )
 
-                for object_id in object_ids.values:
-                    try:
-                        da_obj = da_agg_all.sel(object_id=object_id)
-                    except KeyError:
-                        # NOTE: the tracking code has as bug so that tmax refers to the next
-                        # timestep *after* unless the object exists in the very last
-                        # timestep. We want to know which objects exist at the very last
-                        # timestep examined, so we need to handle the indexing here and
-                        # create a fake datasets with nans
-                        da_obj = np.nan * da_agg_all.isel(object_id=0)
-                        da_obj = da_obj.assign_coords(dict(object_id=object_id))
+            for object_id in object_ids.values:
+                try:
+                    da_obj = da_agg_all.sel(object_id=object_id)
+                except KeyError:
+                    # NOTE: the tracking code has as bug so that tmax refers to the next
+                    # timestep *after* unless the object exists in the very last
+                    # timestep. We want to know which objects exist at the very last
+                    # timestep examined, so we need to handle the indexing here and
+                    # create a fake datasets with nans
+                    da_obj = np.nan * da_agg_all.isel(object_id=0)
+                    da_obj = da_obj.assign_coords(dict(object_id=object_id))
 
-                    if not object_id in das_agg_objs:
-                        das_agg_objs[object_id] = []
-                    das_agg_objs[object_id].append(da_obj)
+                if not object_id in das_agg_objs:
+                    das_agg_objs[object_id] = []
+                das_agg_objs[object_id].append(da_obj)
 
         # free up some memory
         del agg_output
@@ -377,8 +372,6 @@ class AllObjectsAll2DCrossSectionAggregations(luigi.Task):
             # if t_end_obj == da_time.isel(time=-1) + dt:
             # pass
             # else:
-            # import ipdb
-            # ipdb.set_trace()
             # raise Exception("")
 
             if self.use_relative_time_axis:

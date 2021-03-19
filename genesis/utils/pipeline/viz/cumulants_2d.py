@@ -54,13 +54,11 @@ class CumulantSlices(luigi.Task):
             datasets.append(ds)
 
         plot_fn = length_scales.cumulant.sections.plot
-        import ipdb
 
-        with ipdb.launch_ipdb_on_exception():
-            ax = plot_fn(
-                datasets=datasets,
-                var_names=[self.v1, self.v2],
-            )
+        ax = plot_fn(
+            datasets=datasets,
+            var_names=[self.v1, self.v2],
+        )
 
         return ax
 

@@ -4,7 +4,6 @@ import warnings
 import importlib
 import re
 
-import ipdb
 import luigi
 import xarray as xr
 import numpy as np
@@ -133,8 +132,7 @@ class ExtractField3D(luigi.Task):
                             for (k, input) in self.input().items()
                         ]
                     )
-                    with ipdb.launch_ipdb_on_exception():
-                        da = func(**das_input)
+                    da = func(**das_input)
                     # XXX: remove infs for now
                     da = da.where(~np.isinf(da))
                     da.to_netcdf(self.output().fn)
@@ -366,12 +364,9 @@ class Extract2DCloudbaseStateFrom3D(luigi.Task):
         dz = find_vertical_grid_spacing(da_scalar_3d)
         z_cb = da_cldbase_2d.sel(time=da_scalar_3d.time).squeeze()
 
-        import ipdb
-
-        with ipdb.launch_ipdb_on_exception():
-            da_cb = self._extract_from_3d_at_heights_in_2d(
-                da_3d=da_scalar_3d, z_2d=z_cb - dz
-            )
+        da_cb = self._extract_from_3d_at_heights_in_2d(
+            da_3d=da_scalar_3d, z_2d=z_cb - dz
+        )
         da_cb = da_cb.squeeze()
         da_cb.name = self.field_name
         Path(self.output().fn).parent.mkdir(exist_ok=True, parents=True)

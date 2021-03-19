@@ -106,28 +106,25 @@ class CloudTriggeringCrossSectionAnimationFrame(luigi.Task):
             .plot.contour(ax=ax, colors=["blue"], levels=[0.5])
         )
 
-        import ipdb
+        text_bbox = dict(facecolor="white", alpha=0.5, edgecolor="none")
 
-        with ipdb.launch_ipdb_on_exception():
-            text_bbox = dict(facecolor="white", alpha=0.5, edgecolor="none")
+        thrm_ids = np.unique(da_nrthrm.sel(**kws))
+        thrm_ids = thrm_ids[~np.isnan(thrm_ids)]
+        for t_id in thrm_ids:
+            x_t = da_x_thrm.sel(object_id=t_id)
+            y_t = da_y_thrm.sel(object_id=t_id)
 
-            thrm_ids = np.unique(da_nrthrm.sel(**kws))
-            thrm_ids = thrm_ids[~np.isnan(thrm_ids)]
-            for t_id in thrm_ids:
-                x_t = da_x_thrm.sel(object_id=t_id)
-                y_t = da_y_thrm.sel(object_id=t_id)
+            ax.scatter(x_t, y_t, marker="x", color="black")
+            ax.text(x_t, y_t, int(t_id), color="black", bbox=text_bbox, va="bottom")
 
-                ax.scatter(x_t, y_t, marker="x", color="black")
-                ax.text(x_t, y_t, int(t_id), color="black", bbox=text_bbox, va="bottom")
+        cloud_ids = np.unique(da_nrcloud.sel(**kws))
+        cloud_ids = cloud_ids[~np.isnan(cloud_ids)]
+        for c_id in cloud_ids:
+            x_t = da_x_cloud.sel(object_id=c_id)
+            y_t = da_y_cloud.sel(object_id=c_id)
 
-            cloud_ids = np.unique(da_nrcloud.sel(**kws))
-            cloud_ids = cloud_ids[~np.isnan(cloud_ids)]
-            for c_id in cloud_ids:
-                x_t = da_x_cloud.sel(object_id=c_id)
-                y_t = da_y_cloud.sel(object_id=c_id)
-
-                ax.scatter(x_t, y_t, marker="x", color="blue")
-                ax.text(x_t, y_t, int(c_id), color="blue", bbox=text_bbox)
+            ax.scatter(x_t, y_t, marker="x", color="blue")
+            ax.text(x_t, y_t, int(c_id), color="blue", bbox=text_bbox)
 
         if len(self.center_pt) == 2:
             x_c, y_c = self.center_pt

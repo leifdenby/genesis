@@ -609,14 +609,11 @@ class FilamentarityPlanarityComparison(ObjectScalesComparison):
 
         ds.coords["dataset"] = ds.groupby("dataset").apply(get_new_dataset_label)
 
-        import ipdb
+        g = objects.topology.plots.filamentarity_planarity(
+            ds=ds, reference_shape=self.reference_shape
+        )
 
-        with ipdb.launch_ipdb_on_exception():
-            g = objects.topology.plots.filamentarity_planarity(
-                ds=ds, reference_shape=self.reference_shape
-            )
-
-            g.ax_joint.set_ylim(0.0, 0.95)
+        g.ax_joint.set_ylim(0.0, 0.95)
 
         extra_artists = g.fig.get_default_bbox_extra_artists()
         st_str = self.get_suptitle()
@@ -1260,19 +1257,16 @@ class ObjectScaleVsHeightComposition(luigi.Task):
                 for dim in ds.dims:
                     scaling_factors[dim] = float(self.scale_by)
 
-        import ipdb
-
-        with ipdb.launch_ipdb_on_exception():
-            g = objects.flux_contribution.plot(
-                ds=ds,
-                x=self.x,
-                v=self.field_name,
-                dx=self.dx,
-                mean_profile_components=mean_profile_components,
-                add_profile_legend=self.add_profile_legend,
-                fig_width=self.fig_width,
-                # scaling_factors=scaling_factors
-            )
+        g = objects.flux_contribution.plot(
+            ds=ds,
+            x=self.x,
+            v=self.field_name,
+            dx=self.dx,
+            mean_profile_components=mean_profile_components,
+            add_profile_legend=self.add_profile_legend,
+            fig_width=self.fig_width,
+            # scaling_factors=scaling_factors
+        )
 
         if self.x_max is not None:
             g.ax_joint.set_xlim(0.0, self.x_max)

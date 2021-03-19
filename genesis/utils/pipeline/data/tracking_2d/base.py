@@ -110,10 +110,7 @@ class XArrayTargetUCLALESTracking(XArrayTarget):
                 else:
                     ds[v] = da_new
 
-        import ipdb
-
-        with ipdb.launch_ipdb_on_exception():
-            return xr.decode_cf(ds)
+        return xr.decode_cf(ds)
 
     def open(self, *args, **kwargs):
         try:
