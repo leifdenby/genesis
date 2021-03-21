@@ -37,6 +37,7 @@ class ObjectScaleVsHeightComposition(luigi.Task):
     ref_profile_object_filters = luigi.Parameter(default=None)
 
     add_profile_legend = luigi.BoolParameter(default=True)
+    add_height_histogram = luigi.BoolParameter(default=True)
     include_mask_profile = luigi.BoolParameter(default=True)
     fig_width = luigi.FloatParameter(default=7.0)
 
@@ -114,6 +115,7 @@ class ObjectScaleVsHeightComposition(luigi.Task):
             dx=self.dx,
             mean_profile_components=mean_profile_components,
             add_profile_legend=self.add_profile_legend,
+            add_height_histogram=self.add_height_histogram,
             fig_width=self.fig_width,
             # scaling_factors=scaling_factors
         )
