@@ -15,7 +15,7 @@ import warnings
 def plot_reference(  # noqa
     ax,
     shape,
-    lm_range=None,
+    lm_range=slice(1.0 / 4.0, 9),
     linestyle="-",
     marker="o",
     x_pos=0.85,
@@ -26,6 +26,7 @@ def plot_reference(  # noqa
     calc_kwargs={},
     lm_label_sel=lambda lm: lm,  # usually outside since lm=1 is at the origin
     reference_data_path=None,
+    legend_fn=None,
     **kwargs,
 ):
     """
@@ -272,10 +273,17 @@ def plot_reference(  # noqa
         "reference lines\n"
         "fixed volume: $v_0=\\frac{4}{3}\\pi a b c=\\frac{4}{3}\\pi r_0^3$, "
     )
-    legend = ax.legend(
+
+    if legend_fn is None:
+        legend_fn = ax.legend
+
+    handles, labels = ax.get_legend_handles_labels()
+    legend = legend_fn(
         title=legend_text,
+        labels=labels,
+        handles=handles,
         loc="upper left",
-        bbox_to_anchor=[1.1, 1.0],
+        bbox_to_anchor=[1.2, 1.0],
     )
     plt.setp(legend.get_title(), multialignment="center")
 
@@ -330,29 +338,33 @@ def main(ds, auto_scale=True, reference_shape="spheroid"):
             z="dataset",
             ds=ds,
             joint_type="kde",
+            joint_kwargs=dict(marker=".", alpha=0.2),
         )
 
+        # store a reference to labels we already have in the legend
+        jp_labels = [t.get_text() for t in g.ax_joint.get_legend().texts]
+        jp_handles = g.ax_joint.get_legend().legendHandles
+
         LABEL_FORMAT = "{name}: {count} objects"
-        g.ax_joint.legend(
-            labels=[
-                LABEL_FORMAT.format(
-                    name=d.item(),
-                    count=int(
-                        ds.sel(dataset=d).dropna(dim="object_id").object_id.count()
-                    ),
-                )
-                for d in ds.dataset
-            ],
-            bbox_to_anchor=[0.5, -0.2],
-            loc="lower center",
-            ncol=2,
-        )
+
+        def legend_fn(labels, handles, **kwargs):
+            labels = list(labels) + jp_labels
+            handles = list(handles) + jp_handles
+            # kwargs['bbox_to_anchor']=[0.5, -0.2]
+            # kwargs['loc']="lower center"
+            # kwargs['ncol'] = 2
+            return g.ax_joint.legend(
+                labels=labels,
+                handles=handles,
+                **kwargs,
+            )
 
         plot_reference(
             ax=g.ax_joint,
             shape=reference_shape,
             color="black",
             lm_label_sel=lambda lm: lm > 2.0,
+            legend_fn=legend_fn,
         )
 
     if auto_scale:

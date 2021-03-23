@@ -41,7 +41,7 @@ def cache_to_file(path, func, fname=None, *args, **kwargs):
     If `fname` is not `None` cach the resuls of calling `func(*args, **kwargs)` to `path/fname`
     """
     ds = None
-    if fname:
+    if path and fname:
         p = Path(path) / fname
         if p.exists():
             ds = xr.open_dataset(str(p))
@@ -49,7 +49,7 @@ def cache_to_file(path, func, fname=None, *args, **kwargs):
     if ds is None:
         ds = func(*args, **kwargs)
 
-    if fname:
+    if path and fname:
         p = Path(path) / fname
         if not p.exists():
             ds.to_netcdf(str(p))

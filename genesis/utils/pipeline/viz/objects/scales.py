@@ -8,10 +8,9 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-from ..... import length_scales
-from .... import objects
-from ... import data
+from ..... import length_scales, objects
 from .... import plot_types
+from ... import data
 
 
 class ObjectScalesComparison(luigi.Task):
@@ -20,12 +19,19 @@ class ObjectScalesComparison(luigi.Task):
     file_type = luigi.Parameter(default="png")
 
     def _parse_plot_definition(self):
+        if type(self.plot_definition) == str and self.plot_definition.endswith(".yaml"):
+            loader = getattr(yaml, "FullLoader", yaml.Loader)
+            try:
+                with open("{}.yaml".format(self.plot_definition)) as fh:
+                    return yaml.load(fh, Loader=loader)
+            except IOError:
+                pass
+
+        if type(self.plot_definition) == dict:
+            return self.plot_definition
+
         loader = getattr(yaml, "FullLoader", yaml.Loader)
-        try:
-            with open("{}.yaml".format(self.plot_definition)) as fh:
-                return yaml.load(fh, Loader=loader)
-        except IOError:
-            return yaml.load(self.plot_definition, Loader=loader)
+        return yaml.load(self.plot_definition, Loader=loader)
 
     def requires(self):
         plot_definition = self._parse_plot_definition()

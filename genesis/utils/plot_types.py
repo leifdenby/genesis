@@ -226,7 +226,16 @@ def make_marker_plot(x, y, scale=100.0, ax=None, marker="o", **kwargs):
     return ax
 
 
-def multi_jointplot(x, y, z, ds, joint_type="pointhist", lgd_ncols=1, **kwargs):
+def multi_jointplot(
+    x,
+    y,
+    z,
+    ds,
+    joint_type="pointhist",
+    lgd_ncols=1,
+    joint_kwargs=dict(alpha=0.5, marker="."),
+    **kwargs
+):
     """
     like seaborn jointplot but making it possible to plot for multiple (up to
     four) datasets
@@ -272,9 +281,9 @@ def multi_jointplot(x, y, z, ds, joint_type="pointhist", lgd_ncols=1, **kwargs):
 
             point_hist()
         elif joint_type == "scatter":
-            _ = g.ax_joint.scatter(ds_[x], ds_[y], color=c, alpha=0.5, marker=".")
+            _ = g.ax_joint.scatter(ds_[x], ds_[y], color=c, **joint_kwargs)
         elif joint_type == "kde":
-            _ = g.ax_joint.scatter(ds_[x], ds_[y], color=c, alpha=0.5, marker=".")
+            _ = g.ax_joint.scatter(ds_[x], ds_[y], color=c, **joint_kwargs)
             sns.kdeplot(ds_[x], ds_[y], cmap=cmap, ax=g.ax_joint, n_levels=5)
         else:
             raise NotImplementedError(joint_type)
