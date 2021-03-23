@@ -3,10 +3,11 @@ import numpy as np
 
 from pathlib import Path
 import os
-from ...calc_flux import z_center_field
+from ... import center_staggered_field
 
 FIELD_NAME_MAPPING = dict(
     w="w_zt",
+    u="u_xt",
     xt="xt",
     yt="yt",
     zt="zt",
@@ -162,7 +163,13 @@ def extract_field_to_filename(dataset_meta, path_out, field_name, **kwargs):  # 
         path_in = path_in.parent / path_in.name.replace(".w_zt.", ".w.")
         da_w_orig = xr.open_dataarray(path_in, decode_times=False)
         da_w_orig, _ = _fix_long_name(da_w_orig)
-        da = z_center_field(da_w_orig)
+        da = center_staggered_field(da_w_orig)
+        can_symlink = False
+    elif field_name_src == "u_xt":
+        path_in = path_in.parent / path_in.name.replace(".u_xt.", ".u.")
+        da_u_orig = xr.open_dataarray(path_in, decode_times=False)
+        da_u_orig, _ = _fix_long_name(da_u_orig)
+        da = center_staggered_field(da_u_orig)
         can_symlink = False
     elif field_name == "theta_l_v":
         da = _calc_theta_l_v(**kwargs)
