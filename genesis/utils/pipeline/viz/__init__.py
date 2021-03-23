@@ -1,8 +1,4 @@
-from .all import (
-    JointDistProfile,
-    HorizontalMeanProfile,
-    CrossSection
-)
+from .all import JointDistProfile, HorizontalMeanProfile, CrossSection
 
 from .plot_utils import PlotJoinTask  # noqa
 

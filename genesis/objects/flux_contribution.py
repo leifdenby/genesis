@@ -19,6 +19,7 @@ class PlotGrid:
         ylim=None,
         size=None,
         extra_x_marg=False,
+        extra_y_marg=False,
     ):
         # Set up the subplot grid
         try:
@@ -27,16 +28,25 @@ class PlotGrid:
             ratio_x = ratio_y = ratio
         if width is None:
             width = height
-        f = plt.figure(figsize=(width, height))
         N_x_marg = 1 if not extra_x_marg else 2
-        gs = plt.GridSpec(ratio_y + 1, ratio_x + N_x_marg)
+        N_y_marg = 1 if not extra_y_marg else 2
+        f = plt.figure(
+            figsize=(
+                width * (ratio_x + N_x_marg) / ratio_x,
+                height * (ratio_y + N_y_marg) / ratio_y,
+            )
+        )
+        gs = plt.GridSpec(ratio_y + N_y_marg, ratio_x + N_x_marg)
 
-        ax_joint = f.add_subplot(gs[N_x_marg:, :-1])
-        ax_marg_x = f.add_subplot(gs[0, :-1], sharex=ax_joint)
-        ax_marg_y = f.add_subplot(gs[N_x_marg:, -1], sharey=ax_joint)
+        ax_joint = f.add_subplot(gs[N_x_marg:, :-N_y_marg])
+        ax_marg_x = f.add_subplot(gs[0, :-N_y_marg], sharex=ax_joint)
+        ax_marg_y = f.add_subplot(gs[N_x_marg:, -N_y_marg], sharey=ax_joint)
 
         if extra_x_marg:
-            ax_marg_x2 = f.add_subplot(gs[1, :-1], sharex=ax_joint)
+            ax_marg_x2 = f.add_subplot(gs[1, :-N_y_marg], sharex=ax_joint)
+
+        if extra_y_marg:
+            ax_marg_y2 = f.add_subplot(gs[N_x_marg:, -1], sharey=ax_joint)
 
         self.fig = f
         self.ax_joint = ax_joint
@@ -46,6 +56,9 @@ class PlotGrid:
         if extra_x_marg:
             self.ax_marg_x2 = ax_marg_x2
 
+        if extra_y_marg:
+            self.ax_marg_y2 = ax_marg_y2
+
         # Turn off tick visibility for the measure axis on the marginal plots
         plt.setp(ax_marg_x.get_xticklabels(), visible=False)
         plt.setp(ax_marg_y.get_yticklabels(), visible=False)
@@ -54,6 +67,10 @@ class PlotGrid:
 
         if extra_x_marg:
             plt.setp(ax_marg_x2.get_xticklabels(), visible=False)
+
+        if extra_y_marg:
+            plt.setp(ax_marg_y2.get_yticklabels(), visible=False)
+            plt.setp(ax_marg_y2.get_xticklabels(), rotation=30.0)
 
         # Turn off the ticks on the density axis for the marginal plots
         # plt.setp(ax_marg_x.yaxis.get_majorticklines(), visible=False)
@@ -70,6 +87,8 @@ class PlotGrid:
         sns.despine(ax=ax_marg_y, bottom=False)
         if extra_x_marg:
             sns.despine(ax=ax_marg_x2, left=False)
+        if extra_y_marg:
+            sns.despine(ax=ax_marg_y2, left=False)
 
         f.tight_layout()
         f.subplots_adjust(hspace=space, wspace=space)
@@ -80,9 +99,11 @@ def plot(
     x,
     v,
     dx,
+    v_scaling="robust",
     mean_profile_components="all",
     include_x_mean=True,
     add_profile_legend=True,
+    add_height_histogram=True,
     fig_width=7.0,
 ):  # noqa
     """
@@ -92,6 +113,7 @@ def plot(
     Mean profiles are assumed to be named `{v}__mean` and the bins in `x` given
     by `{v}__sum`.
     """
+
     def _get_finite_range(vals):
         # turns infs into nans and then we can uses nanmax nanmin
         v = vals.where(~np.isinf(vals), np.nan)
@@ -101,7 +123,9 @@ def plot(
     if dx is None:
         bins = np.linspace(x_min, x_max, 10)
     else:
-        bins = np.arange(math.floor(x_min / dx) * dx, math.ceil(x_max / dx) * dx, dx)
+        bins = np.arange(
+            math.floor(x_min / dx) * dx, math.ceil(x_max / dx) * dx + dx, dx
+        )
 
     nx = ds.nx
     ny = ds.ny
@@ -116,7 +140,13 @@ def plot(
     bin_centers = 0.5 * (bins[1:] + bins[:-1])
     # fig, axes = plt.subplots(ncols=2, nrows=2, sharex="col", sharey="row", figsize=(10,6))
     fig_height = fig_width - 1.0 if not include_x_mean else fig_width + 0.5
-    g = PlotGrid(ratio=(2, 5), height=fig_height, width=fig_width, extra_x_marg=True)
+    g = PlotGrid(
+        ratio=4,
+        height=fig_height,
+        width=fig_width,
+        extra_x_marg=True,
+        extra_y_marg=add_height_histogram,
+    )
     ds_ = ds.groupby_bins(x, bins=bins, labels=bin_centers)
     da_flux_per_bin = ds_.sum(dim="object_id", dtype=np.float64)[bin_var] / (nx * ny)
     # put in zeroes so that we don't get empty parts of the plots
@@ -128,7 +158,13 @@ def plot(
             "`{x}`".format(x=x)
         )
     da_flux_per_bin.attrs.update(ds[f"{v}__mean"].attrs)
-    pc = da_flux_per_bin.plot(y="zt", ax=g.ax_joint, add_colorbar=False, robust=True)
+    dist_kws = dict(add_colorbar=False, robust=True)
+    if v_scaling == "robust":
+        dist_kws["robust"] = True
+    elif len(v_scaling) == 2:
+        dist_kws["vmin"] = v_scaling[0]
+        dist_kws["vmax"] = v_scaling[1]
+    pc = da_flux_per_bin.plot(y="zt", ax=g.ax_joint, **dist_kws)
     box = g.ax_joint.get_position()
     cb_pad, cb_height = 0.08, 0.02
     cax = g.fig.add_axes(
@@ -208,6 +244,23 @@ def plot(
     da_flux_per_bin_mean.plot(ax=g.ax_marg_x2, color=objects_line_color)
     g.ax_marg_x2.set_xlabel("")
     g.ax_marg_x2.set_title("")
+
+    if add_height_histogram:
+        # add a histogram of the number of objects contributing to the flux at
+        # each height
+        # count per height the number of objects which contribute to the moisture flux
+        N_objs_per_z = (
+            xr.ones_like(ds.object_id)
+            .where(ds.qv_flux__sum != 0, 0)
+            .sum(dim="object_id")
+            .sel(zt=slice(0.0, None))
+        )
+        ax = g.ax_marg_y2
+        N_objs_per_z.plot.step(ax=ax, y="zt", color=objects_line_color)
+        ax.set_xlabel("num objects\ncontributing [1]")
+        ax.set_ylabel("")
+        ax.set_title("")
+        ax.set_xlim(0, None)
 
     # if we have a "all objects" sampling then there will also be one which is
     # the filtered one, we add a few vertical lines to guide the eye to these

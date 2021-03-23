@@ -128,6 +128,7 @@ class ComputeObjectScales(luigi.Task):
     defined by `mask_method` (optionally with extra mask method arguments with
     `mask_method_extra_args`) and splitting-scalar `object_splitting_scalar`.
     """
+
     object_splitting_scalar = luigi.Parameter()
     base_name = luigi.Parameter()
     mask_method = luigi.Parameter()
@@ -613,6 +614,7 @@ class ComputePerObjectAtHeight(luigi.Task):
     `object_splitting_scalar` compute the operation of `op` applied
     on `field_name` at height `z`
     """
+
     base_name = luigi.Parameter()
     mask_method = luigi.Parameter()
     mask_method_extra_args = luigi.Parameter(default="")
@@ -646,7 +648,10 @@ class ComputePerObjectAtHeight(luigi.Task):
             object_ids = object_ids[1:]
 
         kwargs = dict(
-            scalar=da_field.name, objects=da_objects.name, object_ids=object_ids, op=self.op
+            scalar=da_field.name,
+            objects=da_objects.name,
+            object_ids=object_ids,
+            op=self.op,
         )
 
         da_ = da_field.sel(zt=self.z).compute()
@@ -661,8 +666,8 @@ class ComputePerObjectAtHeight(luigi.Task):
             kwargs["op"],
             da_.long_name,
         )
-        da.coords['zt'] = self.z
-        da.coords['time'] = da_field.time
+        da.coords["zt"] = self.z
+        da.coords["time"] = da_field.time
 
         da.to_netcdf(self.output().fn)
 
@@ -672,7 +677,9 @@ class ComputePerObjectAtHeight(luigi.Task):
             method_name=self.mask_method,
             method_extra_args=self.mask_method_extra_args,
         )
-        fn = f"{self.base_name}.{mask_name}.{self.field_name}__{self.op}_at_z{self.z}.nc"
+        fn = (
+            f"{self.base_name}.{mask_name}.{self.field_name}__{self.op}_at_z{self.z}.nc"
+        )
         p = get_workdir() / self.base_name / fn
         target = XArrayTarget(str(p))
         return target
@@ -684,6 +691,7 @@ class ComputePerObjectProfiles(luigi.Task):
     `object_splitting_scalar` compute a profile of the operation `op` applied
     on `field_name` as a function of height
     """
+
     base_name = luigi.Parameter()
     mask_method = luigi.Parameter()
     mask_method_extra_args = luigi.Parameter(default="")
@@ -695,8 +703,8 @@ class ComputePerObjectProfiles(luigi.Task):
 
     def requires(self):
         return ExtractField3D(
-                base_name=self.base_name,
-                field_name=self.field_name,
+            base_name=self.base_name,
+            field_name=self.field_name,
         )
 
     def run(self):
@@ -704,14 +712,16 @@ class ComputePerObjectProfiles(luigi.Task):
 
         z_values = da_field.sel(zt=slice(None, self.z_max)).zt.values
 
-        tasks = [ComputePerObjectAtHeight(
-            base_name=self.base_name,
-            mask_method=self.mask_method,
-            mask_method_extra_args=self.mask_method_extra_args,
-            object_splitting_scalar=self.object_splitting_scalar,
-            field_name=self.field_name,
-            op=self.op,
-            z=z)
+        tasks = [
+            ComputePerObjectAtHeight(
+                base_name=self.base_name,
+                mask_method=self.mask_method,
+                mask_method_extra_args=self.mask_method_extra_args,
+                object_splitting_scalar=self.object_splitting_scalar,
+                field_name=self.field_name,
+                op=self.op,
+                z=z,
+            )
             for z in z_values
         ]
 

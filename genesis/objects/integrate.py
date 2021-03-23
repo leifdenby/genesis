@@ -222,7 +222,7 @@ def integrate(objects, variable, operator=None, **kwargs):
         "maximum",
         "maximum_pos_z",
         "mean",
-        "sum"
+        "sum",
     ]:
         da_scalar = kwargs[variable].squeeze()
         if not objects.zt.equals(da_scalar.zt):

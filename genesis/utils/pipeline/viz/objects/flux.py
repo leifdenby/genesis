@@ -3,6 +3,7 @@ import re
 import luigi
 import xarray as xr
 import matplotlib.pyplot as plt
+from pathlib import Path
 
 from ... import data
 from ..... import objects
@@ -16,6 +17,7 @@ class ObjectScaleVsHeightComposition(luigi.Task):
     can by defining the filters on the objects to consider with
     `ref_profile_object_filters`
     """
+
     x = luigi.Parameter()
     field_name = luigi.Parameter()
 
@@ -29,6 +31,7 @@ class ObjectScaleVsHeightComposition(luigi.Task):
     z_max = luigi.FloatParameter(default=None)
     filetype = luigi.Parameter(default="png")
     x_max = luigi.FloatParameter(default=None)
+    v_scaling = luigi.Parameter(default="robust")
 
     scale_by = luigi.OptionalParameter(default=None)
     object_filters = luigi.Parameter(default=None)
@@ -117,6 +120,7 @@ class ObjectScaleVsHeightComposition(luigi.Task):
             add_profile_legend=self.add_profile_legend,
             add_height_histogram=self.add_height_histogram,
             fig_width=self.fig_width,
+            v_scaling=self.v_scaling,
             # scaling_factors=scaling_factors
         )
 
@@ -130,6 +134,7 @@ class ObjectScaleVsHeightComposition(luigi.Task):
 
     def run(self):
         self.make_plot()
+        Path(self.output().fn).parent.mkdir(exist_ok=True, parents=True)
         plt.savefig(self.output().fn, bbox_inches="tight")
 
     def get_suptitle(self, N_objects):
