@@ -8,6 +8,6 @@ from .base import (
     get_workdir,
 )
 from .extraction import ExtractField3D, Extract2DCloudbaseStateFrom3D
-from .objects import ComputeObjectScaleVsHeightComposition, ComputeObjectScales
+from .objects import ComputeFieldDecompositionByHeightAndObjects, ComputeObjectScales
 from .cumulants import ExtractCumulantScaleProfiles
 from .masking import MakeMask

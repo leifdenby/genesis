@@ -657,7 +657,20 @@ class ComputePerObjectAtHeight(luigi.Task):
         da_ = da_field.sel(zt=self.z).compute()
         da_objects_ = da_objects.sel(zt=self.z).compute()
 
-        fn = getattr(dask_image.ndmeasure, kwargs["op"])
+        # to avoid the confusion where the "area" is requested but what in fact
+        # is returned is the "number of cells" (which is dimensionless) we
+        # enforce here that the "area" cannot be calculated, but instead
+        # "num_cells" can be requested and we use the `area` dask-image op
+        # (which returns the number of cells)
+        op = kwargs["op"]
+        if op == "area":
+            raise Exception(
+                "Shouldn't ask for `area` as it asctually the number of cells"
+            )
+        elif op == "num_cells":
+            op = "area"
+
+        fn = getattr(dask_image.ndmeasure, op)
         v = fn(da_, label_image=da_objects_, index=object_ids).compute()
         da = xr.DataArray(data=v, dims=["object_id"], coords=dict(object_id=object_ids))
         da.name = "{}__{}".format(da_.name, kwargs["op"])
@@ -751,8 +764,7 @@ class ComputePerObjectProfiles(luigi.Task):
         return target
 
 
-class ComputeObjectScaleVsHeightComposition(luigi.Task):
-    x = luigi.Parameter(default=None)
+class ComputeFieldDecompositionByHeightAndObjects(luigi.Task):
     field_name = luigi.Parameter()
 
     base_name = luigi.Parameter()
@@ -764,119 +776,57 @@ class ComputeObjectScaleVsHeightComposition(luigi.Task):
     z_max = luigi.FloatParameter(default=None)
 
     def requires(self):
-        if "+" in self.base_name:
-            # "+" can be used a shorthand to concat objects together from
-            # different datasets
-            base_names = self.base_name.split("+")
-            reqs = dict(
-                [
-                    (
-                        base_name,
-                        ComputeObjectScaleVsHeightComposition(
-                            base_name=base_name,
-                            mask_method=self.mask_method,
-                            mask_method_extra_args=self.mask_method_extra_args,
-                            object_splitting_scalar=self.object_splitting_scalar,
-                            object_filters=self.object_filters,
-                            x=self.x,
-                            field_name=self.field_name,
-                            z_max=self.z_max,
-                        ),
-                    )
-                    for base_name in base_names
-                ]
+        tasks = dict(
+            decomp_profile_ncells=ComputePerObjectProfiles(
+                base_name=self.base_name,
+                mask_method=self.mask_method,
+                mask_method_extra_args=self.mask_method_extra_args,
+                object_splitting_scalar=self.object_splitting_scalar,
+                field_name=self.field_name,
+                op="num_cells",
+                z_max=self.z_max,
+            ),
+            decomp_profile_sum=ComputePerObjectProfiles(
+                base_name=self.base_name,
+                mask_method=self.mask_method,
+                mask_method_extra_args=self.mask_method_extra_args,
+                object_splitting_scalar=self.object_splitting_scalar,
+                field_name=self.field_name,
+                op="sum",
+                z_max=self.z_max,
+            ),
+            da_3d=ExtractField3D(
+                base_name=self.base_name,
+                field_name=self.field_name,
+            ),
+            mask=MakeMask(
+                base_name=self.base_name,
+                method_name=self.mask_method,
+                method_extra_args=self.mask_method_extra_args,
+            ),
+        )
+
+        if self.object_filters is not None:
+            # if we're filtering on a set of scales we just compute a scale
+            # here that's easy so that we get the objects which satisfy the
+            # filter
+            tasks["scales"] = ComputeObjectScales(
+                base_name=self.base_name,
+                mask_method=self.mask_method,
+                mask_method_extra_args=self.mask_method_extra_args,
+                object_splitting_scalar=self.object_splitting_scalar,
+                variables="num_cells",
+                object_filters=self.object_filters,
             )
-            return reqs
-        else:
-            return dict(
-                decomp_profile_ncells=ComputePerObjectProfiles(
-                    base_name=self.base_name,
-                    mask_method=self.mask_method,
-                    mask_method_extra_args=self.mask_method_extra_args,
-                    object_splitting_scalar=self.object_splitting_scalar,
-                    field_name=self.field_name,
-                    op="area",
-                    z_max=self.z_max,
-                ),
-                decomp_profile_sum=ComputePerObjectProfiles(
-                    base_name=self.base_name,
-                    mask_method=self.mask_method,
-                    mask_method_extra_args=self.mask_method_extra_args,
-                    object_splitting_scalar=self.object_splitting_scalar,
-                    field_name=self.field_name,
-                    op="sum",
-                    z_max=self.z_max,
-                ),
-                da_3d=ExtractField3D(
-                    base_name=self.base_name,
-                    field_name=self.field_name,
-                ),
-                scales=ComputeObjectScales(
-                    base_name=self.base_name,
-                    mask_method=self.mask_method,
-                    mask_method_extra_args=self.mask_method_extra_args,
-                    object_splitting_scalar=self.object_splitting_scalar,
-                    variables=self.x,
-                    object_filters=self.object_filters,
-                ),
-                mask=MakeMask(
-                    base_name=self.base_name,
-                    method_name=self.mask_method,
-                    method_extra_args=self.mask_method_extra_args,
-                ),
-            )
-
-    def _run_multiple(self):
-        raise NotImplementedError
-        dss = [input.open() for input in self.input().values()]
-        if len(set([ds.nx for ds in dss])) != 1:
-            raise Exception(
-                "All selected base_names must have same number"
-                " of points in x-direction (nx)"
-            )
-        if len(set([ds.ny for ds in dss])) != 1:
-            raise Exception(
-                "All selected base_names must have same number"
-                " of points in y-direction (ny)"
-            )
-        # we increase the effective area so that the mean flux contribution
-        # is scaled correctly, the idea is that we're just considering a
-        # larger domain now and the inputs are stacked in the x-direction
-        # nx = np.sum([ds.nx for ds in dss])
-        # ny = dss[0].ny
-
-        raise NotImplementedError("Need to finish combining profiles")
-
-        mask_domain_mean_profile_name = "{}__mask_domain_mean".format(self.field_name)
-
-        # strip out the reference profiles, these aren't concatenated but
-        # instead we take the mean, we squeeze here so that for example
-        # `time` isn't kept as a dimension
-        das_profile = [ds[mask_domain_mean_profile_name].squeeze() for ds in dss]
-        dss = [ds.drop(mask_domain_mean_profile_name) for ds in dss]
-
-        # we use the mean profile across datasets for now
-        da_mask_domain_mean_profile = xr.concat(  # noqa
-            das_profile, dim="base_name"
-        ).mean(dim="base_name", dtype=np.float64)
-
-        ds = merge_object_datasets(dss)  # noqa
+        return tasks
 
     def _run_single(self):
         input = self.input()
         da_field_ncells_per_object = input["decomp_profile_ncells"].open().squeeze()
         da_field_sum_per_object = input["decomp_profile_sum"].open()
-        ds_scales = input["scales"].open()
         da_3d = input["da_3d"].open().squeeze()
         da_mask = input["mask"].open().squeeze()
         nx, ny = da_3d.xt.count(), da_3d.yt.count()
-
-        # need to cast scales indexing (int64) to object identifitcation
-        # indexing (uint32) here, otherwise saving goes wrong when merging
-        # (because xarray makes the dtype `object` otherwise)
-        ds_scales["object_id"] = ds_scales.object_id.astype(
-            da_field_ncells_per_object.object_id.dtype
-        )
 
         # calculate domain mean profile
         da_domain_mean_profile = da_3d.mean(
@@ -901,6 +851,13 @@ class ComputeObjectScaleVsHeightComposition(luigi.Task):
         # objects which are in the filtered scales file (as these satisfy the
         # filtering criteria)
         if self.object_filters is not None:
+            ds_scales = input["scales"].open()
+            # need to cast scales indexing (int64) to object identifitcation
+            # indexing (uint32) here, otherwise saving goes wrong when merging
+            # (because xarray makes the dtype `object` otherwise)
+            ds_scales["object_id"] = ds_scales.object_id.astype(
+                da_field_ncells_per_object.object_id.dtype
+            )
 
             def filter_per_object_field(da_field):
                 return da_field.where(da_field.object_id == ds_scales.object_id)
@@ -945,7 +902,6 @@ class ComputeObjectScaleVsHeightComposition(luigi.Task):
         ds = xr.merge(
             [
                 ds_profiles,
-                ds_scales,
                 da_field_ncells_per_object,
                 da_field_sum_per_object,
             ]
@@ -984,12 +940,11 @@ class ComputeObjectScaleVsHeightComposition(luigi.Task):
                 )
             )
         fn = (
-            "{base_name}.{mask_name}.{field_name}__by__{x}"
+            "{base_name}.{mask_name}.{field_name}"
             "{s_filter}.by_z_per_object{ex}.{filetype}".format(
                 base_name=self.base_name,
                 mask_name=mask_name,
                 field_name=self.field_name,
-                x=self.x,
                 filetype="nc",
                 s_filter=s_filter,
                 ex=self.z_max is None and "" or "_to_z" + str(self.z_max),

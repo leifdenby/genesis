@@ -52,18 +52,25 @@ class ObjectScaleVsHeightComposition(luigi.Task):
             object_splitting_scalar=self.object_splitting_scalar,
             field_name=self.field_name,
             z_max=self.z_max,
-            x=self.x,
         )
 
         reqs = dict(
-            base=data.ComputeObjectScaleVsHeightComposition(
+            base=data.ComputeFieldDecompositionByHeightAndObjects(
                 object_filters=self.object_filters,
                 **kwargs,
-            )
+            ),
+            scales=data.ComputeObjectScales(
+                base_name=self.base_name,
+                mask_method=self.mask_method,
+                mask_method_extra_args=self.mask_method_extra_args,
+                object_splitting_scalar=self.object_splitting_scalar,
+                variables=self.x,
+                object_filters=self.object_filters,
+            ),
         )
 
         if self.ref_profile_object_filters is not None:
-            reqs["extra_ref"] = data.ComputeObjectScaleVsHeightComposition(
+            reqs["extra_ref"] = data.ComputeFieldDecompositionByHeightAndObjects(
                 object_filters=self.ref_profile_object_filters, **kwargs
             )
 
@@ -102,6 +109,10 @@ class ObjectScaleVsHeightComposition(luigi.Task):
 
         if not self.include_mask_profile:
             mean_profile_components.remove("mask")
+
+        # make the scale we're binning on available
+        ds_scales = self.input()["scales"].open()
+        ds = xr.merge([ds, ds_scales])
 
         if self.scale_by is not None:
             scaling_factors = {}
