@@ -620,7 +620,7 @@ class ComputePerObjectAtHeight(luigi.Task):
     mask_method_extra_args = luigi.Parameter(default="")
     object_splitting_scalar = luigi.Parameter()
 
-    field_name = luigi.Parameter()
+    field_name = luigi.OptionalParameter(default=None)
     op = luigi.Parameter()
     z = luigi.FloatParameter()
 
@@ -651,7 +651,10 @@ class ComputePerObjectAtHeight(luigi.Task):
             da_field = inputs["field"].open().squeeze()
         else:
             if self.field_name != None:
-                raise Exception(f"Field name should not be given when computing `{self.op}`")
+                raise Exception(
+                    f"Field name should not be given when computing `{self.op}`"
+                    f" (`{self.field_name}` was provided)"
+                )
             da_field = None
 
         object_ids = np.unique(da_objects.chunk(None).values)
@@ -659,7 +662,6 @@ class ComputePerObjectAtHeight(luigi.Task):
             object_ids = object_ids[1:]
 
         kwargs = dict(
-            scalar=da_field.name,
             objects=da_objects.name,
             object_ids=object_ids,
             op=self.op,
@@ -733,20 +735,22 @@ class ComputePerObjectProfiles(luigi.Task):
     mask_method_extra_args = luigi.Parameter(default="")
     object_splitting_scalar = luigi.Parameter()
 
-    field_name = luigi.Parameter()
+    field_name = luigi.OptionalParameter(default=None)
     op = luigi.Parameter()
     z_max = luigi.FloatParameter(default=None)
 
     def requires(self):
-        return ExtractField3D(
+        return IdentifyObjects(
             base_name=self.base_name,
-            field_name=self.field_name,
+            mask_method=self.mask_method,
+            mask_method_extra_args=self.mask_method_extra_args,
+            splitting_scalar=self.object_splitting_scalar,
         )
 
     def run(self):
-        da_field = self.input().open()
+        da_objects = self.input().open()
 
-        z_values = da_field.sel(zt=slice(None, self.z_max)).zt.values
+        z_values = da_objects.sel(zt=slice(None, self.z_max)).zt.values
 
         tasks = [
             ComputePerObjectAtHeight(
@@ -805,7 +809,6 @@ class ComputeFieldDecompositionByHeightAndObjects(luigi.Task):
                 mask_method=self.mask_method,
                 mask_method_extra_args=self.mask_method_extra_args,
                 object_splitting_scalar=self.object_splitting_scalar,
-                field_name=None,
                 op="num_cells",
                 z_max=self.z_max,
             ),

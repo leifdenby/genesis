@@ -295,3 +295,139 @@ class FluxFractionCarriedFiltersComparison(FluxFractionCarried):
 
     def get_suptitle(self):
         return None
+
+
+class ObjectTwoScalesComposition(luigi.Task):
+    """
+    Decompose `field_name` by height and object property `x`, with number and
+    mean-flux distributions shown as margin plots. An extract reference profile
+    can by defining the filters on the objects to consider with
+    `ref_profile_object_filters`
+    """
+
+    x = luigi.Parameter()
+    dx = luigi.FloatParameter(default=None)
+    x_max = luigi.FloatParameter(default=None)
+
+    y = luigi.Parameter()
+    dy = luigi.FloatParameter(default=None)
+    y_max = luigi.FloatParameter(default=None)
+
+    z = luigi.Parameter()
+    field_name = luigi.Parameter()
+
+    base_name = luigi.Parameter()
+    mask_method = luigi.Parameter()
+    mask_method_extra_args = luigi.Parameter(default="")
+    object_splitting_scalar = luigi.Parameter()
+    z_max = luigi.FloatParameter(default=None)
+
+    dx = luigi.FloatParameter(default=None)
+    filetype = luigi.Parameter(default="png")
+
+    scale_by = luigi.OptionalParameter(default=None)
+    object_filters = luigi.Parameter(default=None)
+
+    def requires(self):
+        kwargs = dict(
+            base_name=self.base_name,
+            mask_method=self.mask_method,
+            mask_method_extra_args=self.mask_method_extra_args,
+            object_splitting_scalar=self.object_splitting_scalar,
+            field_name=self.field_name,
+            z_max=self.z_max,
+        )
+
+        reqs = dict(
+            base=data.ComputeFieldDecompositionByHeightAndObjects(
+                object_filters=self.object_filters,
+                **kwargs,
+            ),
+            scales=data.ComputeObjectScales(
+                base_name=self.base_name,
+                mask_method=self.mask_method,
+                mask_method_extra_args=self.mask_method_extra_args,
+                object_splitting_scalar=self.object_splitting_scalar,
+                variables=f"{self.x},{self.y}",
+                object_filters=self.object_filters,
+            ),
+            field=data.ExtractField3D(
+                base_name=self.base_name, field_name=self.field_name
+            ),
+        )
+
+        return reqs
+
+    def make_plot(self):
+        da3d_field = self.input()["field"].open()
+        ds = self.input()["base"].open()
+
+        # make the scale we're binning on available
+        ds_scales = self.input()["scales"].open()
+        ds = xr.merge([ds, ds_scales])
+
+        nx = int(da3d_field.xt.count())
+        ny = int(da3d_field.yt.count())
+        domain_num_cells = nx * ny
+
+        g = objects.flux_contribution.plot_2d_decomposition(
+            ds=ds,
+            x=self.x,
+            y=self.y,
+            v=self.field_name,
+            z=self.z,
+            dx=self.dx,
+            dy=self.dy,
+            domain_num_cells=domain_num_cells
+            # dx=self.dx,
+        )
+
+        if self.x_max is not None:
+            g.set_xlim(0.0, self.x_max)
+
+        if self.y_max is not None:
+            g.set_ylim(0.0, self.y_max)
+
+        N_objects = int(ds.object_id.count())
+        plt.suptitle(self.get_suptitle(N_objects=N_objects), y=1.0)
+
+        return g
+
+    def run(self):
+        self.make_plot()
+        Path(self.output().fn).parent.mkdir(exist_ok=True, parents=True)
+        plt.savefig(self.output().fn, bbox_inches="tight")
+
+    def get_suptitle(self, N_objects):
+        s_filters = objects.filter.latex_format(self.object_filters)
+        return "{} ({} objects)\n{}".format(self.base_name, N_objects, s_filters)
+
+    def output(self):
+        mask_name = data.MakeMask.make_mask_name(
+            base_name=self.base_name,
+            method_name=self.mask_method,
+            method_extra_args=self.mask_method_extra_args,
+        )
+        s_filter = ""
+        if self.object_filters is not None:
+            s_filter = ".filtered_by.{}".format(
+                (
+                    self.object_filters.replace(",", ".")
+                    .replace(":", "__")
+                    .replace("=", "_")
+                )
+            )
+        fn = (
+            "{base_name}.{mask_name}.{field_name}__by__{x}_and_{y}"
+            "{s_filter}.{filetype}".format(
+                base_name=self.base_name,
+                mask_name=mask_name,
+                field_name=self.field_name,
+                x=self.x,
+                y=self.y,
+                filetype=self.filetype,
+                s_filter=s_filter,
+            )
+        )
+        target = luigi.LocalTarget(fn)
+        return target

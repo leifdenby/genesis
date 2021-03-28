@@ -3,8 +3,10 @@ import numpy as np
 import xarray as xr
 import matplotlib.pyplot as plt
 import math
+import re
 
 from ..utils.plot_types import adjust_fig_to_fit_figlegend
+from ..utils.xarray import binned_statistic_2d
 
 
 class PlotGrid:
@@ -94,6 +96,23 @@ class PlotGrid:
         f.subplots_adjust(hspace=space, wspace=space)
 
 
+def _make_equally_spaced_bins(x, dx=None):
+    def _get_finite_range(vals):
+        # turns infs into nans and then we can uses nanmax nanmin
+        v = vals.where(~np.isinf(vals), np.nan)
+        return np.nanmin(v), np.nanmax(v)
+
+    x_min, x_max = _get_finite_range(x)
+    if dx is None:
+        bins = np.linspace(x_min, x_max, 10)
+    else:
+        bins = np.arange(
+            math.floor(x_min / dx) * dx, math.ceil(x_max / dx) * dx + dx, dx
+        )
+
+    return bins
+
+
 def plot(
     ds,
     x,
@@ -119,21 +138,10 @@ def plot(
     `{v}__sum`.
     """
 
-    def _get_finite_range(vals):
-        # turns infs into nans and then we can uses nanmax nanmin
-        v = vals.where(~np.isinf(vals), np.nan)
-        return np.nanmin(v), np.nanmax(v)
-
-    x_min, x_max = _get_finite_range(ds[x])
-    if dx is None:
-        bins = np.linspace(x_min, x_max, 10)
-    else:
-        bins = np.arange(
-            math.floor(x_min / dx) * dx, math.ceil(x_max / dx) * dx + dx, dx
-        )
-
     nx = ds.nx
     ny = ds.ny
+
+    bins = _make_equally_spaced_bins(ds[x], dx=dx)
 
     bin_var = f"{v}__sum"
     # this will be used on all variables, so lets set it to something simpler
@@ -351,3 +359,52 @@ def plot_with_areafrac(ds, figsize=(12, 8), legend_ncols=3):
     adjust_fig_to_fit_figlegend(fig=fig, figlegend=figlegend, direction="right")
 
     return fig, axes
+
+
+def make_2d_decomposition(ds, z, x, y, v, domain_num_cells, dx=None, dy=None):
+    """
+    Decomposition of variable `v` at a given height `z` with variables `x`
+    and `y` in dataset `ds`
+    """
+    if z == "all":
+        scaling = 1.0 / int(ds.zt.count())
+        ds_ = ds.sum(dim="zt", keep_attrs=True)
+    else:
+        scaling = 1.0
+        ds_ = ds.sel(zt=z, method="nearest")
+
+    x_bins = _make_equally_spaced_bins(ds_[x], dx=dx)
+    y_bins = _make_equally_spaced_bins(ds_[y], dx=dy)
+    bins = (x_bins, y_bins)
+
+    da_binned = binned_statistic_2d(
+        ds=ds_,
+        x=x,
+        y=y,
+        v=f"{v}__sum",
+        bins=bins,
+        statistic="sum",
+        drop_nan_and_inf=True,
+    )
+
+    da_binned_domain_frac = da_binned / domain_num_cells * scaling
+    regex = r"sum\sof\s(?P<long_name>[\w\s]+)\sper\sobject"
+    base_long_name = re.match(regex, ds.qv_flux__sum.long_name).groupdict()["long_name"]
+    da_binned_domain_frac.attrs[
+        "long_name"
+    ] = f"contribution to domain-mean {base_long_name}"
+    da_binned_domain_frac.attrs["units"] = ds_[f"{v}__sum"].units
+    return da_binned_domain_frac
+
+
+def plot_2d_decomposition(ds, z, x, y, v, domain_num_cells, dx=None, dy=None):
+    """
+    Plot decomposition of variable `v` at a given height `z` with variables `x`
+    and `y` in dataset `ds`
+    """
+
+    make_2d_decomposition(
+        ds=ds, z=z, x=x, y=y, v=v, domain_num_cells=domain_num_cells, dx=dx, dy=dy
+    )
+
+    return plt.gca()
