@@ -329,69 +329,33 @@ class ObjectTwoScalesComposition(luigi.Task):
     object_filters = luigi.Parameter(default=None)
 
     def requires(self):
-        kwargs = dict(
+        return data.objects.ObjectTwoScalesComposition(
             base_name=self.base_name,
             mask_method=self.mask_method,
             mask_method_extra_args=self.mask_method_extra_args,
             object_splitting_scalar=self.object_splitting_scalar,
+            x=self.x,
+            dx=self.dx,
+            y=self.y,
+            dy=self.dy,
+            z=self.z,
             field_name=self.field_name,
             z_max=self.z_max,
         )
 
-        reqs = dict(
-            base=data.ComputeFieldDecompositionByHeightAndObjects(
-                object_filters=self.object_filters,
-                **kwargs,
-            ),
-            scales=data.ComputeObjectScales(
-                base_name=self.base_name,
-                mask_method=self.mask_method,
-                mask_method_extra_args=self.mask_method_extra_args,
-                object_splitting_scalar=self.object_splitting_scalar,
-                variables=f"{self.x},{self.y}",
-                object_filters=self.object_filters,
-            ),
-            field=data.ExtractField3D(
-                base_name=self.base_name, field_name=self.field_name
-            ),
-        )
-
-        return reqs
-
     def make_plot(self):
-        da3d_field = self.input()["field"].open()
-        ds = self.input()["base"].open()
-
-        # make the scale we're binning on available
-        ds_scales = self.input()["scales"].open()
-        ds = xr.merge([ds, ds_scales])
-
-        nx = int(da3d_field.xt.count())
-        ny = int(da3d_field.yt.count())
-        domain_num_cells = nx * ny
-
-        g = objects.flux_contribution.plot_2d_decomposition(
-            ds=ds,
-            x=self.x,
-            y=self.y,
-            v=self.field_name,
-            z=self.z,
-            dx=self.dx,
-            dy=self.dy,
-            domain_num_cells=domain_num_cells
-            # dx=self.dx,
-        )
+        da = self.input().open()
+        fig, ax = plt.subplots()
+        da.plot(ax=ax)
 
         if self.x_max is not None:
-            g.set_xlim(0.0, self.x_max)
+            ax.set_xlim(0.0, self.x_max)
 
         if self.y_max is not None:
-            g.set_ylim(0.0, self.y_max)
+            ax.set_ylim(0.0, self.y_max)
 
-        N_objects = int(ds.object_id.count())
-        plt.suptitle(self.get_suptitle(N_objects=N_objects), y=1.0)
-
-        return g
+        # N_objects = int(ds.object_id.count())
+        # plt.suptitle(self.get_suptitle(N_objects=N_objects), y=1.0)
 
     def run(self):
         self.make_plot()

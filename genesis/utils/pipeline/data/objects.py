@@ -635,7 +635,7 @@ class ComputePerObjectAtHeight(luigi.Task):
         )
 
         if self.op != "num_cells":
-            tasks["field"]=ExtractField3D(
+            tasks["field"] = ExtractField3D(
                 base_name=self.base_name,
                 field_name=self.field_name,
             )
@@ -1140,6 +1140,117 @@ class MakeMaskWithObjects(MakeMask):
 
         fn = make_mask.OUT_FILENAME_FORMAT.format(
             base_name=self.base_name, mask_name=mask_name
+        )
+        p = get_workdir() / self.base_name / fn
+        return XArrayTarget(str(p))
+
+
+class ObjectTwoScalesComposition(luigi.Task):
+    """
+    Decompose `field_name` by height and object property `x`, with number and
+    mean-flux distributions shown as margin plots. An extract reference profile
+    can by defining the filters on the objects to consider with
+    `ref_profile_object_filters`
+    """
+
+    x = luigi.Parameter()
+    dx = luigi.FloatParameter(default=None)
+
+    y = luigi.Parameter()
+    dy = luigi.FloatParameter(default=None)
+
+    z = luigi.Parameter()
+    field_name = luigi.Parameter()
+
+    base_name = luigi.Parameter()
+    mask_method = luigi.Parameter()
+    mask_method_extra_args = luigi.Parameter(default="")
+    object_splitting_scalar = luigi.Parameter()
+    z_max = luigi.FloatParameter(default=None)
+
+    object_filters = luigi.Parameter(default=None)
+
+    def requires(self):
+        kwargs = dict(
+            base_name=self.base_name,
+            mask_method=self.mask_method,
+            mask_method_extra_args=self.mask_method_extra_args,
+            object_splitting_scalar=self.object_splitting_scalar,
+            field_name=self.field_name,
+            z_max=self.z_max,
+        )
+
+        reqs = dict(
+            base=ComputeFieldDecompositionByHeightAndObjects(
+                object_filters=self.object_filters,
+                **kwargs,
+            ),
+            scales=ComputeObjectScales(
+                base_name=self.base_name,
+                mask_method=self.mask_method,
+                mask_method_extra_args=self.mask_method_extra_args,
+                object_splitting_scalar=self.object_splitting_scalar,
+                variables=f"{self.x},{self.y}",
+                object_filters=self.object_filters,
+            ),
+            field=ExtractField3D(base_name=self.base_name, field_name=self.field_name),
+        )
+
+        return reqs
+
+    def run(self):
+        da3d_field = self.input()["field"].open()
+        ds = self.input()["base"].open()
+
+        # make the scale we're binning on available
+        ds_scales = self.input()["scales"].open()
+        ds = xr.merge([ds, ds_scales])
+
+        nx = int(da3d_field.xt.count())
+        ny = int(da3d_field.yt.count())
+        domain_num_cells = nx * ny
+
+        da = objects.flux_contribution.make_2d_decomposition(
+            ds=ds,
+            x=self.x,
+            y=self.y,
+            v=self.field_name,
+            z=self.z,
+            dx=self.dx,
+            dy=self.dy,
+            domain_num_cells=domain_num_cells,
+        )
+
+        da.to_netcdf(self.output().fn)
+
+    def output(self):
+        mask_name = MakeMask.make_mask_name(
+            base_name=self.base_name,
+            method_name=self.mask_method,
+            method_extra_args=self.mask_method_extra_args,
+        )
+        s_filter = ""
+        if self.object_filters is not None:
+            s_filter = ".filtered_by.{}".format(
+                (
+                    self.object_filters.replace(",", ".")
+                    .replace(":", "__")
+                    .replace("=", "_")
+                )
+            )
+        fn = (
+            "{base_name}.{mask_name}.{field_name}__by__{x}{dx}_and_{y}{dy}"
+            "{s_filter}.{filetype}".format(
+                base_name=self.base_name,
+                mask_name=mask_name,
+                field_name=self.field_name,
+                x=self.x,
+                dx=self.dx or "",
+                y=self.y,
+                dy=self.dy or "",
+                filetype="nc",
+                s_filter=s_filter,
+            )
         )
         p = get_workdir() / self.base_name / fn
         return XArrayTarget(str(p))
