@@ -202,6 +202,7 @@ def integrate(objects, variable, operator=None, **kwargs):
         "length_m",
         "width_m",
         "thickness_m",
+        "genus_m",
         "volume",
         "num_cells",
         "filamentarity",

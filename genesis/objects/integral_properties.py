@@ -7,6 +7,7 @@ VAR_MAPPINGS = dict(
     length_m="minkowski",
     width_m="minkowski",
     thickness_m="minkowski",
+    genus_m="minkowski",
     num_cells="minkowski",
     volume="minkowski",
     filamentarity="minkowski",
