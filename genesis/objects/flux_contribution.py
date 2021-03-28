@@ -107,11 +107,16 @@ def plot(
     fig_width=7.0,
 ):  # noqa
     """
-    Using values in `ds` plot a decomposition of the scalar variable `v` with
-    height (assumed to be `zt`) and the variable `x` (with resolution `dx`)
+    Using values in `ds` plot a decomposition with height (assumed to be `zt`)
+    into the total contribution (scaled by domain size) per bin of the object
+    property `x` (with bin-width `dx`) to the scalar variable `v`
 
-    Mean profiles are assumed to be named `{v}__mean` and the bins in `x` given
-    by `{v}__sum`.
+    This means that with for example for `v=qv_flux` that summing across all
+    bins at a given height will give horizontal mean moisture flux of all objects.
+
+    Mean profiles are assumed to be named `{v}__mean` and the total
+    contribution to `v` for each object at a height `zt` is given by
+    `{v}__sum`.
     """
 
     def _get_finite_range(vals):

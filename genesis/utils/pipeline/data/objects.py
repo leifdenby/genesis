@@ -625,11 +625,7 @@ class ComputePerObjectAtHeight(luigi.Task):
     z = luigi.FloatParameter()
 
     def requires(self):
-        return dict(
-            field=ExtractField3D(
-                base_name=self.base_name,
-                field_name=self.field_name,
-            ),
+        tasks = dict(
             objects=IdentifyObjects(
                 base_name=self.base_name,
                 mask_method=self.mask_method,
@@ -638,10 +634,25 @@ class ComputePerObjectAtHeight(luigi.Task):
             ),
         )
 
+        if self.op != "num_cells":
+            tasks["field"]=ExtractField3D(
+                base_name=self.base_name,
+                field_name=self.field_name,
+            )
+        return tasks
+
     def run(self):
+        # for `num_cells` operation the field shouldn't be given because the
+        # number of cells is just computed from the mask
         inputs = self.input()
-        da_field = inputs["field"].open().squeeze()
+
         da_objects = inputs["objects"].open()
+        if self.op != "num_cells":
+            da_field = inputs["field"].open().squeeze()
+        else:
+            if self.field_name != None:
+                raise Exception(f"Field name should not be given when computing `{self.op}`")
+            da_field = None
 
         object_ids = np.unique(da_objects.chunk(None).values)
         if object_ids[0] == 0:
@@ -654,8 +665,14 @@ class ComputePerObjectAtHeight(luigi.Task):
             op=self.op,
         )
 
-        da_ = da_field.sel(zt=self.z).compute()
+        if self.op != "num_cells":
+            kwargs["scalar"] = da_field.name
+
         da_objects_ = da_objects.sel(zt=self.z).compute()
+        if self.op != "num_cells":
+            da_ = da_field.sel(zt=self.z).compute()
+        else:
+            da_ = xr.ones_like(da_objects_)
 
         # to avoid the confusion where the "area" is requested but what in fact
         # is returned is the "number of cells" (which is dimensionless) we
@@ -673,14 +690,20 @@ class ComputePerObjectAtHeight(luigi.Task):
         fn = getattr(dask_image.ndmeasure, op)
         v = fn(da_, label_image=da_objects_, index=object_ids).compute()
         da = xr.DataArray(data=v, dims=["object_id"], coords=dict(object_id=object_ids))
-        da.name = "{}__{}".format(da_.name, kwargs["op"])
-        da.attrs["units"] = da_.units
-        da.attrs["long_name"] = "{} of {} per object".format(
-            kwargs["op"],
-            da_.long_name,
-        )
+        if self.op != "num_cells":
+            da.name = "{}__{}".format(da_.name, kwargs["op"])
+            da.attrs["units"] = da_.units
+            da.attrs["long_name"] = "{} of {} per object".format(
+                kwargs["op"],
+                da_.long_name,
+            )
+        else:
+            da.name = "num_cells"
+            da.attrs["units"] = "1"
+            da.attrs["long_name"] = "num_cells per object"
+
         da.coords["zt"] = self.z
-        da.coords["time"] = da_field.time
+        da.coords["time"] = da_objects_.time
 
         da.to_netcdf(self.output().fn)
 
@@ -782,7 +805,7 @@ class ComputeFieldDecompositionByHeightAndObjects(luigi.Task):
                 mask_method=self.mask_method,
                 mask_method_extra_args=self.mask_method_extra_args,
                 object_splitting_scalar=self.object_splitting_scalar,
-                field_name=self.field_name,
+                field_name=None,
                 op="num_cells",
                 z_max=self.z_max,
             ),
