@@ -327,6 +327,7 @@ class ObjectTwoScalesComposition(luigi.Task):
 
     scale_by = luigi.OptionalParameter(default=None)
     object_filters = luigi.Parameter(default=None)
+    method = luigi.Parameter(default="kde")
 
     def requires(self):
         return data.objects.ObjectTwoScalesComposition(
@@ -341,6 +342,7 @@ class ObjectTwoScalesComposition(luigi.Task):
             z=self.z,
             field_name=self.field_name,
             z_max=self.z_max,
+            method=self.method,
         )
 
     def make_plot(self):

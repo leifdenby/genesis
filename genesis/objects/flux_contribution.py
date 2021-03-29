@@ -6,7 +6,7 @@ import math
 import re
 
 from ..utils.plot_types import adjust_fig_to_fit_figlegend
-from ..utils.xarray import binned_statistic_2d, kde_weighted_dist_2d
+from ..utils.xarray import scalar_density_2d
 
 
 class PlotGrid:
@@ -94,23 +94,6 @@ class PlotGrid:
 
         f.tight_layout()
         f.subplots_adjust(hspace=space, wspace=space)
-
-
-def _make_equally_spaced_bins(x, dx=None):
-    def _get_finite_range(vals):
-        # turns infs into nans and then we can uses nanmax nanmin
-        v = vals.where(~np.isinf(vals), np.nan)
-        return np.nanmin(v), np.nanmax(v)
-
-    x_min, x_max = _get_finite_range(x)
-    if dx is None:
-        bins = np.linspace(x_min, x_max, 10)
-    else:
-        bins = np.arange(
-            math.floor(x_min / dx) * dx, math.ceil(x_max / dx) * dx + dx, dx
-        )
-
-    return bins
 
 
 def plot(
@@ -361,7 +344,7 @@ def plot_with_areafrac(ds, figsize=(12, 8), legend_ncols=3):
     return fig, axes
 
 
-def make_2d_decomposition(ds, z, x, y, v, domain_num_cells, kind, dx=None, dy=None):
+def make_2d_decomposition(ds, z, x, y, v, domain_num_cells, method, dx=None, dy=None):
     """
     Decomposition of variable `v` at a given height `z` with variables `x`
     and `y` in dataset `ds`
@@ -373,9 +356,11 @@ def make_2d_decomposition(ds, z, x, y, v, domain_num_cells, kind, dx=None, dy=No
         scaling = 1.0
         ds_ = ds.sel(zt=z, method="nearest")
 
-    x_bins = _make_equally_spaced_bins(ds_[x], dx=dx)
-    y_bins = _make_equally_spaced_bins(ds_[y], dx=dy)
-    bins = (x_bins, y_bins)
+    nbins_default = 10
+    if dx is None:
+        dx = (ds_[x].max() - ds_[x].min()) / nbins_default
+    if dy is None:
+        dy = (ds_[y].max() - ds_[y].min()) / nbins_default
 
     da_source = ds_[f"{v}__sum"]
 
@@ -391,41 +376,37 @@ def make_2d_decomposition(ds, z, x, y, v, domain_num_cells, kind, dx=None, dy=No
         ds_[f"{v}__domaintot"].attrs["long_name"] += f" at z={z}m"
     ds_[f"{v}__domaintot"].attrs["units"] = da_source.units
 
-    if kind == "kde":
-        da_binned = kde_weighted_dist_2d(
-            # have to remove zero values
-            # TODO: maybe these should be added somehow by doing the decomposition for the two separately?
-            ds=ds_.where(ds_[f"{v}__domaintot"] > 0.0),
-            x=x,
-            y=y,
-            v=f"{v}__domaintot",
-            bins=bins,
-            drop_nan_and_inf=True,
-        )
-    elif kind == "hist":
-        da_binned = binned_statistic_2d(
-            ds=ds_,
-            x=x,
-            y=y,
-            v=f"{v}__domaintot",
-            bins=bins,
-            statistic="sum",
-            drop_nan_and_inf=True,
-        )
-    else:
-        raise NotImplementedError(kind)
+    da_sd = scalar_density_2d(
+        ds=ds_,
+        x=x,
+        y=y,
+        v=f"{v}__domaintot",
+        dx=dx,
+        dy=dy,
+        drop_nan_and_inf=True,
+        method=method,
+    )
 
-    return da_binned
+    return da_sd
 
 
-def plot_2d_decomposition(ds, z, x, y, v, domain_num_cells, dx=None, dy=None):
+def plot_2d_decomposition(ds, z, x, y, v, domain_num_cells, method, dx=None, dy=None):
     """
     Plot decomposition of variable `v` at a given height `z` with variables `x`
     and `y` in dataset `ds`
     """
 
-    make_2d_decomposition(
-        ds=ds, z=z, x=x, y=y, v=v, domain_num_cells=domain_num_cells, dx=dx, dy=dy
+    da_sd = make_2d_decomposition(
+        ds=ds,
+        z=z,
+        x=x,
+        y=y,
+        v=v,
+        domain_num_cells=domain_num_cells,
+        dx=dx,
+        dy=dy,
+        method=method,
     )
+    da_sd.plot()
 
     return plt.gca()
