@@ -102,11 +102,73 @@ def binned_statistic_2d(ds, x, y, v, bins=10, statistic="sum", drop_nan_and_inf=
     )
 
     da_binned = xr.DataArray(
-        res.statistic,
-        dims=(da_x.name, da_y.name),
+        res.statistic.T,
+        dims=(da_y.name, da_x.name),
         coords={da_x.name: da_x_bin, da_y.name: da_y_bin},
         attrs=dict(
             long_name=f"{statistic} per bin of {da_v.long_name}", units=da_v.units
         ),
     )
     return da_binned
+
+
+def kde_weighted_dist_2d(ds, x, y, v, bins=10, statistic="sum", drop_nan_and_inf=False):
+    """
+    Kernel-density approximatation of normalized (sums to one, not integrates
+    to one) distribution of variable `v` by values of variables `x` and `y`
+    scaled by sum of `v` so that total sum remains the same
+    """
+    # we can't bin on values which are either nan or inf, so we filter those out here
+    def should_mask(x_):
+        return np.logical_or(np.isnan(x_), np.isinf(x_))
+
+    values_mask = np.logical_or(
+        should_mask(ds[x]), np.logical_or(should_mask(ds[y]), should_mask(ds[v]))
+    )
+
+    if drop_nan_and_inf:
+        ds_ = ds.where(~values_mask, drop=True)
+    else:
+        if np.any(values_mask):
+            raise Exception(
+                "There are some inf or nan values, but we can't bin on these."
+                " Set `drop_nan_and_inf=True` to filter these out"
+            )
+        else:
+            ds_ = ds
+
+    da_x = ds_[x]
+    da_y = ds_[y]
+    da_v = ds_[v]
+    pdf = scipy.stats.gaussian_kde(dataset=[da_x, da_y], weights=da_v)  # noqa
+
+    if type(bins) == int:
+        nxbins = nybins = bins
+        x_ = np.linspace(da_x.min(), da_x.max(), nxbins)
+        y_ = np.linspace(da_y.min(), da_y.max(), nybins)
+    elif len(bins) == 2 and np.atleast_1d(bins).dtype == int:
+        nxbins, nybinx = bins
+        x_ = np.linspace(da_x.min(), da_x.max(), nxbins)
+        y_ = np.linspace(da_y.min(), da_y.max(), nybins)
+    else:
+        x_, y_ = bins
+    xx, yy = np.meshgrid(x_, y_, indexing="ij")
+
+    # sample the PDF
+    kde_arr = pdf([xx.ravel(), yy.ravel()]).reshape((len(x_), len(y_)))
+
+    da_x_kde = xr.DataArray(x_, attrs=da_x.attrs, dims=(da_x.name), name=da_x.name)
+    da_y_kde = xr.DataArray(y_, attrs=da_y.attrs, dims=(da_y.name), name=da_y.name)
+
+    # normalize the values so the sum is the same as of the input array
+    kde_arr = kde_arr / np.sum(kde_arr) * da_v.sum().values
+
+    da_kde = xr.DataArray(
+        kde_arr.T,
+        dims=(da_y.name, da_x.name),
+        coords={da_x.name: da_x_kde, da_y.name: da_y_kde},
+        attrs=dict(
+            long_name=da_v.long_name.replace("per object", ""), units=da_v.units
+        ),
+    )
+    return da_kde

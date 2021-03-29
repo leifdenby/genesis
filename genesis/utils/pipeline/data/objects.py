@@ -1168,6 +1168,8 @@ class ObjectTwoScalesComposition(luigi.Task):
     object_splitting_scalar = luigi.Parameter()
     z_max = luigi.FloatParameter(default=None)
 
+    kind = luigi.Parameter(default="kde")
+
     object_filters = luigi.Parameter(default=None)
 
     def requires(self):
@@ -1219,6 +1221,7 @@ class ObjectTwoScalesComposition(luigi.Task):
             dx=self.dx,
             dy=self.dy,
             domain_num_cells=domain_num_cells,
+            kind=self.kind,
         )
 
         da.to_netcdf(self.output().fn)
@@ -1240,7 +1243,7 @@ class ObjectTwoScalesComposition(luigi.Task):
             )
         fn = (
             "{base_name}.{mask_name}.{field_name}__by__{x}{dx}_and_{y}{dy}"
-            "{s_filter}.{filetype}".format(
+            "{kind}.{s_filter}.{filetype}".format(
                 base_name=self.base_name,
                 mask_name=mask_name,
                 field_name=self.field_name,
@@ -1248,6 +1251,7 @@ class ObjectTwoScalesComposition(luigi.Task):
                 dx=self.dx or "",
                 y=self.y,
                 dy=self.dy or "",
+                kind=self.kind,
                 filetype="nc",
                 s_filter=s_filter,
             )

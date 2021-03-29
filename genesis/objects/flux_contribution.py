@@ -6,7 +6,7 @@ import math
 import re
 
 from ..utils.plot_types import adjust_fig_to_fit_figlegend
-from ..utils.xarray import binned_statistic_2d
+from ..utils.xarray import binned_statistic_2d, kde_weighted_dist_2d
 
 
 class PlotGrid:
@@ -361,7 +361,7 @@ def plot_with_areafrac(ds, figsize=(12, 8), legend_ncols=3):
     return fig, axes
 
 
-def make_2d_decomposition(ds, z, x, y, v, domain_num_cells, dx=None, dy=None):
+def make_2d_decomposition(ds, z, x, y, v, domain_num_cells, kind, dx=None, dy=None):
     """
     Decomposition of variable `v` at a given height `z` with variables `x`
     and `y` in dataset `ds`
@@ -377,24 +377,45 @@ def make_2d_decomposition(ds, z, x, y, v, domain_num_cells, dx=None, dy=None):
     y_bins = _make_equally_spaced_bins(ds_[y], dx=dy)
     bins = (x_bins, y_bins)
 
-    da_binned = binned_statistic_2d(
-        ds=ds_,
-        x=x,
-        y=y,
-        v=f"{v}__sum",
-        bins=bins,
-        statistic="sum",
-        drop_nan_and_inf=True,
-    )
+    da_source = ds_[f"{v}__sum"]
 
-    da_binned_domain_frac = da_binned / domain_num_cells * scaling
+    ds_[f"{v}__domaintot"] = da_source / domain_num_cells * scaling
     regex = r"sum\sof\s(?P<long_name>[\w\s]+)\sper\sobject"
-    base_long_name = re.match(regex, ds.qv_flux__sum.long_name).groupdict()["long_name"]
-    da_binned_domain_frac.attrs[
+    base_long_name = re.match(regex, da_source.long_name).groupdict()["long_name"]
+    ds_[f"{v}__domaintot"].attrs[
         "long_name"
-    ] = f"contribution to domain-mean {base_long_name}"
-    da_binned_domain_frac.attrs["units"] = ds_[f"{v}__sum"].units
-    return da_binned_domain_frac
+    ] = f"contribution to domain mean {base_long_name}"
+    if z == "all":
+        ds_[f"{v}__domaintot"].attrs["long_name"] += " height mean"
+    else:
+        ds_[f"{v}__domaintot"].attrs["long_name"] += f" at z={z}m"
+    ds_[f"{v}__domaintot"].attrs["units"] = da_source.units
+
+    if kind == "kde":
+        da_binned = kde_weighted_dist_2d(
+            # have to remove zero values
+            # TODO: maybe these should be added somehow by doing the decomposition for the two separately?
+            ds=ds_.where(ds_[f"{v}__domaintot"] > 0.0),
+            x=x,
+            y=y,
+            v=f"{v}__domaintot",
+            bins=bins,
+            drop_nan_and_inf=True,
+        )
+    elif kind == "hist":
+        da_binned = binned_statistic_2d(
+            ds=ds_,
+            x=x,
+            y=y,
+            v=f"{v}__domaintot",
+            bins=bins,
+            statistic="sum",
+            drop_nan_and_inf=True,
+        )
+    else:
+        raise NotImplementedError(kind)
+
+    return da_binned
 
 
 def plot_2d_decomposition(ds, z, x, y, v, domain_num_cells, dx=None, dy=None):
