@@ -60,14 +60,18 @@ def cache_to_file(path, func, fname=None, *args, **kwargs):
     return ds
 
 
-def _make_equally_spaced_bins(x, dx):
+def _make_equally_spaced_bins(x, dx, n_pad=2):
     def _get_finite_range(vals):
         # turns infs into nans and then we can uses nanmax nanmin
         v = vals.where(~np.isinf(vals), np.nan)
         return np.nanmin(v), np.nanmax(v)
 
     x_min, x_max = _get_finite_range(x)
-    bins = np.arange(math.floor(x_min / dx) * dx, math.ceil(x_max / dx) * dx + dx, dx)
+    bins = np.arange(
+        (math.floor(x_min / dx) - n_pad) * dx,
+        (math.ceil(x_max / dx) + n_pad) * dx + dx,
+        dx,
+    )
 
     return bins
 
