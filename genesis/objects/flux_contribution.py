@@ -6,7 +6,7 @@ import math
 import re
 
 from ..utils.plot_types import adjust_fig_to_fit_figlegend, PlotGrid
-from ..utils.xarray import scalar_density_2d
+from ..utils.xarray import scalar_density_2d, _make_equally_spaced_bins
 
 
 def plot(
@@ -14,6 +14,7 @@ def plot(
     x,
     v,
     dx,
+    domain_num_cells,
     v_scaling="robust",
     mean_profile_components="all",
     include_x_mean=True,
@@ -33,9 +34,6 @@ def plot(
     contribution to `v` for each object at a height `zt` is given by
     `{v}__sum`.
     """
-
-    nx = ds.nx
-    ny = ds.ny
 
     bins = _make_equally_spaced_bins(ds[x], dx=dx)
 
@@ -57,7 +55,9 @@ def plot(
         extra_y_marg=add_height_histogram,
     )
     ds_ = ds.groupby_bins(x, bins=bins, labels=bin_centers)
-    da_flux_per_bin = ds_.sum(dim="object_id", dtype=np.float64)[bin_var] / (nx * ny)
+    da_flux_per_bin = (
+        ds_.sum(dim="object_id", dtype=np.float64)[bin_var] / domain_num_cells
+    )
     # put in zeroes so that we don't get empty parts of the plots
     da_flux_per_bin = da_flux_per_bin.fillna(0.0)
     if len(da_flux_per_bin["{}_bins".format(x)]) < 2:

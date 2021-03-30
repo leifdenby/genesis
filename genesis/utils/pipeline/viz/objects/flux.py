@@ -74,6 +74,11 @@ class ObjectScaleVsHeightComposition(luigi.Task):
                 object_filters=self.ref_profile_object_filters, **kwargs
             )
 
+        reqs["field"] = data.ExtractField3D(
+            base_name=self.base_name,
+            field_name=self.field_name,
+        )
+
         return reqs
 
     def make_plot(self):
@@ -122,6 +127,11 @@ class ObjectScaleVsHeightComposition(luigi.Task):
                 for dim in ds.dims:
                     scaling_factors[dim] = float(self.scale_by)
 
+        # TODO: num cell calculation could be incorporated into the per-object
+        # calculation
+        da_3d = self.input()["field"].open()
+        domain_num_cells = int(da_3d.xt.count()) * int(da_3d.yt.count())
+
         g = objects.flux_contribution.plot(
             ds=ds,
             x=self.x,
@@ -132,6 +142,7 @@ class ObjectScaleVsHeightComposition(luigi.Task):
             add_height_histogram=self.add_height_histogram,
             fig_width=self.fig_width,
             v_scaling=self.v_scaling,
+            domain_num_cells=domain_num_cells,
             # scaling_factors=scaling_factors
         )
 
@@ -139,7 +150,7 @@ class ObjectScaleVsHeightComposition(luigi.Task):
             g.ax_joint.set_xlim(0.0, self.x_max)
 
         N_objects = int(ds.object_id.count())
-        plt.suptitle(self.get_suptitle(N_objects=N_objects), y=1.0)
+        plt.suptitle(self.get_suptitle(N_objects=N_objects), y=0.99)
 
         return g
 
