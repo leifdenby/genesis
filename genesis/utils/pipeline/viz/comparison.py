@@ -9,6 +9,9 @@ import luigi
 import seaborn as sns
 
 from ..data.objects import ObjectTwoScalesComposition
+from ....objects.topology.plots.filamentarity_planarity import (
+    plot_reference as fp_reference,
+)
 
 
 def _apply_plot_parameters_to_axis(ax, plot_parameters):
@@ -26,7 +29,15 @@ def _apply_plot_parameters_to_axis(ax, plot_parameters):
 
 
 def _scales_dist_2d(datasets, plot_parameters):
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(**plot_parameters.get("fig_params", {}))
+
+    annotations = plot_parameters.get("annotations", [])
+    if "filamentarity_planarity_reference" in annotations:
+        try:
+            kwargs = dict(annotations["filamentarity_planarity_reference"])
+        except:
+            kwargs = {}
+        fp_reference(ax=ax, shape="spheroid", color="black", **kwargs)
 
     cmaps = ["Blues", "Reds", "Greens", "Oranges"]
 

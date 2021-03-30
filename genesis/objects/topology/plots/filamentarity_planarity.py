@@ -50,6 +50,9 @@ def plot_reference(  # noqa
 
     fig = ax.get_figure()
 
+    if type(lm_range) == tuple and len(lm_range) == 2:
+        lm_range = slice(*lm_range)
+
     reference_lines = {}
 
     ds = xarray_utils.cache_to_file(
