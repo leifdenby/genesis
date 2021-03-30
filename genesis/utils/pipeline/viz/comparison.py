@@ -39,6 +39,12 @@ def _scales_dist_2d(datasets, plot_parameters):
             kwargs = {}
         fp_reference(ax=ax, shape="spheroid", color="black", **kwargs)
 
+    if "unit_line" in annotations:
+        if not hasattr(ax, "axline"):
+            warnings.warn("Upgrade to matplotlib >= 3.3.0 to draw unit line")
+        else:
+            ax.axline(xy1=(0.0, 0.0), xy2=(1.0, 1.0), linestyle="--", color="grey")
+
     cmaps = ["Blues", "Reds", "Greens", "Oranges"]
 
     for (cmap, (task_name, da)) in zip(cmaps, datasets.items()):
@@ -49,7 +55,7 @@ def _scales_dist_2d(datasets, plot_parameters):
 
     _apply_plot_parameters_to_axis(ax=ax, plot_parameters=plot_parameters)
 
-    ax.legend()
+    ax.legend(loc=plot_parameters.get("legend_loc", "best"))
     return fig
 
 
