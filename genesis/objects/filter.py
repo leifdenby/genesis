@@ -49,7 +49,11 @@ def _defs_iterator(filter_defs):
             if f_type == "prop":
                 s_prop_and_op, s_value = f_cond.split("=")
                 i = s_prop_and_op.rfind("__")
-                prop_name, op_name = s_prop_and_op[:i], s_prop_and_op[i + 2 :]
+                if i == -1:
+                    prop_name = s_prop_and_op
+                    op_name = "eq"
+                else:
+                    prop_name, op_name = s_prop_and_op[:i], s_prop_and_op[i + 2 :]
                 yield f_type, (prop_name, op_name, s_value)
             elif f_type == "tracking":
                 yield f_type, (f_cond,)
