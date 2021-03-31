@@ -70,6 +70,15 @@ def _get_dataset_meta_info(base_name):
     return datasource
 
 
+def get_data_from_task(task, local_scheduler=True):
+    if not task.output().exists():
+        luigi.build([task], local_scheduler=local_scheduler)
+    if not task.output().exists():
+        raise Exception("Something went wrong when processing the task")
+    else:
+        return task.output().open()
+
+
 class XArrayTarget(luigi.target.FileSystemTarget):
     fs = luigi.local_target.LocalFileSystem()
 
