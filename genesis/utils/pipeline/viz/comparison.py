@@ -17,6 +17,7 @@ from ....objects.topology.plots.filamentarity_planarity import (
 )
 from ...plot_types import PlotGrid
 from ..data.objects import ObjectTwoScalesComposition
+from ..data import Comparison
 
 
 def _generate_title_from_global_parameters(global_parameters):
@@ -55,6 +56,7 @@ def _scales_dist_2d(datasets, plot_parameters, global_parameters):
     add_marginal_distributions = plot_parameters.get(
         "add_marginal_distributions", False
     )
+    add_scatter = plot_parameters.get("add_scatter", False)
 
     fig_params = plot_parameters.get("fig_params", {})
     if add_marginal_distributions:
@@ -104,6 +106,11 @@ def _scales_dist_2d(datasets, plot_parameters, global_parameters):
                 y=da.dims[0],
             )
 
+        if add_scatter:
+            import ipdb
+
+            ipdb.set_trace()
+
     if add_marginal_distributions:
 
         def remove_axes_annotations(ax_):
@@ -129,33 +136,13 @@ def _scales_dist_2d(datasets, plot_parameters, global_parameters):
     return fig
 
 
-class ComparisonPlot(luigi.Task):
-    base_class = luigi.Parameter()
-    parameter_sets = luigi.DictParameter()
-    global_parameters = luigi.DictParameter()
+class ComparisonPlot(Comparison):
+    """
+    Special type of data comparison which produces a plot
+    """
+
     plot_parameters = luigi.DictParameter()
     name = luigi.Parameter()
-
-    def _get_task_class(self):
-        k = self.base_class.rfind(".")
-        class_module_name, class_name = self.base_class[:k], self.base_class[k + 1 :]
-        class_module = importlib.import_module(
-            f"genesis.utils.pipeline.data.{class_module_name}"
-        )
-        TaskClass = getattr(class_module, class_name)
-        return TaskClass
-
-    def requires(self):
-        TaskClass = self._get_task_class()
-
-        tasks = {}
-        for task_name, parameter_set in self.parameter_sets.items():
-            task_parameters = dict(self.global_parameters)
-            task_parameters.update(parameter_set)
-            t = TaskClass(**task_parameters)
-            tasks[task_name] = t
-
-        return tasks
 
     def run(self):
         TaskClass = self._get_task_class()
@@ -169,7 +156,7 @@ class ComparisonPlot(luigi.Task):
         for task_name, task_input in self.input().items():
             ds = task_input.open()
             ds["task_name"] = task_name
-            datasets[task_name] = ds
+            datasets[task_name] = (task_input, ds)
 
         # ds = xr.concat(datasets, dim="task_name")
 
