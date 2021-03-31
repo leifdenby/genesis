@@ -51,17 +51,17 @@ def plot_full_suite(data, marker=""):
             lines = []
 
             cumulant = "C({},{})".format(var_name, var_name)
-            d = data.sel(dataset_name=p, drop=True).sel(cumulant=cumulant, drop=True)
+            ds = data.sel(dataset_name=p, drop=True).sel(cumulant=cumulant, drop=True)
 
             (line,) = plt.plot(
-                d.width_principle,
-                d.zt,
+                ds.width_principle,
+                ds.zt,
                 marker=marker,
                 label="{} principle".format(str(p)),
             )
             (line2,) = plt.plot(
-                d.width_perpendicular,
-                d.zt,
+                ds.width_perpendicular,
+                ds.zt,
                 marker=marker,
                 label="{} orthog.".format(str(p)),
                 linestyle="--",
@@ -86,7 +86,7 @@ def plot_full_suite(data, marker=""):
         # once the plots have been rendered we want to resize the xaxis so
         # that the aspect ratio is the same, note sharey on the subplot above
         _, _, w, h = ax.get_position().bounds
-        ax.set_xlim(0, d.zt.max() / h * w * aspect)
+        ax.set_xlim(0, ds.zt.max() / h * w * aspect)
 
     plt.subplots_adjust(bottom=0.10)
     _ = plt.figlegend(lines, [l.get_label() for l in lines], loc="lower center", ncol=2)
@@ -140,25 +140,26 @@ def _add_asymmetry_markers(ax, ds, color):
         )
 
 
-def _plot_angles_profile(d, d_, ax, p, **kwargs):
-    (line,) = d.principle_axis.plot(
+def _plot_angles_profile(ds, ax, p, **kwargs):
+    (line,) = ds.principle_axis.plot(
         ax=ax, y="zt", label="{} principle orientation".format(str(p)), **kwargs
     )
-    if d_.zt.count() > 0:
-        d_ = d.where(~d.is_covariant, drop=True)
-        d_.principle_axis.plot(
+
+    ds_not_covariant = ds.where(ds.is_covariant == 0, drop=True)
+    if ds_not_covariant.zt.count() > 0:
+        ds.principle_axis.plot(
             ax=ax, y="zt", color=line.get_color(), marker="_", linestyle=""
         )
     ax.set_xlabel("principle axis [deg]")
     return line
 
 
-def _plot_scales_profile(d, d_, ax, p, fill_between_alpha, **kwargs):
-    (line,) = d.width_principle.plot(
+def _plot_scales_profile(ds, ax, p, fill_between_alpha, **kwargs):
+    (line,) = ds.width_principle.plot(
         ax=ax, y="zt", label="{} principle".format(str(p)), **kwargs
     )
 
-    (line2,) = d.width_perpendicular.plot(
+    (line2,) = ds.width_perpendicular.plot(
         ax=ax,
         y="zt",
         label="{} perpendicular".format(str(p)),
@@ -175,12 +176,12 @@ def _plot_scales_profile(d, d_, ax, p, fill_between_alpha, **kwargs):
         alpha=fill_between_alpha,
     )
 
-    if d_.zt.count() > 0:
-        d_ = d.where(d.is_covariant, drop=True)
-        d_.width_principle.plot(
+    ds_not_covariant = ds.where(ds.is_covariant == 0, drop=True)
+    if ds_not_covariant.zt.count() > 0:
+        ds_not_covariant.width_principle.plot(
             ax=ax, y="zt", color=line.get_color(), marker="_", linestyle=""
         )
-        d_.width_perpendicular.plot(
+        ds_not_covariant.width_perpendicular.plot(
             ax=ax, y="zt", color=line.get_color(), marker="_", linestyle=""
         )
     ax.set_xlabel("characteristic width [m]")
@@ -246,22 +247,20 @@ def plot(
             ax.axhline(z_, linestyle="--", color="grey", alpha=0.6)
 
         for p in data.dataset_name.values:
-            d = (
+            ds = (
                 data.sel(dataset_name=p, drop=True)
                 .sel(cumulant=cumulant, drop=True)
                 .dropna(dim="zt")
             )
-            d_ = d.where(d.is_covariant == 0, drop=True)
 
             if plot_type == "angles":
-                line = _plot_angles_profile(d=d, d_=d_, ax=ax, p=p, **kwargs)
+                line = _plot_angles_profile(ds=ds, ax=ax, p=p, **kwargs)
                 if add_asymmetry_markers:
-                    _add_asymmetry_markers(ax=ax, ds=d, color=line.get_color())
+                    _add_asymmetry_markers(ax=ax, ds=ds, color=line.get_color())
 
             elif plot_type == "scales":
                 line, line2 = _plot_scales_profile(
-                    d=d,
-                    d_=d_,
+                    ds=ds,
                     ax=ax,
                     p=p,
                     fill_between_alpha=fill_between_alpha,
