@@ -238,6 +238,52 @@ class TimeCrossSectionSlices2D(luigi.Task):
             raise NotImplementedError(fn_out.fn)
 
 
+class ProfileStatistics(luigi.Task):
+    base_name = luigi.Parameter()
+
+    FN_FORMAT = "{exp_name}.ps.nc"
+
+    def _extract_and_symlink_local_file(self):
+        meta = _get_dataset_meta_info(self.base_name)
+
+        p_out = Path(self.output().fn)
+        p_in = Path(meta["path"]) / "other" / p_out.name
+
+        if not p_in.exists():
+            raise FileNotFoundError(f"Couldn't find file {p_in} to symlink")
+
+        p_out.parent.mkdir(exist_ok=True, parents=True)
+        os.symlink(str(p_in.absolute()), str(p_out))
+
+    def output(self):
+        if REGEX_INSTANTENOUS_BASENAME.match(self.base_name):
+            raise Exception(
+                "Shouldn't pass base_name with timestep suffix"
+                " (`.tn`) to get profile statistics"
+            )
+
+        meta = _get_dataset_meta_info(self.base_name)
+
+        fn = self.FN_FORMAT.format(
+            exp_name=meta["experiment_name"],
+        )
+
+        p = get_workdir() / self.base_name / fn
+
+        return XArrayTarget(str(p))
+
+    def run(self):
+        meta = _get_dataset_meta_info(self.base_name)
+        fn_out = self.output()
+
+        if fn_out.exists():
+            pass
+        elif meta["host"] == "localhost":
+            self._extract_and_symlink_local_file()
+        else:
+            raise NotImplementedError(fn_out.fn)
+
+
 def remove_gal_transform(da, tref, base_name):
     meta = _get_dataset_meta_info(base_name)
     U_gal = meta.get("U_gal", None)
