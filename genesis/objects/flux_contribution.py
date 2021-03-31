@@ -4,9 +4,19 @@ import xarray as xr
 import matplotlib.pyplot as plt
 import math
 import re
+import textwrap
 
 from ..utils.plot_types import adjust_fig_to_fit_figlegend, PlotGrid
 from ..utils.xarray import scalar_density_2d, _make_equally_spaced_bins
+
+
+def _fix_label(label):
+    sentinel = "__FOO__"
+    if "[" in label and label.index("[") < label.index("\n"):
+        label = label.replace("\n", sentinel)
+        label = "\n".join(textwrap.wrap(label, width=30))
+        label = label.replace(sentinel, " ")
+    return label
 
 
 def plot(
@@ -18,9 +28,11 @@ def plot(
     v_scaling="robust",
     mean_profile_components="all",
     include_x_mean=True,
+    include_height_profile=True,
     add_profile_legend=True,
     add_height_histogram=True,
     fig_width=7.0,
+    fig_height=None,
 ):  # noqa
     """
     Using values in `ds` plot a decomposition with height (assumed to be `zt`)
@@ -40,7 +52,7 @@ def plot(
     bin_var = f"{v}__sum"
     # this will be used on all variables, so lets set it to something simpler
     # here
-    ds[f"{v}__mean"].attrs["long_name"] = "horz. mean flux"
+    ds[f"{v}__mean"].attrs["long_name"] = "horz. mean vertical flux"
     # make height more meaningful
     ds.zt.attrs["long_name"] = "altitude"
 
@@ -81,7 +93,7 @@ def plot(
     )
     # make pointed ends to the colorbar because we used "robust=True" above
     cb = g.fig.colorbar(pc, cax=cax, orientation="horizontal", extend="both")
-    cb.set_label(xr.plot.utils.label_from_attrs(da_flux_per_bin))
+    cb.set_label(_fix_label(xr.plot.utils.label_from_attrs(da_flux_per_bin)))
 
     # g.ax_joint.colorbar(pc, bbox_to_anchor=[0.0, -0.2], orientation='horizontal')
 
@@ -101,6 +113,7 @@ def plot(
     lines_profile = da_flux_tot.plot(
         y="zt", ax=g.ax_marg_y, hue="sampling", add_legend=add_profile_legend
     )
+    g.ax_marg_y.set_label(_fix_label(g.ax_marg_y.get_label()))
 
     # make the underlying dataarray available later
     setattr(g.ax_marg_y, "_source_data", da_flux_tot)
@@ -177,6 +190,12 @@ def plot(
     if v == "qv_flux":
         g.ax_marg_y.xaxis.set_ticks([0.0, 0.02, 0.04])
         g.ax_marg_y.set_xlim(0.0, 0.05)
+
+    # XXX: quick hack to remove the height profile plot, we really should have
+    # a different way of defining what kind of marginal plots we want
+    # if not include_height_profile:
+    # g.ax_marg_y.set_visible(False)
+    # g.fig.set_size_inches(4, 7)
 
     g.ax_joint.set_title("")
     g.ax_marg_x.set_title("")
