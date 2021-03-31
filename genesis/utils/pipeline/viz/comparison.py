@@ -87,7 +87,7 @@ def _scales_dist_2d(datasets, plot_parameters, global_parameters):
 
     cmaps = ["Blues", "Reds", "Greens", "Oranges"]
 
-    for (cmap, (task_name, da)) in zip(cmaps, datasets.items()):
+    for (cmap, (task_name, (task, da))) in zip(cmaps, datasets.items()):
         # da = ds.sel(task_name=task_name)
         cs = da.plot.contour(ax=ax_joint, cmap=cmap)
         line = cs.collections[2]
@@ -107,9 +107,16 @@ def _scales_dist_2d(datasets, plot_parameters, global_parameters):
             )
 
         if add_scatter:
-            import ipdb
-
-            ipdb.set_trace()
+            # to create a scatter plot we need the parent task which computed the scales
+            ds_scales = task.requires()["scales"].output().open()
+            ax_joint.scatter(
+                ds_scales[da.dims[1]],
+                ds_scales[da.dims[0]],
+                marker=".",
+                s=1.0,
+                alpha=0.4,
+                color=line.get_color(),
+            )
 
     if add_marginal_distributions:
 
@@ -143,6 +150,7 @@ class ComparisonPlot(Comparison):
 
     plot_parameters = luigi.DictParameter()
     name = luigi.Parameter()
+    filetype = luigi.Parameter(default="png")
 
     def run(self):
         TaskClass = self._get_task_class()
@@ -156,7 +164,7 @@ class ComparisonPlot(Comparison):
         for task_name, task_input in self.input().items():
             ds = task_input.open()
             ds["task_name"] = task_name
-            datasets[task_name] = (task_input, ds)
+            datasets[task_name] = (self.requires()[task_name], ds)
 
         # ds = xr.concat(datasets, dim="task_name")
 
@@ -169,5 +177,5 @@ class ComparisonPlot(Comparison):
         plt.savefig(self.output().fn, fig=fig, bbox_inches="tight")
 
     def output(self):
-        fn = f"{self.name}.png"
+        fn = f"{self.name}.{self.filetype}"
         return luigi.LocalTarget(fn)
