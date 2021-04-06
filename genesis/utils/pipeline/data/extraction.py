@@ -38,11 +38,12 @@ COMPOSITE_FIELD_METHODS = dict(
 class XArrayTarget3DExtraction(XArrayTarget):
     def open(self, *args, **kwargs):
         ds = super(XArrayTarget3DExtraction, self).open(*args, **kwargs)
+        if len(ds.coords) == 0:
+            raise Exception(f"{self.fn} doesn't contain any data")
         ds = self._ensure_coord_units(ds)
         return ds
 
-    @staticmethod
-    def _ensure_coord_units(da):
+    def _ensure_coord_units(self, da):
         coord_names = ["xt", "yt"]
         for v in coord_names:
             if not "units" in da[v].attrs:
