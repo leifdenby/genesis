@@ -12,58 +12,6 @@ from .base import _get_dataset_meta_info
 from .extraction_uclales import XArrayTargetUCLALES
 
 
-class Find3DTimesteps(luigi.Task):
-    base_name = luigi.Parameter()
-
-    def run(self):
-        meta = _get_dataset_meta_info(self.base_name)
-        p_in = Path(meta["path"]) / "raw_data" / f"{self.base_name}.00000000.nc"
-        da_3d_block = XArrayTargetUCLALES(str(p_in)).open()
-        da_3d_block.time.to_netcdf(self.output().fn)
-
-    def output(self):
-        fn = f"{self.base_name}.timesteps.nc"
-        p = get_workdir() / self.base_name / fn
-
-        return XArrayTarget(str(p))
-
-
-class ExtractCrossSection2DFrom3DTimestep(luigi.Task):
-    """
-    Extract the 2D cross-section for timestep `tn` in
-    base_name=`{base_name}.tn{tn}`
-    """
-
-    var_name = luigi.Parameter()
-    base_name = luigi.Parameter()
-
-    def _parse_basename(self):
-        assert ".tn" in self.base_name
-        bn, tn = self.base_name.split(".tn")
-        return bn, int(tn)
-
-    def requires(self):
-        bn, tn = self._parse_basename()
-        return Find3DTimesteps(base_name=bn)
-
-    def run(self):
-        da_3d_timesteps = self.input().open()
-        bn, tn = self._parse_basename()
-
-        da_time = da_3d_timesteps.isel(time=tn)
-        output_2d = yield ExtractCrossSection2D(
-            var_name=self.var_name, base_name=bn, time=da_time
-        )
-        da_2d = output_2d.open()
-        Path(self.output().fn).parent.mkdir(exist_ok=True, parents=True)
-        da_2d.to_netcdf(self.output().fn)
-
-    def output(self):
-        fn = f"{self.base_name}_3d.{self.var_name}.nc"
-        p = get_workdir() / self.base_name / "cross_sections" / "runtime_slices" / fn
-        return XArrayTarget(str(p))
-
-
 class MakeMask(luigi.Task):
     base_name = luigi.Parameter()
     method_extra_args = luigi.Parameter(default="")
@@ -148,4 +96,40 @@ class MakeMask(luigi.Task):
             base_name=self.base_name, mask_name=mask_name
         )
         p = get_workdir() / self.base_name / fn
+        return XArrayTarget(str(p))
+
+
+class ExtractCrossSection2DFrom3DTimestep(luigi.Task):
+    """
+    Extract the 2D cross-section for timestep `tn` in
+    base_name=`{base_name}.tn{tn}`
+    """
+
+    var_name = luigi.Parameter()
+    base_name = luigi.Parameter()
+
+    def _parse_basename(self):
+        assert ".tn" in self.base_name
+        bn, tn = self.base_name.split(".tn")
+        return bn, int(tn)
+
+    def requires(self):
+        bn, tn = self._parse_basename()
+        return Find3DTimesteps(base_name=bn)
+
+    def run(self):
+        da_3d_timesteps = self.input().open()
+        bn, tn = self._parse_basename()
+
+        da_time = da_3d_timesteps.isel(time=tn)
+        output_2d = yield ExtractCrossSection2D(
+            var_name=self.var_name, base_name=bn, time=da_time
+        )
+        da_2d = output_2d.open()
+        Path(self.output().fn).parent.mkdir(exist_ok=True, parents=True)
+        da_2d.to_netcdf(self.output().fn)
+
+    def output(self):
+        fn = f"{self.base_name}_3d.{self.var_name}.nc"
+        p = get_workdir() / self.base_name / "cross_sections" / "runtime_slices" / fn
         return XArrayTarget(str(p))

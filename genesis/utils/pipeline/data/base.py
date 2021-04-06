@@ -57,10 +57,16 @@ def _get_dataset_meta_info(base_name):
                 datasource["timestep"] = int(timestep)
             else:
                 datasource["timestep"] = 0
-        elif re.search(r"\.tn\d+$", base_name):
+        elif re.search(r"\.tn[\d+|\*]$", base_name):
             base_name, timestep = base_name.split(".tn")
             datasource = datasources[base_name]
-            datasource["timestep"] = int(timestep)
+            if timestep == "*":
+                # this only happens when we're globbing to files, so we can
+                # safely just set the timestep value without turning it into an
+                # int
+                datasource["timestep"] = timestep
+            else:
+                datasource["timestep"] = int(timestep)
 
     if datasource is None:
         raise Exception(

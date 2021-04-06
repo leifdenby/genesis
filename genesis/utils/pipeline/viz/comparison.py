@@ -149,8 +149,7 @@ class ComparisonPlot(Comparison):
     """
 
     plot_parameters = luigi.DictParameter()
-    name = luigi.Parameter()
-    filetype = luigi.Parameter(default="png")
+    output_filename = luigi.Parameter()
 
     def run(self):
         TaskClass = self._get_task_class()
@@ -177,5 +176,4 @@ class ComparisonPlot(Comparison):
         plt.savefig(self.output().fn, fig=fig, bbox_inches="tight")
 
     def output(self):
-        fn = f"{self.name}.{self.filetype}"
-        return luigi.LocalTarget(fn)
+        return luigi.LocalTarget(self.output_filename)

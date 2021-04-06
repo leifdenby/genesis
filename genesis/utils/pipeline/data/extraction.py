@@ -18,6 +18,7 @@ from .base import (
     NumpyDatetimeParameter,
 )
 from ..data_sources.uclales import _fix_time_units as fix_time_units
+from .extraction_uclales import XArrayTargetUCLALES
 
 
 if "USE_SCHEDULER" in os.environ:
@@ -422,3 +423,44 @@ class Extract2DCloudbaseStateFrom3D(luigi.Task):
         fn = f"{self.base_name}.{self.field_name}.cldbase.tn{self.tn_3d}.xy.nc"
         p = get_workdir() / f"{self.base_name}.tn{self.tn_3d}" / "cross_sections" / fn
         return XArrayTarget(str(p))
+
+
+def get_3d_timesteps(base_name):
+    """
+    Get the actual time for all 3D files available
+    """
+    meta = _get_dataset_meta_info(base_name)
+    p_sample = Path(meta["path"]) / "raw_data" / f"{base_name}.00000000.nc"
+    if p_sample.exists():
+        da_3d_block = XArrayTargetUCLALES(str(p_sample)).open()
+        return da_3d_block.time
+    else:
+        raise NotImplementedError
+        # first find all 3D data files that we have
+        if ".tn" in base_name:
+            base_name = base_name.split(".tn")[0]
+        task_generic = ExtractField3D(field_name="*", base_name=f"{base_name}.tn*")
+        p = Path(task_generic.output().fn)
+        base_path = p.parent.parent
+        file_pattern = str(Path(p.parent.name) / p.name)
+
+        filenames = base_path.glob(file_pattern)
+
+        tn_to_time = {}
+        for fn in filenames:
+            da_3d = XArrayTarget(fn).open()
+            m = re.match(r"\.tn(\d+)", fn.name)
+            import ipdb
+
+            ipdb.set_trace()
+            _, tn = fn.name.split(".tn")
+            tn_to_time[tn] = da_3d.time
+
+        tns = []
+        times = []
+        for tn in sorted(tn_to_time.keys()):
+            tns.append(tn)
+            times.append(tn_to_time[tn])
+
+        da_time = xr.DataArray(times, dims=("tn",), coords=dict(tn=tns))
+        return da_time

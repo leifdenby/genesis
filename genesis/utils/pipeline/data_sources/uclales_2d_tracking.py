@@ -6,8 +6,8 @@ import signal
 import subprocess
 from enum import Enum
 
-
-UCLALES_TRACKING_BIN_PATH = os.environ.get("UCLALES_TRACKING_BIN_PATH")
+BIN_PATH_ENV_VAR = "UCLALES_TRACKING_BIN_PATH"
+UCLALES_TRACKING_BIN_PATH = os.environ.get(BIN_PATH_ENV_VAR)
 
 if UCLALES_TRACKING_BIN_PATH is None or not os.path.exists(UCLALES_TRACKING_BIN_PATH):
     HAS_TRACKING = False
