@@ -1,24 +1,16 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[1]:
 
-
-import luigi
-import matplotlib.pyplot as plt
-import xarray as xr
-import numpy as np
-
-import datetime
-
-import pymc3 as pm
-from pymc3.ode import DifferentialEquation
-import theano
-from scipy.integrate import odeint
 import arviz as az
+import matplotlib.pyplot as plt
+import numpy as np
+import pymc3 as pm
+import seaborn as sns
+import xarray as xr
 
 
-def plot_ballistic(object_id):
+def plot_ballistic(object_id, da_):
     da_obj = da_.sel(object_id=object_id)
 
     fig, ax = plt.subplots()
@@ -39,7 +31,7 @@ def plot_ballistic(object_id):
     a.attrs["units"] = "m/s^2"
     a.attrs["long_name"] = "accelleration"
 
-    t = z_top.time_relative
+    # t = z_top.time_relative
 
     fig, axes = plt.subplots(nrows=3, figsize=(5, 6), sharex=True)
     z_top.plot(ax=axes[0])
@@ -91,7 +83,7 @@ def fit_model(z, t, verbose=False):
         # prior for our estimated standard deviation of the error
         mu = pm.HalfNormal("mu", sigma=10)
 
-        z_pred = pm.Normal(
+        pm.Normal(
             "z_pred", mu=parcel_rise(x_data, [x0, v0, a0]), sd=mu, observed=y_data
         )
 
@@ -130,6 +122,8 @@ def fit_model_and_summarise(da_obj, var_name="cldtop", predictions=None, verbose
         )  # grab Upper 92.5% quantiles
         mean_spp = np.mean(y_pred_g["z_pred"], axis=0)  # Median
 
+        raise NotImplementedError(crit_l, crit_u, mean_spp)
+
     y0, v0, a0 = trace_g["x0"].mean(), trace_g["v0"].mean(), trace_g["a0"].mean()
     y0_stderr = trace_g["x0"].std()
 
@@ -142,7 +136,7 @@ def fit_model_and_summarise(da_obj, var_name="cldtop", predictions=None, verbose
     return ds
 
 
-def plot_fitted_model():
+def plot_fitted_model(y0, alpha, beta, times, z, y_pred_g, trace_g):
     p = [y0, alpha, beta]
     y = parcel_rise(times, p)
     yobs = z

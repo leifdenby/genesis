@@ -381,7 +381,7 @@ if __name__ == "__main__":
             )
 
             if args.plot_angles:
-                plot_angles(dataset, z_max=args.z_max, cumulants=cumulants)
+                plot(dataset, z_max=args.z_max, cumulants=cumulants, plot_type="angles")
             else:
                 plot(dataset, z_max=args.z_max, cumulants=cumulants)
         else:
@@ -398,7 +398,12 @@ if __name__ == "__main__":
 
             with ipdb.launch_ipdb_on_exception():
                 if args.plot_angles:
-                    plot_angles(dataset, z_max=args.z_max, cumulants=cumulants)
+                    plot(
+                        dataset,
+                        z_max=args.z_max,
+                        cumulants=cumulants,
+                        plot_type="plot_angles",
+                    )
                 else:
                     plot(dataset, z_max=args.z_max, cumulants=cumulants)
 
