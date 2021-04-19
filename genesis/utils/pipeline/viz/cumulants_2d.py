@@ -15,6 +15,7 @@ class CumulantSlices(luigi.Task):
     z_step = luigi.IntParameter(default=4)
     z_max = luigi.FloatParameter(default=700.0)
     filetype = luigi.Parameter(default="pdf")
+    figwidth = luigi.Parameter(default=7.0)
 
     def requires(self):
         base_names = self.base_names.split(",")
@@ -55,12 +56,16 @@ class CumulantSlices(luigi.Task):
 
         plot_fn = length_scales.cumulant.sections.plot
 
-        ax = plot_fn(
+        fig, axes = plot_fn(
             datasets=datasets,
             var_names=[self.v1, self.v2],
+            figwidth=self.figwidth
         )
 
-        return ax
+        # import ipdb
+        # ipdb.set_trace()
+
+        return fig, axes
 
     def run(self):
         self.makeplot()
@@ -84,6 +89,7 @@ class CumulantScalesProfile(luigi.Task):
     plot_type = luigi.Parameter(default="scales")
     filetype = luigi.Parameter(default="pdf")
     scale_limits = luigi.Parameter(default="")
+    figwidth = luigi.Parameter(default=2.5)
 
     reference_line_heights = luigi.ListParameter(default=[])
 

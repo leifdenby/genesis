@@ -10,12 +10,15 @@ from ..utils.plot_types import adjust_fig_to_fit_figlegend, PlotGrid
 from ..utils.xarray import scalar_density_2d, _make_equally_spaced_bins
 
 
-def _fix_label(label):
-    sentinel = "__FOO__"
-    if "[" in label and label.index("[") < label.index("\n"):
-        label = label.replace("\n", sentinel)
-        label = "\n".join(textwrap.wrap(label, width=30))
-        label = label.replace(sentinel, " ")
+def _label_from_attrs(da, width=20):
+    long_name = da.attrs["long_name"]
+    label = "\n".join(textwrap.wrap(long_name, width=width))
+
+    units = f"[{da.units}]"
+    if len(label.split("\n")[-1]) > width:
+        label += f"\n{units}"
+    else:
+        label += f" {units}"
     return label
 
 
@@ -52,7 +55,7 @@ def plot(
     bin_var = f"{v}__sum"
     # this will be used on all variables, so lets set it to something simpler
     # here
-    ds[f"{v}__mean"].attrs["long_name"] = "horz. mean vertical flux"
+    ds[f"{v}__mean"].attrs["long_name"] = "horz. mean\nvertical flux"
     # make height more meaningful
     ds.zt.attrs["long_name"] = "altitude"
 
@@ -93,7 +96,7 @@ def plot(
     )
     # make pointed ends to the colorbar because we used "robust=True" above
     cb = g.fig.colorbar(pc, cax=cax, orientation="horizontal", extend="both")
-    cb.set_label(_fix_label(xr.plot.utils.label_from_attrs(da_flux_per_bin)))
+    cb.set_label(_label_from_attrs(da_flux_per_bin, width=30))
 
     # g.ax_joint.colorbar(pc, bbox_to_anchor=[0.0, -0.2], orientation='horizontal')
 
@@ -113,7 +116,7 @@ def plot(
     lines_profile = da_flux_tot.plot(
         y="zt", ax=g.ax_marg_y, hue="sampling", add_legend=add_profile_legend
     )
-    g.ax_marg_y.set_label(_fix_label(g.ax_marg_y.get_label()))
+    g.ax_marg_y.set_xlabel(_label_from_attrs(da_flux_tot, width=16))
 
     # make the underlying dataarray available later
     setattr(g.ax_marg_y, "_source_data", da_flux_tot)
@@ -166,6 +169,7 @@ def plot(
     da_flux_per_bin_mean.plot(ax=g.ax_marg_x2, color=objects_line_color)
     g.ax_marg_x2.set_xlabel("")
     g.ax_marg_x2.set_title("")
+    g.ax_marg_x2.set_ylabel(_label_from_attrs(da_flux_per_bin_mean, width=16))
 
     if add_height_histogram:
         # add a histogram of the number of objects contributing to the flux at

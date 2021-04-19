@@ -33,15 +33,23 @@ def _load_data(dataset_names, var_names, z_max, z_step):
     return datasets
 
 
-def plot(datasets, var_names, est_method=WidthEstimationMethod.MASS_WEIGHTED):
+def plot(
+    datasets,
+    var_names,
+    est_method=WidthEstimationMethod.MASS_WEIGHTED,
+    figwidth=7.0,
+    add_figlegend=False,
+):
     z = datasets[0].zt
 
     v1, v2 = var_names
 
+    figheight = figwidth / 7.0 * 2.3
+
     fig, axes = plt.subplots(
         ncols=len(datasets) * 2,
         nrows=len(z),
-        figsize=(7.0 * len(datasets), 2.3 * len(z)),
+        figsize=(figwidth * len(datasets), figheight * len(z)),
     )
 
     loc_x = plticker.MultipleLocator(base=200)
@@ -70,7 +78,7 @@ def plot(datasets, var_names, est_method=WidthEstimationMethod.MASS_WEIGHTED):
             sp(ds_, axes[n, n_d * 2], axes[n, n_d * 2 + 1])
 
         axes[n, 0].text(
-            -1.0, 1.2, "z={}m".format(z_.values), transform=axes[n, 0].transAxes
+            -1.0, 1.3, "z={}m".format(z_.values), transform=axes[n, 0].transAxes
         )
 
     for n_d in range(len(datasets)):
@@ -84,6 +92,15 @@ def plot(datasets, var_names, est_method=WidthEstimationMethod.MASS_WEIGHTED):
         )
 
     fig.tight_layout()
+
+    handles, labels = axes[0, 1].get_legend_handles_labels()
+    labels = [label.split("=")[0].strip() + "$" for label in labels]
+    labels = [f"{label}: principle dir." if r"{p}" in label else f"{label}: perpendicular dir." for label in labels]
+    plt.figlegend(
+        handles, labels, loc="upper right", bbox_to_anchor=(1.0, 0.0),
+    )
+
+    return fig, axes
 
 
 FN_FORMAT_PLOT = "cumulant_with_height__{v1}__{v2}.{filetype}"

@@ -199,6 +199,7 @@ def plot(
     fill_between_alpha=0.2,
     add_asymmetry_markers=None,
     reference_line_heights=[],
+    figwidth=2.0,
     **kwargs,
 ):
     scale_limits = kwargs.pop("scale_limits", {})
@@ -218,9 +219,10 @@ def plot(
     _ = data.dataset_name.count()
 
     if split_subplots:
+        figheight = figwidth / 2.5 * 4.0
         fig, axes = plt.subplots(
             ncols=len(cumulants),
-            figsize=(2.5 * len(cumulants), 4.0),
+            figsize=(figwidth * len(cumulants), figheight),
             sharex=True,
             sharey=True,
         )
