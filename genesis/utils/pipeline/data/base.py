@@ -8,8 +8,6 @@ import luigi
 import yaml
 import dateutil.parser
 
-from ..data_sources.uclales import _fix_time_units as fix_time_units
-
 
 DATA_SOURCES = None
 _WORKDIR = Path("data")
@@ -57,7 +55,11 @@ def _get_dataset_meta_info(base_name):
                 datasource["timestep"] = int(timestep)
             else:
                 datasource["timestep"] = 0
-        elif re.search(r"\.tn[\d+|\*]$", base_name):
+        elif re.search(r"\.tn[\d]+$", base_name):
+            base_name, timestep = base_name.split(".tn")
+            datasource = datasources[base_name]
+            datasource["timestep"] = int(timestep)
+        elif re.search(r"\.tn\*$", base_name):
             base_name, timestep = base_name.split(".tn")
             datasource = datasources[base_name]
             if timestep == "*":
@@ -65,8 +67,6 @@ def _get_dataset_meta_info(base_name):
                 # safely just set the timestep value without turning it into an
                 # int
                 datasource["timestep"] = timestep
-            else:
-                datasource["timestep"] = int(timestep)
 
     if datasource is None:
         raise Exception(

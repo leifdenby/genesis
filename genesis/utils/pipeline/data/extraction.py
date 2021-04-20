@@ -17,8 +17,6 @@ from .base import (
     _get_dataset_meta_info,
     NumpyDatetimeParameter,
 )
-from ..data_sources.uclales import _fix_time_units as fix_time_units
-from .extraction_uclales import XArrayTargetUCLALES
 
 
 if "USE_SCHEDULER" in os.environ:
@@ -33,6 +31,45 @@ COMPOSITE_FIELD_METHODS = dict(
     flux=(calc_flux.compute_vertical_flux, ["w"]),
     _prefix__d=(calc_flux.get_horz_devition, []),
 )
+
+
+def fix_time_units(da):
+    modified = False
+    if np.issubdtype(da.dtype, np.datetime64):
+        # already converted since xarray has managed to parse the time in
+        # CF-format
+        pass
+    elif da.attrs["units"].startswith("seconds since 2000-01-01"):
+        # I fixed UCLALES to CF valid output, this is output from a fixed
+        # version
+        pass
+    elif da.attrs["units"].startswith("seconds since 2000-00-00"):
+        da.attrs["units"] = da.attrs["units"].replace(
+            "seconds since 2000-00-00",
+            "seconds since 2000-01-01",
+        )
+        modified = True
+    elif da.attrs["units"].startswith("seconds since 0-00-00"):
+        # 2D fields have strange time units...
+        da.attrs["units"] = da.attrs["units"].replace(
+            "seconds since 0-00-00",
+            "seconds since 2000-01-01",
+        )
+        modified = True
+    elif da.attrs["units"].startswith("seconds since 0-0-0"):
+        # 2D fields have strange time units...
+        da.attrs["units"] = da.attrs["units"].replace(
+            "seconds since 0-0-0",
+            "seconds since 2000-01-01",
+        )
+        modified = True
+    elif da.attrs["units"] == "day as %Y%m%d.%f":
+        da = (da * 24 * 60 * 60).astype(int)
+        da.attrs["units"] = "seconds since 2000-01-01 00:00:00"
+        modified = True
+    else:
+        raise NotImplementedError(da.attrs["units"])
+    return da, modified
 
 
 class XArrayTarget3DExtraction(XArrayTarget):
@@ -110,9 +147,11 @@ class ExtractField3D(luigi.Task):
     def run(self):
         meta = _get_dataset_meta_info(self.base_name)
 
-        fn_out = self.output()
+        output = self.output()
 
-        if fn_out.exists():
+        print("$$", output.fn, output.exists())
+
+        if output.exists():
             pass
         elif meta["host"] == "localhost":
             p_out = Path(self.output().fn)
@@ -145,14 +184,22 @@ class ExtractField3D(luigi.Task):
                     [(k, input.open()) for (k, input) in self.input().items()]
                 )
                 data_loader = self._get_data_loader_module(meta=meta)
-                data_loader.extract_field_to_filename(
+                result = data_loader.extract_field_to_filename(
                     dataset_meta=meta,
                     path_out=p_out,
                     field_name=self.field_name,
                     **opened_inputs,
                 )
+                if isinstance(result, luigi.Task):
+                    yield result
+                    data_loader.extract_field_to_filename(
+                        dataset_meta=meta,
+                        path_out=p_out,
+                        field_name=self.field_name,
+                        **opened_inputs,
+                    )
         else:
-            raise NotImplementedError(fn_out.fn)
+            raise NotImplementedError(output.fn)
 
     def output(self):
         meta = _get_dataset_meta_info(self.base_name)
@@ -424,44 +471,3 @@ class Extract2DCloudbaseStateFrom3D(luigi.Task):
         fn = f"{self.base_name}.{self.field_name}.cldbase.tn{self.tn_3d}.xy.nc"
         p = get_workdir() / f"{self.base_name}.tn{self.tn_3d}" / "cross_sections" / fn
         return XArrayTarget(str(p))
-
-
-def get_3d_timesteps(base_name):
-    """
-    Get the actual time for all 3D files available
-    """
-    meta = _get_dataset_meta_info(base_name)
-    p_sample = Path(meta["path"]) / "raw_data" / f"{base_name}.00000000.nc"
-    if p_sample.exists():
-        da_3d_block = XArrayTargetUCLALES(str(p_sample)).open()
-        return da_3d_block.time
-    else:
-        raise NotImplementedError
-        # first find all 3D data files that we have
-        if ".tn" in base_name:
-            base_name = base_name.split(".tn")[0]
-        task_generic = ExtractField3D(field_name="*", base_name=f"{base_name}.tn*")
-        p = Path(task_generic.output().fn)
-        base_path = p.parent.parent
-        file_pattern = str(Path(p.parent.name) / p.name)
-
-        filenames = base_path.glob(file_pattern)
-
-        tn_to_time = {}
-        for fn in filenames:
-            da_3d = XArrayTarget(fn).open()
-            m = re.match(r"\.tn(\d+)", fn.name)
-            import ipdb
-
-            ipdb.set_trace()
-            _, tn = fn.name.split(".tn")
-            tn_to_time[tn] = da_3d.time
-
-        tns = []
-        times = []
-        for tn in sorted(tn_to_time.keys()):
-            tns.append(tn)
-            times.append(tn_to_time[tn])
-
-        da_time = xr.DataArray(times, dims=("tn",), coords=dict(tn=tns))
-        return da_time

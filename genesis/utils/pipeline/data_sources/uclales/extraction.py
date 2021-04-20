@@ -1,3 +1,7 @@
+"""
+luigi-based pipeline for extracting full-domain 3D fields for single variables
+at single timestep from per-core column output from the UCLALES model
+"""
 from pathlib import Path
 import subprocess
 import signal
@@ -5,21 +9,17 @@ import signal
 import luigi
 import xarray as xr
 
-from .base import (
-    get_workdir,
+from ...data.base import (
     XArrayTarget,
-    _get_dataset_meta_info,
 )
-from ..data_sources.uclales import _fix_time_units as fix_time_units
+from .common import _fix_time_units as fix_time_units
 
-RAW_DATA_PATH = Path("raw_data")
-OUTPUT_DATA_PATH = Path("3d_blocks/full_domain")
 PARTIALS_3D_PATH = Path("partials_xr/3d")
 
-SOURCE_BLOCK_FILENAME_FORMAT = "{base_name}.{i:04d}{j:04d}.nc"
-SINGLE_VAR_BLOCK_FILENAME_FORMAT = "{base_name}.{i:04d}{j:04d}.{var_name}.tn{tn}.nc"
-SINGLE_VAR_STRIP_FILENAME_FORMAT = "{base_name}.{dim}.{idx:04d}.{var_name}.tn{tn}.nc"
-SINGLE_VAR_FILENAME_FORMAT = "{base_name}.{var_name}.tn{tn}.nc"
+SOURCE_BLOCK_FILENAME_FORMAT = "{file_prefix}.{i:04d}{j:04d}.nc"
+SINGLE_VAR_BLOCK_FILENAME_FORMAT = "{file_prefix}.{i:04d}{j:04d}.{var_name}.tn{tn}.nc"
+SINGLE_VAR_STRIP_FILENAME_FORMAT = "{file_prefix}.{dim}.{idx:04d}.{var_name}.tn{tn}.nc"
+SINGLE_VAR_FILENAME_FORMAT = "{file_prefix}.{var_name}.tn{tn}.nc"
 
 STORE_PARTIALS_LOCALLY = False
 
@@ -67,24 +67,22 @@ class XArrayTargetUCLALES(XArrayTarget):
             return xr.decode_cf(da)
 
 
-def _find_number_of_blocks(base_name):
-    meta = _get_dataset_meta_info(base_name)
-    source_path = Path(meta["path"]) / RAW_DATA_PATH
-
+def _find_number_of_blocks(source_path, file_prefix):
     x_filename_pattern = SOURCE_BLOCK_FILENAME_FORMAT.format(
-        base_name=base_name, i=9999, j=0
+        file_prefix=file_prefix, i=9999, j=0
     ).replace("9999", "????")
     y_filename_pattern = SOURCE_BLOCK_FILENAME_FORMAT.format(
-        base_name=base_name, j=9999, i=0
+        file_prefix=file_prefix, j=9999, i=0
     ).replace("9999", "????")
 
-    nx = len(list(source_path.glob(x_filename_pattern)))
-    ny = len(list(source_path.glob(y_filename_pattern)))
+    nx = len(list(Path(source_path).glob(x_filename_pattern)))
+    ny = len(list(Path(source_path).glob(y_filename_pattern)))
 
     if nx == 0 or ny == 0:
         raise Exception(
             f"Didn't find any source files in `{source_path}` "
-            f"(nx={nx} and ny={ny} found)"
+            f"(nx={nx} and ny={ny} found). Tried `{x_filename_pattern}` "
+            f"and `{y_filename_pattern}` patterns"
         )
 
     return nx, ny
@@ -95,20 +93,20 @@ class UCLALESOutputBlock(luigi.ExternalTask):
     Represents 3D output from model simulations
     """
 
-    base_name = luigi.Parameter()
+    file_prefix = luigi.Parameter()
+    source_path = luigi.Parameter()
     i = luigi.IntParameter()
     j = luigi.IntParameter()
 
     def output(self):
         fn = SOURCE_BLOCK_FILENAME_FORMAT.format(
-            base_name=self.base_name, i=self.i, j=self.j
+            file_prefix=self.file_prefix, i=self.i, j=self.j
         )
 
-        meta = _get_dataset_meta_info(self.base_name)
-        p = Path(meta["path"]) / RAW_DATA_PATH / fn
+        p = Path(self.source_path) / fn
 
         if not p.exists():
-            raise Exception(f"Missing input file `{fn}` for `{self.base_name}`")
+            raise Exception(f"Missing input file `{fn}` for `{self.file_prefix}`")
 
         return XArrayTargetUCLALES(str(p))
 
@@ -117,41 +115,49 @@ class UCLALESBlockSelectVariable(luigi.Task):
     """
     Extracts a single variable at a single timestep from one 3D output block
 
-    {base_name}.{j:04d}{i:04d}.nc -> {base_name}.{j:04d}{i:04d}.{var_name}.tn{tn}.nc
+    {file_prefix}.{j:04d}{i:04d}.nc -> {file_prefix}.{j:04d}{i:04d}.{var_name}.tn{tn}.nc
     rico_gcss.00010002.nc -> rico_gcss.00010002.q.tn4.nc
     for var q and timestep 4
     """
 
-    base_name = luigi.Parameter()
+    file_prefix = luigi.Parameter()
+    source_path = luigi.Parameter()
     var_name = luigi.Parameter()
     i = luigi.IntParameter()
     j = luigi.IntParameter()
     tn = luigi.IntParameter()
 
     def requires(self):
-        return UCLALESOutputBlock(base_name=self.base_name, i=self.i, j=self.j)
+        return UCLALESOutputBlock(
+            file_prefix=self.file_prefix,
+            i=self.i,
+            j=self.j,
+            source_path=self.source_path,
+        )
 
     def run(self):
         ds_block = self.input().open()
         da_block_var = ds_block[self.var_name].isel(time=self.tn)
+
         # to use cdo the dimensions have to be (z, y, x)...
-        da_block_var = da_block_var.transpose("zt", "yt", "xt")
+        posns = dict(xt=2, xm=2, yt=1, ym=1, zt=0, zm=0)
+        dims = [None, None, None]
+        for d in list(da_block_var.dims):
+            dims[posns[d]] = d
+        da_block_var = da_block_var.transpose(*dims)
+
         Path(self.output().fn).parent.mkdir(exist_ok=True, parents=True)
         da_block_var.to_netcdf(self.output().fn)
 
     def output(self):
         fn = SINGLE_VAR_BLOCK_FILENAME_FORMAT.format(
-            base_name=self.base_name,
+            file_prefix=self.file_prefix,
             i=self.i,
             j=self.j,
             var_name=self.var_name,
             tn=self.tn,
         )
-        meta = _get_dataset_meta_info(self.base_name)
-        if STORE_PARTIALS_LOCALLY:
-            p = get_workdir() / OUTPUT_DATA_PATH / PARTIALS_3D_PATH / fn
-        else:
-            p = Path(meta["path"]) / RAW_DATA_PATH / PARTIALS_3D_PATH / fn
+        p = Path(self.source_path) / PARTIALS_3D_PATH / fn
 
         return XArrayTargetUCLALES(str(p))
 
@@ -161,12 +167,13 @@ class UCLALESStripSelectVariable(luigi.Task):
     Extracts a single variable at a single timestep as a strip of blocks along
     the `dim` dimension at index `idx` in the perpendicular dimension
 
-    {base_name}.{j:04d}{i:04d}.nc -> {base_name}.{idx:04d}.{var_name}.tn{tn}.nc
+    {file_prefix}.{j:04d}{i:04d}.nc -> {file_prefix}.{idx:04d}.{var_name}.tn{tn}.nc
     rico_gcss.00010002.nc -> rico_gcss.00010002.q.tn4.nc
     for var q and timestep 4
     """
 
-    base_name = luigi.Parameter()
+    file_prefix = luigi.Parameter()
+    source_path = luigi.Parameter()
     var_name = luigi.Parameter()
     idx = luigi.IntParameter()
     dim = luigi.Parameter()
@@ -174,7 +181,9 @@ class UCLALESStripSelectVariable(luigi.Task):
     use_cdo = luigi.BoolParameter(default=True)
 
     def requires(self):
-        nx_b, ny_b = _find_number_of_blocks(base_name=self.base_name)
+        nx_b, ny_b = _find_number_of_blocks(
+            file_prefix=self.file_prefix, source_path=self.source_path
+        )
 
         if self.dim == "x":
             make_kws = lambda n: dict(i=self.idx, j=n)  # noqa
@@ -187,9 +196,10 @@ class UCLALESStripSelectVariable(luigi.Task):
 
         return [
             UCLALESBlockSelectVariable(
-                base_name=self.base_name,
+                file_prefix=self.file_prefix,
                 tn=self.tn,
                 var_name=self.var_name,
+                source_path=self.source_path,
                 **make_kws(n=n),
             )
             for n in range(nidx)
@@ -217,17 +227,13 @@ class UCLALESStripSelectVariable(luigi.Task):
 
     def output(self):
         fn = SINGLE_VAR_STRIP_FILENAME_FORMAT.format(
-            base_name=self.base_name,
+            file_prefix=self.file_prefix,
             idx=self.idx,
             dim=self.dim,
             var_name=self.var_name,
             tn=self.tn,
         )
-        meta = _get_dataset_meta_info(self.base_name)
-        if STORE_PARTIALS_LOCALLY:
-            p = get_workdir() / OUTPUT_DATA_PATH / PARTIALS_3D_PATH / fn
-        else:
-            p = Path(meta["path"]) / RAW_DATA_PATH / PARTIALS_3D_PATH / fn
+        p = Path(self.source_path) / PARTIALS_3D_PATH / fn
 
         return XArrayTargetUCLALES(str(p))
 
@@ -241,11 +247,12 @@ class _Merge3DBaseTask(luigi.Task):
     def requires(self):
         return dict(
             first_block=UCLALESBlockSelectVariable(
-                base_name=self.base_name,
+                file_prefix=self.file_prefix,
                 i=0,
                 j=0,
                 var_name=self.var_name,
                 tn=self.tn,
+                source_path=self.source_path,
             )
         )
 
@@ -254,7 +261,9 @@ class _Merge3DBaseTask(luigi.Task):
         dims = dict([(d.replace("t", "").replace("m", ""), d) for d in da.dims])
 
         # check that we've aggregated enough bits and have the expected shape
-        nx_b, ny_b = _find_number_of_blocks(base_name=self.base_name)
+        nx_b, ny_b = _find_number_of_blocks(
+            file_prefix=self.file_prefix, source_path=self.source_path
+        )
         da_first_block = self.input()["first_block"].open()
         b_nx = int(da_first_block[dims["x"]].count())
         b_ny = int(da_first_block[dims["y"]].count())
@@ -286,9 +295,9 @@ class _Merge3DBaseTask(luigi.Task):
 
     def output(self):
         fn = SINGLE_VAR_FILENAME_FORMAT.format(
-            base_name=self.base_name, tn=self.tn, var_name=self.var_name
+            file_prefix=self.file_prefix, tn=self.tn, var_name=self.var_name
         )
-        p = get_workdir() / OUTPUT_DATA_PATH / fn
+        p = Path(self.source_path) / PARTIALS_3D_PATH / fn
         return XArrayTarget(str(p))
 
 
@@ -298,19 +307,22 @@ class Extract3DbyBlocks(_Merge3DBaseTask):
     single file
     """
 
-    base_name = luigi.Parameter()
+    file_prefix = luigi.Parameter()
+    source_path = luigi.Parameter()
     var_name = luigi.Parameter()
     tn = luigi.IntParameter()
 
     def requires(self):
         tasks = super().requires()
-        nx, ny = _find_number_of_blocks(base_name=self.base_name)
+        nx, ny = _find_number_of_blocks(
+            file_prefix=self.file_prefix, source_path=self.source_path
+        )
 
         tasks_parts = []
         for i in range(nx):
             for j in range(ny):
                 t = UCLALESBlockSelectVariable(
-                    base_name=self.base_name,
+                    file_prefix=self.file_prefix,
                     var_name=self.var_name,
                     i=i,
                     j=j,
@@ -328,14 +340,17 @@ class Extract3DbyStrips(_Merge3DBaseTask):
     single file
     """
 
-    base_name = luigi.Parameter()
+    file_prefix = luigi.Parameter()
+    source_path = luigi.Parameter()
     var_name = luigi.Parameter()
     tn = luigi.IntParameter()
     dim = luigi.Parameter(default="x")
     use_cdo = luigi.BoolParameter(default=True)
 
     def _check_inputs(self, opened_inputs):
-        nx_b, ny_b = _find_number_of_blocks(base_name=self.base_name)
+        nx_b, ny_b = _find_number_of_blocks(
+            file_prefix=self.file_prefix, source_path=self.source_path
+        )
 
         # find block size
         da_first_block = self.input()["first_block"].open()
@@ -383,14 +398,16 @@ class Extract3DbyStrips(_Merge3DBaseTask):
             da = self.output().open()
             try:
                 self._check_output(da=da)
-            except:
+            except Exception as e:
                 Path(self.output().fn).unlink()
                 raise
         else:
             super(Extract3DbyStrips, self).run()
 
     def requires(self):
-        nx, ny = _find_number_of_blocks(base_name=self.base_name)
+        nx, ny = _find_number_of_blocks(
+            file_prefix=self.file_prefix, source_path=self.source_path
+        )
 
         if self.dim == "x":
             nidx = nx
@@ -403,19 +420,21 @@ class Extract3DbyStrips(_Merge3DBaseTask):
 
         tasks["parts"] = [
             UCLALESStripSelectVariable(
-                base_name=self.base_name,
+                file_prefix=self.file_prefix,
                 dim=self.dim,
                 idx=i,
                 tn=self.tn,
                 var_name=self.var_name,
+                source_path=self.source_path,
             )
             for i in range(nidx)
         ]
         return tasks
 
 
-class Extract3D(luigi.WrapperTask):
-    base_name = luigi.Parameter()
+class Extract3D(luigi.Task):
+    file_prefix = luigi.Parameter()
+    source_path = luigi.Parameter()
     var_name = luigi.Parameter()
     tn = luigi.IntParameter()
     mode = luigi.Parameter(default="y_strips")
@@ -423,14 +442,21 @@ class Extract3D(luigi.WrapperTask):
     def requires(self):
         if self.mode == "blocks":
             return Extract3DbyBlocks(
-                base_name=self.base_name, var_name=self.var_name, tn=self.tn
+                file_prefix=self.file_prefix,
+                var_name=self.var_name,
+                tn=self.tn,
+                source_path=self.source_path,
             )
         elif self.mode.endswith("_strips"):
             return Extract3DbyStrips(
-                base_name=self.base_name,
+                file_prefix=self.file_prefix,
                 var_name=self.var_name,
                 tn=self.tn,
                 dim=self.mode[0],
+                source_path=self.source_path,
             )
         else:
             raise NotImplementedError(self.mode)
+
+    def output(self):
+        return self.input()

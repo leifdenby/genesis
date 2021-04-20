@@ -1,5 +1,5 @@
-from ...data_sources.uclales_2d_tracking import TrackingType
-from ...data_sources import uclales_2d_tracking
+from ...data_sources.uclales.tracking_2d import TrackingType
+from ...data_sources.uclales import tracking_2d as uclales_2d_tracking
 
 from .base import (
     PerformObjectTracking2D,

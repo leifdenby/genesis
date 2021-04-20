@@ -9,7 +9,6 @@ from ... import make_mask
 from .extraction import ExtractField3D, ExtractCrossSection2D
 from .base import get_workdir, XArrayTarget
 from .base import _get_dataset_meta_info
-from .extraction_uclales import XArrayTargetUCLALES
 
 
 class MakeMask(luigi.Task):

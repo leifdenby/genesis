@@ -3,7 +3,11 @@ import numpy as np
 
 from pathlib import Path
 import os
-from ... import center_staggered_field
+from .... import center_staggered_field
+
+from .common import _fix_time_units
+from .extraction import Extract3D
+
 
 FIELD_NAME_MAPPING = dict(
     w="w_zt",
@@ -110,43 +114,25 @@ def _fix_long_name(da):
     return da, modified
 
 
-def _fix_time_units(da):
-    modified = False
-    if np.issubdtype(da.dtype, np.datetime64):
-        # already converted since xarray has managed to parse the time in
-        # CF-format
-        pass
-    elif da.attrs["units"].startswith("seconds since 2000-01-01"):
-        # I fixed UCLALES to CF valid output, this is output from a fixed
-        # version
-        pass
-    elif da.attrs["units"].startswith("seconds since 2000-00-00"):
-        da.attrs["units"] = da.attrs["units"].replace(
-            "seconds since 2000-00-00",
-            "seconds since 2000-01-01",
-        )
-        modified = True
-    elif da.attrs["units"].startswith("seconds since 0-00-00"):
-        # 2D fields have strange time units...
-        da.attrs["units"] = da.attrs["units"].replace(
-            "seconds since 0-00-00",
-            "seconds since 2000-01-01",
-        )
-        modified = True
-    elif da.attrs["units"].startswith("seconds since 0-0-0"):
-        # 2D fields have strange time units...
-        da.attrs["units"] = da.attrs["units"].replace(
-            "seconds since 0-0-0",
-            "seconds since 2000-01-01",
-        )
-        modified = True
-    elif da.attrs["units"] == "day as %Y%m%d.%f":
-        da = (da * 24 * 60 * 60).astype(int)
-        da.attrs["units"] = "seconds since 2000-01-01 00:00:00"
-        modified = True
-    else:
-        raise NotImplementedError(da.attrs["units"])
-    return da, modified
+class RawDataPathDoesNotExist(Exception):
+    pass
+
+
+def _build_block_extraction_task(dataset_meta, field_name, path_expected):
+    var_name = FIELD_NAME_MAPPING[field_name]
+
+    raw_data_path = Path(dataset_meta["path"]) / "raw_data"
+
+    if not raw_data_path.exists():
+        raise RawDataPathDoesNotExist
+
+    task = Extract3D(
+        source_path=raw_data_path,
+        file_prefix=dataset_meta["experiment_name"],
+        var_name=var_name,
+        tn=dataset_meta["timestep"],
+    )
+    return task
 
 
 def extract_field_to_filename(dataset_meta, path_out, field_name, **kwargs):  # noqa
@@ -185,10 +171,28 @@ def extract_field_to_filename(dataset_meta, path_out, field_name, **kwargs):  # 
         can_symlink = False
     else:
         if not path_in.exists():
-            raise Exception(
-                "Can't open `{}` because it doesn't exist" "".format(path_in)
-            )
-        da = xr.open_dataarray(path_in, decode_times=False)
+            try:
+                task = _build_block_extraction_task(
+                    dataset_meta=dataset_meta,
+                    field_name=field_name,
+                    path_expected=path_in,
+                )
+                # if the source file doesn't exist we return a task to create
+                # it, next time we pass here the file should exist and we can
+                # just open it
+                if not task.output().exists():
+                    return task
+
+                da = task.output().open(decode_times=False)
+                can_symlink = False
+            except RawDataPathDoesNotExist:
+                raise Exception(
+                    f"Can't open `{path_in}` because it doesn't exist. If you have"
+                    f" the raw model output you can put it in `{dataset_meta['path']}/raw_data`"
+                    " and extraction from blocks will be done automatically"
+                )
+        else:
+            da = xr.open_dataarray(path_in, decode_times=False)
 
     da, modified = _scale_field(da)
     if modified:

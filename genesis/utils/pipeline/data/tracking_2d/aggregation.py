@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 
 from .....utils import find_vertical_grid_spacing, find_horizontal_grid_spacing
-from ...data_sources import uclales_2d_tracking
+from ...data_sources.uclales import tracking_2d as uclales_2d_tracking
 from ..base import (
     get_workdir,
     _get_dataset_meta_info,
