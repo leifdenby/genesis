@@ -5,13 +5,22 @@ import warnings
 import xarray as xr
 
 from . import operations
+from . import aggregation
 
 
-def _find_objectset_operations():
+def _find_module_operations(module):
     from inspect import getmembers, isfunction, getargspec
 
     f = lambda o: isfunction(o[1]) and "ds" in getargspec(o[1]).args  # noqa
-    return [o[0] for o in getmembers(operations) if f(o)]
+    return [o[0] for o in getmembers(module) if f(o)]
+
+
+def _find_objectset_operations():
+    return _find_module_operations(operations)
+
+
+def _find_objectset_aggregations():
+    return _find_module_operations(aggregation)
 
 
 class ObjectSet:

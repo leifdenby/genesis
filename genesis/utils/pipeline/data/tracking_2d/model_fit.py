@@ -19,8 +19,6 @@ class ParcelRiseModelFit(luigi.Task):
     base_name = luigi.Parameter()
     label_var = "cloud"
     var_name = "cldtop"
-    op = luigi.Parameter()
-    dx = 25.0
     use_relative_time_axis = luigi.BoolParameter(default=True)
 
     track_without_gal_transform = luigi.BoolParameter(default=False)
@@ -39,8 +37,7 @@ class ParcelRiseModelFit(luigi.Task):
             z=AllObjectsAll2DCrossSectionAggregations(
                 label_var=self.label_var,
                 var_name=self.var_name,
-                op="histogram",
-                dx=self.dx,
+                op="maximum",
                 **common_kws,
             ),
             cloudtype=TrackingVariable2D(
@@ -53,9 +50,6 @@ class ParcelRiseModelFit(luigi.Task):
         input = self.input()
         da = input["z"].open()
         da_cloudtype = input["cloudtype"].open()
-
-        da.attrs["long_name"] = "number of cells"
-        da.attrs["units"] = "1"
 
         da_cloudtype = (
             da_cloudtype.rename(smcloudid="object_id").astype(int).drop("smcloud")
@@ -77,9 +71,9 @@ class ParcelRiseModelFit(luigi.Task):
 
         try:
             for cloud_id in tqdm(single_cloud_ids):
-                da_obj = da.sel(object_id=cloud_id)
+                da_obj_z = da.sel(object_id=cloud_id)
                 ds_model_summary = parcel_rise.fit_model_and_summarise(
-                    da_obj=da_obj,
+                    da_z=da_obj_z,
                     predictions="mean_with_quantiles",
                     var_name=self.var_name,
                 )
@@ -104,9 +98,7 @@ class ParcelRiseModelFit(luigi.Task):
 
         name_parts = [
             self.var_name,
-            f"of_{self.label_var}",
             f"tracked_{type_id}",
-            self.op + ["", f"__{str(self.dx)}"][self.dx != None],
             interval_id,
         ]
 

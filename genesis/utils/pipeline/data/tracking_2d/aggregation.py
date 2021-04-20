@@ -22,9 +22,11 @@ from ..extraction import (
     ExtractField3D,
     REGEX_INSTANTENOUS_BASENAME,
     remove_gal_transform,
+    TimeCrossSectionSlices2D,
 )
 from .base import TrackingVariable2D, TrackingLabels2D
 from . import TrackingType
+from .....objects.projected_2d.aggregation import cloudbase_max_height_by_histogram_peak
 
 
 class Aggregate2DCrossSectionOnTrackedObjects(luigi.Task):
@@ -192,12 +194,16 @@ class Aggregate2DCrossSectionOnTrackedObjects(luigi.Task):
                 da_values=da_values,
                 da_labels=da_labels,
             )
+            name = f"{self.var_name}__hist_{self.dx}"
         elif self.op in vars(dmeasure):
             da_out = self._aggregate_generic(
                 da_values=da_values, da_labels=da_labels, op=self.op
             )
+            name = f"{self.var_name}__{self.op}"
         else:
             raise NotImplementedError(self.op)
+
+        da_out.name = name
 
         Path(self.output().fn).parent.mkdir(exist_ok=True, parents=True)
         da_out.to_netcdf(self.output().fn)
@@ -242,9 +248,9 @@ class AllObjectsAll2DCrossSectionAggregations(luigi.Task):
     """
 
     base_name = luigi.Parameter()
-    label_var = luigi.Parameter()
+    label_var = luigi.Parameter(default=None)
     var_name = luigi.Parameter()
-    op = luigi.Parameter()
+    op = luigi.Parameter(default=None)
     dx = luigi.FloatParameter(default=-1.0)
     use_relative_time_axis = luigi.BoolParameter(default=True)
 
@@ -277,17 +283,26 @@ class AllObjectsAll2DCrossSectionAggregations(luigi.Task):
         agg_tasks = {}
 
         for time in times:
-            agg_task = Aggregate2DCrossSectionOnTrackedObjects(
-                var_name=self.var_name,
-                base_name=self.base_name,
-                dx=self.dx,
-                op=self.op,
-                time=time,
-                label_var=self.label_var,
-                tracking_timestep_interval=self.tracking_timestep_interval,
-                tracking_type=self.tracking_type,
-                track_without_gal_transform=self.track_without_gal_transform,
-            )
+            if self.var_name == "z_cb_est":
+                # add especialised aggregation task which estimates the cloud-base height
+                agg_task = EstimateCloudbaseHeightFromTracking(
+                    base_name=self.base_name,
+                    time=time,
+                    dz=self.dx,
+                    tracking_timestep_interval=self.tracking_timestep_interval,
+                )
+            else:
+                agg_task = Aggregate2DCrossSectionOnTrackedObjects(
+                    var_name=self.var_name,
+                    base_name=self.base_name,
+                    dx=self.dx,
+                    op=self.op,
+                    time=time,
+                    label_var=self.label_var,
+                    tracking_timestep_interval=self.tracking_timestep_interval,
+                    tracking_type=self.tracking_type,
+                    track_without_gal_transform=self.track_without_gal_transform,
+                )
             agg_tasks[time] = agg_task
         return agg_tasks
 
@@ -404,9 +419,11 @@ class AllObjectsAll2DCrossSectionAggregations(luigi.Task):
             self.var_name,
             f"of_{self.label_var}",
             f"tracked_{type_id}",
-            self.op + ["", f"__{str(self.dx)}"][self.dx != None],
             interval_id,
         ]
+
+        if self.op is not None:
+            name_parts.insert(-2, self.op + ["", f"__{str(self.dx)}"][self.dx != None])
 
         if not self.use_relative_time_axis:
             name_parts.append("absolute_time")
@@ -458,5 +475,53 @@ class Aggregate2DCrossSectionOnTrackedObjectsBy3DField(luigi.Task):
 
     def output(self):
         fn = "{}.by_{}.nc".format(self.var_name, self.label_var)
+        p = get_workdir() / self.base_name / "cross_sections" / "aggregated" / fn
+        return XArrayTarget(str(p))
+
+
+class EstimateCloudbaseHeightFromTracking(luigi.Task):
+    """
+    From a histogram of the cloud-underside heights for all tracked clouds
+    present at a given time estimate the cloud-base height as the peak of this
+    histogram
+    """
+
+    base_name = luigi.Parameter()
+    time = NumpyDatetimeParameter()
+    dz = luigi.FloatParameter()
+    tracking_timestep_interval = luigi.ListParameter(default=[])
+
+    def requires(self):
+        reqs = {}
+        reqs["cldbase_binned"] = Aggregate2DCrossSectionOnTrackedObjects(
+            var_name="cldbase",
+            base_name=self.base_name,
+            time=self.time,
+            label_var="cloud",
+            tracking_type=TrackingType.CLOUD_CORE,
+            op="histogram",
+            dx=self.dz,
+            tracking_timestep_interval=self.tracking_timestep_interval,
+        )
+        reqs["cldbase"] = TimeCrossSectionSlices2D(
+            base_name=self.base_name, var_name="cldbase"
+        )
+        return reqs
+
+    def run(self):
+        da_cldbase_histogram = self.input()["cldbase_binned"].open()
+        if da_cldbase_histogram.object_id.count() == 0:
+            da_zb = xr.Dataset()
+        else:
+            da_zb = cloudbase_max_height_by_histogram_peak(
+                da_cldbase_histogram=da_cldbase_histogram
+            )
+        da_zb.name = "z_cb_est"
+        da_zb.to_netcdf(self.output().fn)
+
+    def output(self):
+        fn = "z_cb_from_hist_peak.{}.nc".format(
+            str(self.time).replace("-", "").replace(":", "")
+        )
         p = get_workdir() / self.base_name / "cross_sections" / "aggregated" / fn
         return XArrayTarget(str(p))

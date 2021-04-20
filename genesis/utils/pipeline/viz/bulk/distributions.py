@@ -8,7 +8,7 @@ from .....bulk_statistics import cross_correlation_with_height
 from ...data.base import XArrayTarget
 from ...data.extraction import ExtractField3D
 from ...data.masking import MakeMask
-from ...data.tracking_2d.base import ExtractBelowCloudEnvironment
+from ...data.tracking_2d.cloud_base import ExtractBelowCloudEnvironment
 
 
 class JointDistProfile(luigi.Task):

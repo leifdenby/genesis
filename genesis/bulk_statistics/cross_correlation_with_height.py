@@ -2,80 +2,18 @@
 Produce cross-correlation contour plots as function of height and at
 cloud-base.  Regions of highest density percentile are contoured
 """
-import os
 import warnings
 
-import xarray as xr
+import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
-import matplotlib.pyplot as plt
 import tqdm
+import xarray as xr
 
-try:
-    from cloud_tracking_analysis import CloudData
-
-    # from cloud_tracking_analysis.cloud_mask_methods import (
-    #     cloudbase as get_cloudbase_mask,
-    # )
-    # from cloud_tracking_analysis.cloud_mask_methods import CloudbaseEstimationMethod
-
-    HAS_CLOUD_TRACKING = True
-except ImportError:
-    HAS_CLOUD_TRACKING = False
-
+from ..utils.plot_types import JointHistPlotError, joint_hist_contoured
 from . import get_dataset
-from ..utils.plot_types import joint_hist_contoured, JointHistPlotError
-from ..objects import projected_2d as objs_2d
-
 
 Z_LEVELS_DEFAULT = np.arange(12.5, 650.0, 100.0)
-
-
-def get_approximate_cloudbase_height(qc, z_tol=100.0):
-    z_cloud_underside = qc.zt.where(qc > 0.0).min(dim="zt")
-
-    m = z_cloud_underside < z_tol + z_cloud_underside.min()
-    z_cb = z_cloud_underside.where(m)
-
-    return z_cb
-
-
-def get_cloudbase_height(
-    ds_tracking, da_cldbase_2d, t0, t_age_max, dx, z_base_max=700.0
-):
-
-    # da_cldbase_2d_ = da_cldbase_2d.sel(time=t0)
-
-    object_set = objs_2d.ObjectSet(ds=ds_tracking)
-
-    # clouds that are going to do vertical transport
-    object_set = object_set.filter(
-        cloud_type__in=[objs_2d.CloudType.SINGLE_PULSE, objs_2d.CloudType.ACTIVE]
-    )
-
-    object_set = object_set.filter(present=True, kwargs=dict(t0=t0))
-
-    # avoid mid-level convection clouds
-    object_set = object_set.filter(
-        cloudbase_max_height_by_histogram_peak__lt=z_base_max,
-        kwargs=dict(t0=t0, dx=dx, da_cldbase=da_cldbase_2d),
-    )
-
-    # remove clouds that are more than 3min old
-    object_set = object_set.filter(cloud_age__lt=t_age_max, kwargs=dict(t0=t0))
-
-    # nrcloud_cloudbase = get_cloudbase_mask(
-    #    object_set=object_set, t0=t0, method=CloudbaseEstimationMethod.DEFAULT
-    # )
-
-    raise NotImplementedError
-    # cldbase = object_set.cloud_data.get('cldbase', tn=tn)
-    # m = nrcloud_cloudbase == 0
-    # cldbase_heights_2d = cldbase.where(~m)
-
-    # cldbase_heights_2d.attrs['num_clouds'] = len(object_set)
-
-    # return cldbase_heights_2d
 
 
 def extract_from_3d_at_heights_in_2d(da_3d, z_2d):
@@ -87,21 +25,7 @@ def extract_from_3d_at_heights_in_2d(da_3d, z_2d):
     return v.max(dim="zt")
 
 
-def get_cloudbase_data(cloud_data, v, t0, t_age_max=200.0, z_base_max=700.0):
-    raise NotImplementedError
-
-    # v__belowcloud = cloud_data.get_from_3d(var_name=v, z=z_slice, t=t0)
-
-    # dx = cloud_set.cloud_data.dx
-    # try:
-    # w__belowcloud = cloud_data.get_from_3d(var_name='w', z=z_slice+dx/2., t=t0)
-    # except:
-    # pass
-
-    # return v__belowcloud.where(m, drop=True)
-
-
-def main(  # noqa
+def main(
     ds_3d,
     ds_cb=None,
     normed_levels=[10, 90],
@@ -242,73 +166,3 @@ def main(  # noqa
 
 def axis_lims_spans_zero(lims):
     return np.sign(lims[0]) != np.sign(lims[1])
-
-
-if __name__ == "__main__":
-    import argparse
-
-    argparser = argparse.ArgumentParser(__doc__)
-
-    argparser.add_argument("input_name")
-    argparser.add_argument("tracking_identifier", type=str)
-    argparser.add_argument("var1", type=str)
-    argparser.add_argument("var2", type=str)
-    argparser.add_argument("--z", type=float, nargs="+", default=Z_LEVELS_DEFAULT)
-    argparser.add_argument("--mask", type=str, default=None)
-    argparser.add_argument(
-        "--output-format", default="png", type=str, choices=["png", "pdf"]
-    )
-    args = argparser.parse_args()
-
-    input_name = args.input_name
-    var_name1 = args.var1
-    var_name2 = args.var2
-    dataset_name_with_time = input_name.split("/")[-1]
-    dataset_name = input_name.split("/")[-1].split(".")[0]
-    case_name = input_name.split("/")[0]
-
-    ds_3d = get_dataset(
-        dataset_name_with_time,
-        variables=[var_name1, var_name2],
-        p="{}/3d_blocks/full_domain/".format(case_name),
-    )
-
-    if args.mask is not None:
-        mask_3d = get_dataset(
-            dataset_name_with_time,
-            variables=["mask_3d.{}".format(args.mask)],
-            p="{}/masks/".format(case_name),
-        )[args.mask]
-    else:
-        mask_3d = None
-
-    t0 = ds_3d.time.values
-
-    import cloud_tracking_analysis.cloud_data
-
-    cloud_tracking_analysis.cloud_data.ROOT_DIR = os.getcwd()
-    cloud_data = CloudData(
-        dataset_name, args.tracking_identifier, dataset_pathname=case_name
-    )
-
-    ds_cb = get_cloudbase_data(cloud_data=cloud_data, t0=t0)
-
-    if mask_3d is not None:
-        ds_3d = ds_3d.where(mask_3d)
-
-    ds_3d = ds_3d.sel(zt=args.z)
-    main(ds_3d=ds_3d, ds_cb=ds_cb)
-
-    name = input_name.replace("/", "__")
-
-    title = "{} {}".format(name, plt.gca().get_title())
-    out_fn = "{}.cross_correlation.{}.{}.png".format(name, var_name1, var_name2)
-    if args.mask is not None:
-        title += "\nmasked by {}".format(mask_3d.longname)
-        out_fn = out_fn.replace(".png", ".{}.png".format(args.mask))
-
-    out_fn = out_fn.replace(".png", ".{}".format(args.output_format))
-
-    plt.gca().set_title(title)
-    plt.savefig(out_fn)
-    print("Saved plot to {}".format(out_fn))

@@ -11,20 +11,14 @@ import dask_image.ndmeasure as dmeasure
 from tqdm import tqdm
 
 from ..extraction import (
-    ExtractCrossSection2D,
-    ExtractField3D,
-    TimeCrossSectionSlices2D,
     REGEX_INSTANTENOUS_BASENAME,
     remove_gal_transform,
 )
 from . import TrackingType, uclales_2d_tracking
 from ..base import get_workdir, _get_dataset_meta_info, XArrayTarget
+from ..extraction import TimeCrossSectionSlices2D
 from ..base import NumpyDatetimeParameter
-from ..extraction import get_3d_timesteps
-from ..extraction_uclales import XArrayTargetUCLALES
 from ..masking import MakeMask
-from .....bulk_statistics import cross_correlation_with_height
-from .....utils import find_vertical_grid_spacing
 from .....objects.tracking_2d.family import create_tracking_family_2D_field
 
 
@@ -130,7 +124,7 @@ class XArrayTargetUCLALESTracking(XArrayTarget):
         # remove superflous indecies "smcloud" and "smcore"
         for d in extra_dims:
             if d in ds:
-                ds = ds.swap_dims({d: d + "id"})
+                ds = ds.swap_dims({d: d + "id"}).drop(d)
 
         return ds
 
@@ -295,7 +289,8 @@ class _Tracking2DExtraction(luigi.Task):
 
 class TrackingVariable2D(_Tracking2DExtraction):
     """
-    Extract variable from 2D tracking
+    Extract variable from 2D tracking utility. This are the 1D variables define
+    for each tracked object
     """
 
     var_name = luigi.Parameter()
@@ -340,6 +335,11 @@ class TrackingVariable2D(_Tracking2DExtraction):
 
 
 class TrackingLabels2D(_Tracking2DExtraction):
+    """
+    Extract 2D tracking label, e.g `cloud` for `nrcloud` labels or `core` for
+    `nrcore` object label IDs
+    """
+
     label_var = luigi.Parameter()
     time = NumpyDatetimeParameter()
     offset_labels_by_gal_transform = luigi.BoolParameter(default=False)
@@ -376,7 +376,14 @@ class TrackingLabels2D(_Tracking2DExtraction):
             da_timedep = da_timedep[label_var]
 
         t0 = self.time
-        da = da_timedep.sel(time=t0).squeeze()
+        try:
+            da = da_timedep.sel(time=t0).squeeze()
+        except KeyError:
+            mesg = (
+                f"Couldn't find `{t0}` in timesteps, time spans between"
+                f" {da_timedep.time.min().values} and {da_timedep.time.max().values}"
+            )
+            raise Exception(mesg)
 
         if self.offset_labels_by_gal_transform:
             tref = da_timedep.isel(time=0).time
@@ -447,115 +454,6 @@ class FilterTriggeringThermalsByMask(luigi.Task):
 
     def output(self):
         fn = "triggering_thermals.mask.nc"
-        p = get_workdir() / self.base_name / fn
-        return XArrayTarget(str(p))
-
-
-class ExtractBelowCloudEnvironment(luigi.Task):
-    """
-    Extract from 3D field below clouds
-    """
-
-    base_name = luigi.Parameter()
-    field_name = luigi.Parameter()
-    cloud_age_max = luigi.FloatParameter()
-    ensure_tracked = luigi.BoolParameter(default=False)
-
-    def requires(self):
-        reqs = dict(
-            field=ExtractField3D(base_name=self.base_name, field_name=self.field_name),
-        )
-        has_tracking = uclales_2d_tracking.HAS_TRACKING
-
-        if not has_tracking and self.ensure_tracked:
-            raise Exception(
-                "To extract the below cloud-base state from only tracked clouds"
-                " the 2D tracking utility must be available. Please set the"
-                f"{uclales_2d_tracking.BIN_PATH_ENV_VAR} envirionment variable"
-                " to point to the tracking utility"
-            )
-
-        if self._use_approx_tracking():
-            reqs["qc"] = ExtractField3D(base_name=self.base_name, field_name="qc")
-        else:
-            reqs["tracking"] = PerformObjectTracking2D(
-                base_name=self.base_name.split(".tn")[0],
-                tracking_type=TrackingType.CLOUD_CORE,
-            )
-        return reqs
-
-    def _use_approx_tracking(self):
-        if self.ensure_tracked:
-            return False
-        else:
-            return uclales_2d_tracking.HAS_TRACKING
-
-    def run(self):
-        da_scalar_3d = self.input()["field"].open()
-
-        if not self._use_approx_tracking():
-            reqs = {}
-            reqs["cloud_age"] = TrackingVariable2D(
-                base_name=self.base_name,
-                tracking_type=TrackingType.CLOUD_CORE,
-                var_name="smcloudage",
-            )
-            reqs["cloud_id_mask"] = TrackingLabels2D(
-                base_name=self.base_name.split(".tn")[0],
-                tracking_type=TrackingType.CLOUD_CORE,
-                time=da_scalar_3d.time,
-                label_var="cloud",
-            )
-            extra_input = yield reqs
-
-            ds_tracking = extra_input["tracking"].open()
-
-            t0 = da_scalar_3d.time.values[0]
-            z_cb = cross_correlation_with_height.get_cloudbase_height(
-                ds_tracking=ds_tracking,
-                t0=t0,
-                t_age_max=self.cloud_age_max,
-            )
-            dz = find_vertical_grid_spacing(da_scalar_3d)
-            method = "tracked clouds"
-            num_clouds = z_cb.num_clouds
-
-        else:
-            qc = self.input()["qc"].open()
-            z_cb = cross_correlation_with_height.get_approximate_cloudbase_height(
-                qc=qc, z_tol=50.0
-            )
-            da_scalar_3d = self.input()["field"].open()
-            try:
-                dz = find_vertical_grid_spacing(da_scalar_3d)
-                method = "approximate"
-            except Exception:
-                warnings.warn(
-                    "Using cloud-base state because vertical grid"
-                    " spacing is non-uniform"
-                )
-                dz = 0.0
-                method = "approximate, in-cloud"
-            num_clouds = "unknown"
-
-        da_cb = cross_correlation_with_height.extract_from_3d_at_heights_in_2d(
-            da_3d=da_scalar_3d, z_2d=z_cb - dz
-        )
-        da_cb = da_cb.squeeze()
-        da_cb.name = self.field_name
-        da_cb.attrs["method"] = method
-        da_cb.attrs["cloud_age_max"] = self.cloud_age_max
-        da_cb.attrs["num_clouds"] = num_clouds
-
-        da_cb.to_netcdf(self.output().fn)
-
-    def output(self):
-        fn = "{}.{}.max_t_age__{:.0f}s.cloudbase{}.xy.nc".format(
-            self.base_name,
-            self.field_name,
-            self.cloud_age_max,
-            self._use_approx_tracking() and "_approx" or "_tracked",
-        )
         p = get_workdir() / self.base_name / fn
         return XArrayTarget(str(p))
 

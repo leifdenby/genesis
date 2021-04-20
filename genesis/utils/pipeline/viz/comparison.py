@@ -114,7 +114,7 @@ def _scales_dist_2d(datasets, plot_parameters, global_parameters):
                 ds_scales[da.dims[0]],
                 marker=".",
                 s=1.0,
-                alpha=0.4,
+                alpha=plot_parameters.get("scatter_alpha", 0.4),
                 color=line.get_color(),
             )
 

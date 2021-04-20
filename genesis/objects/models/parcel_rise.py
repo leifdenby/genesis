@@ -58,6 +58,8 @@ def plot_ballistic(object_id):
 
 
 def _extract_time(da_obj, var_name="cldtop"):
+    ds = xr.Dataset(coords=dict(object_id=da_obj.object_id))
+
     # remove nans, times where the cloud isn't defined
     idx = da_obj.argmax(dim="cldtop")
     idx = idx.where(idx != 0, other=np.nan).dropna(dim="time_relative").astype(int)
@@ -101,15 +103,18 @@ def fit_model(z, t, verbose=False):
     return trace_g, model_g
 
 
-def fit_model_and_summarise(da_obj, var_name="cldtop", predictions=None, verbose=False):
+def fit_model_and_summarise(da_z, var_name="cldtop", predictions=None, verbose=False):
     """
     predictions:
         None: only returns the fitting parameters
         mean: includes the mean fit over time
         mean_with_quantiles: include lower 2.5% and upper 92.5% quantiles of predictions
     """
-    ds = xr.Dataset(coords=dict(object_id=da_obj.object_id))
-    t, z = _extract_time(da_obj=da_obj, var_name=var_name)
+
+    import ipdb
+
+    ipdb.set_trace()
+    t = da_z.t
 
     trace_g, model_g = fit_model(z=z, t=t, verbose=verbose)
 

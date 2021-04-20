@@ -95,9 +95,17 @@ def plot(
 
     handles, labels = axes[0, 1].get_legend_handles_labels()
     labels = [label.split("=")[0].strip() + "$" for label in labels]
-    labels = [f"{label}: principle dir." if r"{p}" in label else f"{label}: perpendicular dir." for label in labels]
+    labels = [
+        f"{label}: principle dir."
+        if r"{p}" in label
+        else f"{label}: perpendicular dir."
+        for label in labels
+    ]
     plt.figlegend(
-        handles, labels, loc="upper right", bbox_to_anchor=(1.0, 0.0),
+        handles,
+        labels,
+        loc="upper right",
+        bbox_to_anchor=(1.0, 0.0),
     )
 
     return fig, axes

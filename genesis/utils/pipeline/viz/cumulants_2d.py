@@ -57,9 +57,7 @@ class CumulantSlices(luigi.Task):
         plot_fn = length_scales.cumulant.sections.plot
 
         fig, axes = plot_fn(
-            datasets=datasets,
-            var_names=[self.v1, self.v2],
-            figwidth=self.figwidth
+            datasets=datasets, var_names=[self.v1, self.v2], figwidth=self.figwidth
         )
 
         # import ipdb

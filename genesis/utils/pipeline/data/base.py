@@ -76,7 +76,10 @@ def _get_dataset_meta_info(base_name):
     return datasource
 
 
-def get_data_from_task(task, local_scheduler=True):
+def get_data_from_task(task, local_scheduler=True, force_rerun=False):
+    if force_rerun and task.output().exists():
+        Path(task.output().fn).unlink()
+
     if not task.output().exists():
         luigi.build([task], local_scheduler=local_scheduler)
     if not task.output().exists():

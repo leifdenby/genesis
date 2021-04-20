@@ -6,9 +6,9 @@ def present(ds, t0):
     Return clouds that are present at time `t0`
     """
     # time of appearance
-    tmin = ds.smcloudtmin
+    tmin = ds.tmin
     # time of disappearance
-    tmax = ds.smcloudtmax
+    tmax = ds.tmax
 
     m = (tmin <= t0) & (t0 <= tmax)
 
@@ -25,3 +25,7 @@ def cloud_id(ds):
 
 def duration(ds):
     return ds.duration
+
+
+def age(ds, t0):
+    return t0 - ds.tmin
