@@ -149,8 +149,6 @@ class ExtractField3D(luigi.Task):
 
         output = self.output()
 
-        print("$$", output.fn, output.exists())
-
         if output.exists():
             pass
         elif meta["host"] == "localhost":

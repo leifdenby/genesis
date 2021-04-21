@@ -1,6 +1,7 @@
 import re
 from pathlib import Path
 from datetime import datetime
+import os
 
 import numpy as np
 import xarray as xr
@@ -72,6 +73,18 @@ def _get_dataset_meta_info(base_name):
         raise Exception(
             "Please make a definition for `{}` in " "datasources.yaml".format(base_name)
         )
+    else:
+        # check the data path
+        data_path = Path(datasource["path"])
+        if data_path.exists():
+            p_source_link = Path(get_workdir()) / "sources" / base_name
+            if not p_source_link.exists():
+                p_source_link.parent.mkdir(exist_ok=True, parents=True)
+                os.symlink(datasource["path"], p_source_link)
+        else:
+            raise Exception(
+                f"Source data path `{data_path}` for `{base_name}` not found"
+            )
 
     return datasource
 

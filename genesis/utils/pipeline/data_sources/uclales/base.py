@@ -118,8 +118,11 @@ class RawDataPathDoesNotExist(Exception):
     pass
 
 
-def _build_block_extraction_task(dataset_meta, field_name, path_expected):
-    var_name = FIELD_NAME_MAPPING[field_name]
+def _build_block_extraction_task(dataset_meta, field_name):
+    if field_name in ["u", "v", "w"]:
+        var_name = field_name
+    else:
+        var_name = FIELD_NAME_MAPPING[field_name]
 
     raw_data_path = Path(dataset_meta["path"]) / "raw_data"
 
@@ -145,19 +148,7 @@ def extract_field_to_filename(dataset_meta, path_out, field_name, **kwargs):  # 
 
     can_symlink = True
 
-    if field_name_src == "w_zt":
-        path_in = path_in.parent / path_in.name.replace(".w_zt.", ".w.")
-        da_w_orig = xr.open_dataarray(path_in, decode_times=False)
-        da_w_orig, _ = _fix_long_name(da_w_orig)
-        da = center_staggered_field(da_w_orig)
-        can_symlink = False
-    elif field_name_src == "u_xt":
-        path_in = path_in.parent / path_in.name.replace(".u_xt.", ".u.")
-        da_u_orig = xr.open_dataarray(path_in, decode_times=False)
-        da_u_orig, _ = _fix_long_name(da_u_orig)
-        da = center_staggered_field(da_u_orig)
-        can_symlink = False
-    elif field_name == "theta_l_v":
+    if field_name == "theta_l_v":
         da = _calc_theta_l_v(**kwargs)
         can_symlink = False
     elif field_name == "theta_l_v_hack":
@@ -170,12 +161,19 @@ def extract_field_to_filename(dataset_meta, path_out, field_name, **kwargs):  # 
         da = _calc_qv__norain(**kwargs)
         can_symlink = False
     else:
+        center_field = False
+        if field_name_src == "w_zt":
+            path_in = path_in.parent / path_in.name.replace(".w_zt.", ".w.")
+            center_field = True
+        elif field_name_src == "u_xt":
+            path_in = path_in.parent / path_in.name.replace(".u_xt.", ".u.")
+            center_field = True
+
         if not path_in.exists():
             try:
                 task = _build_block_extraction_task(
                     dataset_meta=dataset_meta,
                     field_name=field_name,
-                    path_expected=path_in,
                 )
                 # if the source file doesn't exist we return a task to create
                 # it, next time we pass here the file should exist and we can
@@ -185,6 +183,7 @@ def extract_field_to_filename(dataset_meta, path_out, field_name, **kwargs):  # 
 
                 da = task.output().open(decode_times=False)
                 can_symlink = False
+
             except RawDataPathDoesNotExist:
                 raise Exception(
                     f"Can't open `{path_in}` because it doesn't exist. If you have"
@@ -193,6 +192,10 @@ def extract_field_to_filename(dataset_meta, path_out, field_name, **kwargs):  # 
                 )
         else:
             da = xr.open_dataarray(path_in, decode_times=False)
+
+        if center_field:
+            da, _ = _fix_long_name(da)
+            da = center_staggered_field(da)
 
     da, modified = _scale_field(da)
     if modified:

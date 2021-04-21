@@ -137,11 +137,11 @@ class UCLALESBlockSelectVariable(luigi.Task):
 
     def run(self):
         ds_block = self.input().open()
-        da_block_var = ds_block[self.var_name].isel(time=self.tn)
+        da_block_var = ds_block[self.var_name].isel(time=self.tn).expand_dims("time")
 
-        # to use cdo the dimensions have to be (z, y, x)...
-        posns = dict(xt=2, xm=2, yt=1, ym=1, zt=0, zm=0)
-        dims = [None, None, None]
+        # to use cdo the dimensions have to be (time, z, y, x)...
+        posns = dict(time=0, zt=1, zm=1, yt=2, ym=2, xt=3, xm=3)
+        dims = [None, None, None, None]
         for d in list(da_block_var.dims):
             dims[posns[d]] = d
         da_block_var = da_block_var.transpose(*dims)
