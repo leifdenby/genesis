@@ -177,7 +177,7 @@ def plot(
         # count per height the number of objects which contribute to the moisture flux
         N_objs_per_z = (
             xr.ones_like(ds.object_id)
-            .where(ds.qv_flux__sum != 0, 0)
+            .where(ds[f"{v}__sum"] != 0, 0)
             .sum(dim="object_id")
             .sel(zt=slice(0.0, None))
         )
