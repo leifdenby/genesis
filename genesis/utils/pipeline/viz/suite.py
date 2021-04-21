@@ -1,4 +1,11 @@
+import shutil
+from pathlib import Path
+
 import luigi
+
+from ..data import get_datasources
+from .all import CrossSection, HorizontalMeanProfile
+from .cumulants_2d import CumulantScalesProfile
 
 
 class Suite(luigi.Task):
@@ -26,7 +33,7 @@ class Suite(luigi.Task):
                 return bn
 
         if self.base_name is None:
-            datasources = data.get_datasources()
+            datasources = get_datasources()
             for base_name in datasources.keys():
                 reqs["subsuite__{}".format(base_name)] = Suite(
                     base_name=add_timestep(base_name)

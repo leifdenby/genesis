@@ -1,13 +1,16 @@
+from pathlib import Path
+
 import luigi
 
 from ..base import (
-    get_workdir,
-    _get_dataset_meta_info,
-    XArrayTarget,
     NumpyDatetimeParameter,
+    XArrayTarget,
+    _get_dataset_meta_info,
+    get_workdir,
 )
-from .base import TrackingVariable2D, TrackingLabels2D
 from . import TrackingType
+from .base import TrackingLabels2D, TrackingVariable2D
+from ...data_sources import uclales_2d_tracking
 
 
 class DerivedLabels2D(luigi.Task):
@@ -57,7 +60,7 @@ class DerivedLabels2D(luigi.Task):
     def run(self):
         if self.label_type == "newlyformed_singlecore_clouds":
             da_labels = self.input()["labels"].open().fillna(0).astype(int)
-
+            raise NotImplementedError(da_labels)
             da_labels_filtered = None
 
         Path(self.output().fn).parent.mkdir(exist_ok=True, parents=True)

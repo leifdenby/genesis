@@ -92,9 +92,10 @@ def plot_reference(  # noqa
         ds_ = ds.swap_dims(dict(i="lm")).sel(lm=lm_pt, method="nearest")
         x_, y_ = ds_.planarity, ds_.filamentarity
 
-        marker_points.append(
-            [(ds_.planarity, ds_.filamentarity), (ds_.a, ds_.a, ds_.c)]
-        )
+        if shape != "cylinder":
+            marker_points.append(
+                [(ds_.planarity, ds_.filamentarity), (ds_.a, ds_.a, ds_.c)]
+            )
 
         if marker != "shape":
             ax.plot(x_, y_, marker=marker, label="", **kwargs)
@@ -162,8 +163,13 @@ def plot_reference(  # noqa
                 )
 
                 if marker == "shape":
-                    x_, y_ = ds_.planarity, ds_.filamentarity
-                    marker_points.append([(x_, y_), np.array([ds_.a, ds_.b, ds_.c])])
+                    if shape == "cylinder":
+                        raise NotImplementedError(shape)
+                    else:
+                        x_, y_ = ds_.planarity, ds_.filamentarity
+                        marker_points.append(
+                            [(x_, y_), np.array([ds_.a, ds_.b, ds_.c])]
+                        )
 
                 # if lm_pt == lm_[lm_ >= 1.0][-1]:
                 ax.annotate(
@@ -347,8 +353,6 @@ def main(ds, auto_scale=True, reference_shape="spheroid"):
         # store a reference to labels we already have in the legend
         jp_labels = [t.get_text() for t in g.ax_joint.get_legend().texts]
         jp_handles = g.ax_joint.get_legend().legendHandles
-
-        LABEL_FORMAT = "{name}: {count} objects"
 
         def legend_fn(labels, handles, **kwargs):
             labels = list(labels) + jp_labels
