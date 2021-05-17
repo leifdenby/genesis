@@ -12,6 +12,7 @@ from .extraction import Extract3D
 FIELD_NAME_MAPPING = dict(
     w="w_zt",
     u="u_xt",
+    v="v_yt",
     xt="xt",
     yt="yt",
     zt="zt",
@@ -167,6 +168,9 @@ def extract_field_to_filename(dataset_meta, path_out, field_name, **kwargs):  # 
             center_field = True
         elif field_name_src == "u_xt":
             path_in = path_in.parent / path_in.name.replace(".u_xt.", ".u.")
+            center_field = True
+        elif field_name_src == "v_yt":
+            path_in = path_in.parent / path_in.name.replace(".v_yt.", ".v.")
             center_field = True
 
         if not path_in.exists():
