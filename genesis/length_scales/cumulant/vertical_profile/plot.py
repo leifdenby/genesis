@@ -57,13 +57,13 @@ def plot_full_suite(data, marker=""):
                 ds.width_principle,
                 ds.zt,
                 marker=marker,
-                label="{} principle".format(str(p)),
+                label="{} principle direction width $L^p$".format(str(p)),
             )
             (line2,) = plt.plot(
                 ds.width_perpendicular,
                 ds.zt,
                 marker=marker,
-                label="{} orthog.".format(str(p)),
+                label=r"{} orthog. dir. width $L^{{\bot}}$".format(str(p)),
                 linestyle="--",
                 color=line.get_color(),
             )
@@ -73,7 +73,7 @@ def plot_full_suite(data, marker=""):
             lines.append(line)
             lines.append(line2)
 
-            plt.xlabel("characteristic width [m]")
+            plt.xlabel("cumulant width [m]")
 
         if s[1] == 0 or type(s[1]) == slice and s[1].start == 0:
             plt.ylabel("height [m]")
@@ -156,13 +156,16 @@ def _plot_angles_profile(ds, ax, p, **kwargs):
 
 def _plot_scales_profile(ds, ax, p, fill_between_alpha, **kwargs):
     (line,) = ds.width_principle.plot(
-        ax=ax, y="zt", label="{} principle".format(str(p)), **kwargs
+        ax=ax,
+        y="zt",
+        label="{} principle direction width ($L^p$)".format(str(p)),
+        **kwargs,
     )
 
     (line2,) = ds.width_perpendicular.plot(
         ax=ax,
         y="zt",
-        label="{} perpendicular".format(str(p)),
+        label=r"{} perpendicular direction width ($L^{{\bot}}$)".format(str(p)),
         color=line.get_color(),
         linestyle="--",
         **kwargs,
@@ -184,7 +187,7 @@ def _plot_scales_profile(ds, ax, p, fill_between_alpha, **kwargs):
         ds_not_covariant.width_perpendicular.plot(
             ax=ax, y="zt", color=line.get_color(), marker="_", linestyle=""
         )
-    ax.set_xlabel("characteristic width [m]")
+    ax.set_xlabel("cumulant width [m]")
 
     return line, line2
 
@@ -255,6 +258,7 @@ def plot(
                 .dropna(dim="zt")
             )
 
+            line2 = None
             if plot_type == "angles":
                 line = _plot_angles_profile(ds=ds, ax=ax, p=p, **kwargs)
                 if add_asymmetry_markers:
@@ -275,6 +279,8 @@ def plot(
             else:
                 raise NotImplementedError(plot_type)
             lines.append(line)
+            if line2:
+                lines.append(line2)
 
         ax.set_title(fix_cumulant_name(cumulant))
         ax.set_ylabel(["height [m]", ""][i > 0])
@@ -285,8 +291,12 @@ def plot(
         lgd = plt.figlegend(
             lines, [l.get_label() for l in lines], loc="lower center", ncol=2
         )
+        y_offset = 0.1 if line2 is None else 0.0
         fig.text(
-            0.5, 0.1 - data.dataset_name.count() * 0.1, " ", transform=fig.transFigure
+            0.5,
+            y_offset - data.dataset_name.count() * 0.1,
+            " ",
+            transform=fig.transFigure,
         )
         if add_asymmetry_markers:
             n = data.dataset_name.count()

@@ -374,7 +374,7 @@ def covariance_plot(
     ax.text(
         0.1,
         0.1,
-        r"$\theta_{{p}}={:.1f}^{{\circ}}$" "".format(theta.values * 180.0 / pi),
+        r"$\theta^{{p}}={:.1f}^{{\circ}}$" "".format(theta.values * 180.0 / pi),
         transform=ax.transAxes,
         color="red",
     )
@@ -647,28 +647,36 @@ def covariance_direction_plot(
     (line_1,) = ax.plot(
         mu_l,
         C_vv_l,
-        label=r"$\theta_{{p}}={:.1f}^{{\circ}}$" "".format(theta.values * 180.0 / pi),
+        label=r"$\theta^{{p}}={:.1f}^{{\circ}}$" "".format(theta.values * 180.0 / pi),
     )
     width = width_func(C_vv, theta)
-    ax.axvline(-0.5 * width, linestyle="--", color=line_1.get_color())
+    # put on the twin-axis so that the legend in separate
+    line_w1 = ax.axvline(
+        -0.5 * width, linestyle="--", color=line_1.get_color(), label=r"$L^p$"
+    )
     ax.axvline(0.5 * width, linestyle="--", color=line_1.get_color())
 
     mu_l, C_vv_l = _line_sample(data=C_vv, theta=theta + pi / 2.0, max_dist=max_dist)
-    (line_2,) = ax.plot(mu_l, C_vv_l, label=r"$\theta_\bot=\theta_p + 90^{\circ}$")
+    (line_2,) = ax.plot(mu_l, C_vv_l, label=r"$\theta^\bot=\theta^p + 90^{\circ}$")
     width = width_func(C_vv, theta + pi / 2.0)
-    ax.axvline(-0.5 * width, linestyle="--", color=line_2.get_color())
+    line_w2 = ax.axvline(
+        -0.5 * width, linestyle="--", color=line_2.get_color(), label=r"$L^{\bot}$"
+    )
     ax.axvline(0.5 * width, linestyle="--", color=line_2.get_color())
 
     if with_45deg_sample:
         mu_l, C_vv_l = _line_sample(
             data=C_vv, theta=theta + pi / 4.0, max_dist=max_dist
         )
-        (line_2,) = ax.plot(mu_l, C_vv_l, label=r"$\theta=\theta_{p} + 45^{\circ}$")
+        (line_2,) = ax.plot(mu_l, C_vv_l, label=r"$\theta=\theta^{p} + 45^{\circ}$")
         width = width_func(C_vv, theta + pi / 2.0, width_peak_fraction)
         ax.axvline(-0.5 * width, linestyle="--", color=line_2.get_color())
         ax.axvline(0.5 * width, linestyle="--", color=line_2.get_color())
 
-    ax.legend(loc="upper right")
+    lines = [line_1, line_2]
+    ax.legend(lines, [l.get_label() for l in lines], loc="upper right")
+    lines_w = [line_w1, line_w2]
+    ax.twinx().legend(lines_w, [l.get_label() for l in lines_w], loc="upper left")
     ax.set_xlabel("distance [m]")
     ax.set_ylabel("covariance [{}]".format(C_vv.units))
     # ax.text(0.05, 0.8, r"$\theta_{{p}}={:.1f}^{{\circ}}$"
@@ -689,7 +697,7 @@ def covariance_direction_plot(
         )
     )
 
-    return [line_1, line_2]
+    return [line_1, line_2, line_w1, line_w2]
 
 
 def charactistic_scales(
