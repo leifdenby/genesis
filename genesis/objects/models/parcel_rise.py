@@ -49,22 +49,6 @@ def plot_ballistic(object_id, da_):
     return z_top["t"], z_top
 
 
-def _extract_time(da_obj, var_name="cldtop"):
-    ds = xr.Dataset(coords=dict(object_id=da_obj.object_id))
-
-    # remove nans, times where the cloud isn't defined
-    idx = da_obj.argmax(dim="cldtop")
-    idx = idx.where(idx != 0, other=np.nan).dropna(dim="time_relative").astype(int)
-
-    # make the units be seconds
-    z_top = da_obj.sel(time_relative=idx.time_relative).isel(cldtop=idx)[var_name]
-    z_top["t"] = z_top.time_relative * 60.0
-    z_top.t.attrs["units"] = "seconds"
-    z_top = z_top.swap_dims(dict(time_relative="t"))
-
-    return z_top["t"], z_top
-
-
 def parcel_rise(t, p):
     x0, v0, a0 = p
     return x0 + v0 * t + 0.5 * a0 * 1.0e-3 * t ** 2.0
@@ -95,7 +79,19 @@ def fit_model(z, t, verbose=False):
     return trace_g, model_g
 
 
-def fit_model_and_summarise(da_z, var_name="cldtop", predictions=None, verbose=False):
+def _extract_time(da_z, time_dim="time_relative"):
+    # make the units be seconds
+    z_top = da_z.where(da_z > 0.0, drop=True)
+    z_top["t"] = z_top[time_dim] * 60.0
+    z_top.t.attrs["units"] = "seconds"
+    z_top = z_top.swap_dims(dict(time_relative="t"))
+
+    return z_top, z_top["t"]
+
+
+def fit_model_and_summarise(
+    da_z, time_dim="time_relative", predictions=None, verbose=False
+):
     """
     predictions:
         None: only returns the fitting parameters
@@ -103,14 +99,25 @@ def fit_model_and_summarise(da_z, var_name="cldtop", predictions=None, verbose=F
         mean_with_quantiles: include lower 2.5% and upper 92.5% quantiles of predictions
     """
 
-    import ipdb
-
-    ipdb.set_trace()
-    t = da_z.t
+    z, t = _extract_time(da_z, time_dim=time_dim)
 
     trace_g, model_g = fit_model(z=z, t=t, verbose=verbose)
 
-    if "quantiles" in predictions:
+    z0, v0, a0 = trace_g["x0"].mean(), trace_g["v0"].mean(), trace_g["a0"].mean()
+    z0_stderr = trace_g["x0"].std()
+
+    ds = xr.Dataset(coords=dict(t=t))
+    ds["z0"] = z0
+    ds["z0_stderr"] = z0_stderr
+    ds["mu"] = trace_g["mu"].mean()
+    ds["v0"] = v0
+    ds["a0"] = a0
+    ds["z_data"] = z
+
+    p = [z0, v0, a0]
+    ds["z"] = parcel_rise(t, p)
+
+    if predictions == "mean_with_quantiles":
         chain_count = trace_g.get_values("a0").shape[0]
         y_pred_g = pm.sample_posterior_predictive(
             trace_g,
@@ -124,52 +131,20 @@ def fit_model_and_summarise(da_z, var_name="cldtop", predictions=None, verbose=F
         )  # grab lower 2.5% quantiles
         crit_u = np.percentile(
             y_pred_g["z_pred"], q=97.5, axis=0
-        )  # grab Upper 92.5% quantiles
+        )  # grab Upper 97.5% quantiles
         mean_spp = np.mean(y_pred_g["z_pred"], axis=0)  # Median
 
-        raise NotImplementedError(crit_l, crit_u, mean_spp)
-
-    y0, v0, a0 = trace_g["x0"].mean(), trace_g["v0"].mean(), trace_g["a0"].mean()
-    y0_stderr = trace_g["x0"].std()
-
-    ds["y0"] = y0
-    ds["y0_stderr"] = y0_stderr
-    ds["mu"] = trace_g["mu"].mean()
-    ds["v0"] = v0
-    ds["a0"] = a0
+        ds["z__median"] = ("t",), mean_spp
+        ds["z__upperlim"] = ("t",), crit_u
+        ds["z__lowerlim"] = ("t",), crit_l
 
     return ds
 
 
-def plot_fitted_model(y0, alpha, beta, times, z, y_pred_g, trace_g):
-    p = [y0, alpha, beta]
-    y = parcel_rise(times, p)
-    yobs = z
+def plot_fitted_model(ds_fit):
+    ds_fit.z.plot()
+    ds_fit.z_data.plot()
 
-    fig, ax = plt.subplots()
-    plt.plot(
-        times,
-        yobs,
-        label="observed height",
-        linestyle="dashed",
-        marker="o",
-        color="red",
-    )
-    plt.plot(times, y, label="model", color="k", alpha=0.5)
-
-    crit_l = np.percentile(
-        y_pred_g["z_pred"], q=2.5, axis=0
-    )  # grab lower 2.5% quantiles
-    crit_u = np.percentile(
-        y_pred_g["z_pred"], q=97.5, axis=0
-    )  # grab Upper 92.5% quantiles
-    mean_spp = np.mean(y_pred_g["z_pred"], axis=0)  # Median
-    plt.plot(times, mean_spp, linewidth=4, color="#5500ff")
-    plt.fill_between(times, crit_l, crit_u, alpha=0.2, color="#00cc66")
-
-    plt.legend()
-    plt.xlabel("Time (Seconds)")
-    plt.ylabel(r"$z(t)$")
-    plt.show()
-
-    az.summary(trace_g)
+    ax = plt.gca()
+    ax.fill_between(ds_fit.t, ds_fit.z__lowerlim, ds_fit.z__upperlim, alpha=0.2)
+    ax.set_ylim(0, None)
