@@ -27,6 +27,7 @@ from ..extraction import (
 from .base import TrackingVariable2D, TrackingLabels2D
 from . import TrackingType
 from .....objects.projected_2d.aggregation import cloudbase_max_height_by_histogram_peak
+from .....objects.projected_2d import CloudType
 
 
 class Aggregate2DCrossSectionOnTrackedObjects(luigi.Task):
@@ -523,5 +524,132 @@ class EstimateCloudbaseHeightFromTracking(luigi.Task):
         fn = "z_cb_from_hist_peak.{}.nc".format(
             str(self.time).replace("-", "").replace(":", "")
         )
+        p = get_workdir() / self.base_name / "cross_sections" / "aggregated" / fn
+        return XArrayTarget(str(p))
+
+
+class TrackedObjectFirstRiseExtraction(luigi.Task):
+    base_name = luigi.Parameter()
+    label_var = luigi.Parameter(default="cloud")
+    var_name = luigi.Parameter(default="cldtop")
+
+    track_without_gal_transform = luigi.BoolParameter(default=False)
+    tracking_timestep_interval = luigi.ListParameter([])
+
+    def requires(self):
+        task_ztop = AllObjectsAll2DCrossSectionAggregations(
+            base_name=self.base_name,
+            label_var=self.label_var,
+            var_name=self.var_name,
+            op="maximum",
+            dx=-1.0,
+            use_relative_time_axis=True,
+            track_without_gal_transform=self.track_without_gal_transform,
+            tracking_type=self.tracking_type,
+            tracking_timestep_interval=self.tracking_timestep_interval,
+            timestep_skip=None,
+        )
+
+        task_cloudtype = TrackingVariable2D(
+            base_name=self.base_name,
+            var_name=f"sm{self.label_var}type",
+            tracking_type=self.tracking_type,
+            track_without_gal_transform=self.track_without_gal_transform,
+            tracking_timestep_interval=self.tracking_timestep_interval,
+        )
+
+        return dict(ztop=task_ztop, cloudtype=task_cloudtype)
+
+    def run(self):
+        inputs = self.input()
+
+        da_cloudtype = inputs["cloudtype"].open()
+        da_z = inputs["ztop"].open()
+
+        da_cloudtype = (
+            da_cloudtype.rename(smcloudid="object_id").astype(int).drop("smcloud")
+        )
+        da_cloudtype["object_id"] = da_cloudtype.coords["object_id"].astype(int)
+
+        da_z_singlecore = da_z.where(da_cloudtype == CloudType.SINGLE_PULSE, drop=True)
+
+        def is_peak(da):
+            values = da.values
+            peaks = np.zeros(da.shape)
+            is_incr = values[:-1] < values[1:]
+            left_incr = is_incr[:-1]
+            right_incr = is_incr[1:]
+            peaks[1:-1] = np.logical_and(left_incr, ~right_incr)
+            return xr.DataArray(peaks, dims=da.dims, coords=da.coords)
+
+        def extract_to_peak(da_z, dim_time="time_relative", t_extra=0):
+            mask_peaks = is_peak(da_z)
+            peaks = da_z.where(mask_peaks, drop=True)
+            if peaks.count() > 0:
+                t_peak = peaks.isel(**{dim_time: 0})[dim_time] + t_extra
+                return da_z.sel(**{dim_time: slice(None, t_peak)})
+            else:
+                return da_z.where(da_z > 0, drop=True)
+
+        def duration(da):
+            return xr.DataArray(int(da.where(da > 0, drop=True).count()))
+
+        def unique_values(da):
+            return xr.DataArray(len(np.unique(da.values)))
+
+        def z_start(da):
+            return xr.DataArray(da.isel(time_relative=0).item())
+
+        da_ = da_z_singlecore
+        da_["z_start"] = da_.groupby("object_id").apply(z_start)
+        da_["duration"] = da_.groupby("object_id").apply(duration)
+        da_["unique_values"] = da_.groupby("object_id").apply(unique_values)
+
+        da_ = da_.where(
+            np.logical_and(
+                np.logical_and(
+                    # filter to only include objects that last a minimum duration
+                    da_.duration > 3,
+                    # exclude objects which just have a single repeated z-value and then nothing
+                    da_.unique_values > 3,
+                ),
+                # include only objects which start with z_max below 800m
+                # (otherwise we haven't tracked these clouds for very long)
+                da_.z_start < 800.0,
+            ),
+            drop=True,
+        )
+
+        da_to_peak = da_.groupby("object_id").apply(extract_to_peak, t_extra=0)
+        da_to_peak = da_to_peak.where(da_to_peak)
+        da_to_peak.to_netcdf(self.output().fn)
+
+    @property
+    def tracking_type(self):
+        if self.label_var == "cloud":
+            tracking_type = TrackingType.CLOUD_CORE
+        else:
+            raise NotImplementedError(self.label_var)
+        return tracking_type
+
+    def output(self):
+        type_id = uclales_2d_tracking.TrackingType.make_identifier(self.tracking_type)
+        if self.tracking_timestep_interval:
+            interval_id = "tn{}_to_tn{}".format(*self.tracking_timestep_interval)
+        else:
+            interval_id = "__all__"
+
+        name_parts = [
+            self.var_name,
+            f"of_{self.label_var}",
+            "first_rise",
+            f"tracked_{type_id}",
+            interval_id,
+        ]
+
+        if self.track_without_gal_transform:
+            name_parts.append("go_track")
+
+        fn = f"{'.'.join(name_parts)}.nc"
         p = get_workdir() / self.base_name / "cross_sections" / "aggregated" / fn
         return XArrayTarget(str(p))
