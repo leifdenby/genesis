@@ -26,6 +26,7 @@ FIELD_NAME_MAPPING = dict(
     theta_l_v_hack="theta_l_v_hack",
     qv="qv",
     qv__norain="qv",
+    abstemp="abstemp",
 )
 
 FIELD_DESCRIPTIONS = dict(
@@ -44,7 +45,7 @@ UNITS_FORMAT = {
 }
 
 DERIVED_FIELDS = dict(
-    T=("qc", "theta_l", "p"),
+    abstemp=("qc", "qr", "theta_l", "p"),
     theta_l_v=("theta_l", "qv", "qc", "qr"),
     theta_l_v_hack=(
         "theta_l",
@@ -160,6 +161,9 @@ def extract_field_to_filename(dataset_meta, path_out, field_name, **kwargs):  # 
         can_symlink = False
     elif field_name == "qv__norain":
         da = _calc_qv__norain(**kwargs)
+        can_symlink = False
+    elif field_name == "abstemp":
+        da = _calc_temperature(**kwargs)
         can_symlink = False
     else:
         center_field = False
@@ -281,3 +285,50 @@ def _calc_qv__norain(qt, qc):
     qv.attrs["long_name"] = "water vapour mixing ratio (assumed zero rain)"
     qv.name = "qv"
     return qv
+
+
+@np.vectorize
+def _calc_temperature_single(q_l, p, theta_l):
+    # constants from UCLALES
+    cp_d = 1.004 * 1.0e3  # [J/kg/K]
+    R_d = 287.04  # [J/kg/K]
+    L_v = 2.5 * 1.0e6  # [J/kg]
+    p_theta = 1.0e5
+
+    # XXX: this is *not* the *actual* liquid potential temperature (as
+    # given in B. Steven's notes on moist thermodynamics), but instead
+    # reflects the form used in UCLALES where in place of the mixture
+    # heat-capacity the dry-air heat capacity is used
+    def temp_func(T):
+        return theta_l - T * (p_theta / p) ** (R_d / cp_d) * np.exp(
+            -L_v * q_l / (cp_d * T)
+        )
+
+    if np.all(q_l == 0.0):
+        # no need for root finding
+        return theta_l / ((p_theta / p) ** (R_d / cp_d))
+
+    # XXX: brentq solver requires bounds, I don't expect we'll get below -100C
+    T_min = -100.0 + 273.0
+    T_max = 50.0 + 273.0
+    T = scipy.optimize.brentq(f=temp_func, a=T_min, b=T_max)
+
+    # check that we're within 1.0e-4
+    assert np.all(np.abs(temp_func(T)) < 1.0e-4)
+
+    return T
+
+
+def _calc_temperature(qc, qr, p, theta_l):
+    q_l = qc + qr
+    arr_temperature = np.vectorize(_calc_temperature_single)(
+        q_l=q_l, p=p, theta_l=theta_l
+    )
+
+    da_temperature = xr.DataArray(
+        arr_temperature,
+        dims=p.dims,
+        attrs=dict(longname="temperature", units="K"),
+    )
+
+    return da_temperature
