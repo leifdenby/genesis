@@ -267,7 +267,7 @@ class Object2DCrossSectionAggregation(luigi.Task):
     @property
     def _label_var(self):
         if self.var_name == "z_cb_est":
-            if self.label_var is not None:
+            if self.label_var is [None, "None"]:
                 raise Exception(
                     "Shouldn't provide `label_var` when estimating cloud-base height"
                 )
@@ -432,9 +432,10 @@ class AllObjectsAll2DCrossSectionAggregations(luigi.Task):
     @property
     def _label_var(self):
         if self.var_name == "z_cb_est":
-            if self.label_var is not None:
+            if self.label_var is [None, "None"]:
                 raise Exception(
                     "Shouldn't provide `label_var` when estimating cloud-base height"
+                    f" - provided {self.label_var}"
                 )
             label_var = "cloud"
         else:
