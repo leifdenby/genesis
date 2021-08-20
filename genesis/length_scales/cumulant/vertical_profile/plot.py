@@ -162,11 +162,13 @@ def _plot_scales_profile(ds, ax, p, fill_between_alpha, **kwargs):
         **kwargs,
     )
 
+    if not "color" in kwargs:
+        kwargs["color"] = line.get_color()
+
     (line2,) = ds.width_perpendicular.plot(
         ax=ax,
         y="zt",
         label=r"{} perpendicular direction width ($L^{{\bot}}$)".format(str(p)),
-        color=line.get_color(),
         linestyle="--",
         **kwargs,
     )
@@ -203,9 +205,16 @@ def plot(
     add_asymmetry_markers=None,
     reference_line_heights=[],
     figwidth=2.0,
+    line_colors="default",
     **kwargs,
 ):
     scale_limits = kwargs.pop("scale_limits", {})
+
+    N_datasets = len(data.dataset_name.values)
+    if line_colors == "default":
+        line_colors = sns.color_palette(n_colors=N_datasets)
+    else:
+        assert len(line_colors) == N_datasets
 
     if plot_type not in ["angles", "scales"]:
         raise Exception
@@ -251,16 +260,19 @@ def plot(
         for z_ in reference_line_heights:
             ax.axhline(z_, linestyle="--", color="grey", alpha=0.6)
 
-        for p in data.dataset_name.values:
+        for i_c, p in enumerate(data.dataset_name.values):
             ds = (
                 data.sel(dataset_name=p, drop=True)
                 .sel(cumulant=cumulant, drop=True)
                 .dropna(dim="zt")
             )
+            kwargs_ds = dict(kwargs)
+            if line_colors is not None:
+                kwargs_ds["color"] = line_colors[i_c]
 
             line2 = None
             if plot_type == "angles":
-                line = _plot_angles_profile(ds=ds, ax=ax, p=p, **kwargs)
+                line = _plot_angles_profile(ds=ds, ax=ax, p=p, **kwargs_ds)
                 if add_asymmetry_markers:
                     _add_asymmetry_markers(ax=ax, ds=ds, color=line.get_color())
 
@@ -270,7 +282,7 @@ def plot(
                     ax=ax,
                     p=p,
                     fill_between_alpha=fill_between_alpha,
-                    **kwargs,
+                    **kwargs_ds,
                 )
 
                 if cumulant in scale_limits:

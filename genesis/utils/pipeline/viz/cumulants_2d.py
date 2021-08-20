@@ -16,6 +16,8 @@ class CumulantSlices(luigi.Task):
     z_max = luigi.FloatParameter(default=700.0)
     filetype = luigi.Parameter(default="pdf")
     figwidth = luigi.Parameter(default=7.0)
+    line_colors = luigi.Parameter(default="default")
+    cumulant_scale_plot_lim = luigi.Parameter(default=None)
 
     def requires(self):
         base_names = self.base_names.split(",")
@@ -57,11 +59,12 @@ class CumulantSlices(luigi.Task):
         plot_fn = length_scales.cumulant.sections.plot
 
         fig, axes = plot_fn(
-            datasets=datasets, var_names=[self.v1, self.v2], figwidth=self.figwidth
+            datasets=datasets,
+            var_names=[self.v1, self.v2],
+            figwidth=self.figwidth,
+            cumulant_scale_plot_lim=self.cumulant_scale_plot_lim,
+            line_colors=self.line_colors,
         )
-
-        # import ipdb
-        # ipdb.set_trace()
 
         return fig, axes
 
@@ -90,6 +93,7 @@ class CumulantScalesProfile(luigi.Task):
     figwidth = luigi.Parameter(default=2.5)
 
     reference_line_heights = luigi.ListParameter(default=[])
+    line_colors = luigi.Parameter(default="default")
 
     mask = luigi.Parameter(default=None)
     mask_args = luigi.Parameter(default="")
@@ -140,6 +144,7 @@ class CumulantScalesProfile(luigi.Task):
             plot_type=self.plot_type,
             scale_limits=self._parse_scale_limits(),
             reference_line_heights=self.reference_line_heights,
+            line_colors=self.line_colors,
         )
 
         plt.savefig(self.output().path, bbox_inches="tight")

@@ -7,9 +7,11 @@ if __name__ == "__main__":  # noqa
     matplotlib.use("Agg")
 
 import xarray as xr
+import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.ticker as plticker
 from tqdm import tqdm
+import seaborn as sns
 
 from . import calc as cumulant_analysis
 from .calc import WidthEstimationMethod
@@ -39,12 +41,14 @@ def plot(
     est_method=WidthEstimationMethod.MASS_WEIGHTED,
     figwidth=7.0,
     add_figlegend=False,
+    line_colors="default",
+    cumulant_scale_plot_lim=None,
 ):
     z = datasets[0].zt
 
     v1, v2 = var_names
 
-    figheight = figwidth / 7.0 * 2.3
+    figheight = figwidth / 7.0 * 2.6
 
     fig, axes = plt.subplots(
         ncols=len(datasets) * 2,
@@ -52,14 +56,21 @@ def plot(
         figsize=(figwidth * len(datasets), figheight * len(z)),
     )
 
+    if line_colors == "default":
+        line_colors = sns.color_palette(n_colors=len(datasets))
+    else:
+        assert len(line_colors) == len(datasets)
+
     loc_x = plticker.MultipleLocator(base=200)
 
-    def sp(ds_, ax1, ax2):
-        cumulant_analysis.covariance_plot(ds_[v1], ds_[v2], log_scale=False, ax=ax1)
+    def sp(ds_, ax1, ax2, line_color):
+        cumulant_analysis.covariance_plot(
+            ds_[v1], ds_[v2], log_scale=False, ax=ax1, line_color=line_color
+        )
         ax1.set_title("")
 
         cumulant_analysis.covariance_direction_plot(
-            ds_[v1], ds_[v2], ax=ax2, width_est_method=est_method
+            ds_[v1], ds_[v2], ax=ax2, width_est_method=est_method, line_color=line_color
         )
         ax2.set_title("")
 
@@ -69,21 +80,25 @@ def plot(
         ax2.axhline(0.0, linestyle="--", color="grey")
 
         ax2.grid(which="minor", axis="both", linestyle="--")
+        if cumulant_scale_plot_lim is not None:
+            ax2.set_xlim(cumulant_scale_plot_lim)
+            ax1.set_xlim(2.5 * np.array(cumulant_scale_plot_lim) / 1.0e3)
+            ax1.set_ylim(2.5 * np.array(cumulant_scale_plot_lim) / 1.0e3)
 
     # plot in order of decreasing height
     for n, z_ in enumerate(tqdm(z[::-1])):
 
         for n_d in range(len(datasets)):
             ds_ = datasets[n_d].sel(zt=z_).squeeze().rename(dict(xt="x", yt="y"))
-            sp(ds_, axes[n, n_d * 2], axes[n, n_d * 2 + 1])
+            sp(ds_, axes[n, n_d * 2], axes[n, n_d * 2 + 1], line_color=line_colors[n_d])
 
-        axes[n, 0].text(
-            -1.0, 1.3, "z={}m".format(z_.values), transform=axes[n, 0].transAxes
-        )
+        # using fig.text instead of ax.text avoids matplotlib trying to scale
+        # the subplot to fit the text
+        fig.text(-0.6, 1.1, "z={}m".format(z_.values), transform=axes[n, 0].transAxes)
 
     for n_d in range(len(datasets)):
         ax = axes[0, n_d * 2]
-        ax.text(
+        fig.text(
             1.7,
             1.4,
             datasets[n_d].name,
@@ -101,12 +116,13 @@ def plot(
         else f"{label}: perpendicular dir."
         for label in labels
     ]
-    plt.figlegend(
-        handles,
-        labels,
-        loc="upper right",
-        bbox_to_anchor=(1.0, 0.0),
-    )
+    # plt.figlegend(
+    # handles,
+    # labels,
+    # loc="upper right",
+    # bbox_to_anchor=(1.0, 0.0),
+    # ncol=2,
+    # )
 
     return fig, axes
 

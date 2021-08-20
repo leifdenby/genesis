@@ -281,6 +281,8 @@ def covariance_plot(
     add_colorbar=True,
     log_scale=True,
     autoscale_dist=True,
+    line_color="green",
+    robust_cmap=True,
 ):
     """
     Make a 2D covariance plot of v1 and v2 (both are expected to be
@@ -352,7 +354,7 @@ def covariance_plot(
     C_vv_.attrs["units"] = C_vv.units
 
     im = C_vv_.plot.pcolormesh(
-        rasterized=True, robust=True, add_colorbar=add_colorbar, ax=ax
+        rasterized=True, robust=robust_cmap, add_colorbar=add_colorbar, ax=ax
     )
     # im = ax.pcolormesh(x_, y_, C_vv_, rasterized=True)
     # if add_colorbar:
@@ -369,15 +371,19 @@ def covariance_plot(
 
     mu_l = x[s_x]
     fn_line = _get_line_sample_func(C_vv, theta)
-
-    ax.plot(*fn_line(mu=mu_l)[0], linestyle="--", color="red")
-    ax.text(
+    (line,) = ax.plot(*fn_line(mu=mu_l)[0], linestyle="-", color=line_color)
+    text = ax.text(
         0.1,
         0.1,
         r"$\theta^{{p}}={:.1f}^{{\circ}}$" "".format(theta.values * 180.0 / pi),
         transform=ax.transAxes,
-        color="red",
+        color=line.get_color(),
     )
+    text.set_bbox(dict(facecolor="white", alpha=0.8, edgecolor="lightgrey"))
+
+    # perpendicular line
+    fn_line = _get_line_sample_func(C_vv, theta + pi / 2.0)
+    ax.plot(*fn_line(mu=mu_l)[0], linestyle="--", color=line.get_color())
 
     try:
         v1.zt
@@ -597,6 +603,7 @@ def covariance_direction_plot(
     sample_angle=None,
     ax=None,
     width_est_method=WidthEstimationMethod.MASS_WEIGHTED,
+    line_color="green",
 ):
     """
     Compute 2nd-order cumulant between v1 and v2 and sample and perpendicular
@@ -606,6 +613,10 @@ def covariance_direction_plot(
 
     if ax is None:
         ax = plt.gca()
+
+    # add grid lines
+    ax.axhline(0.0, color="grey", linestyle=":", alpha=0.3)
+    ax.axvline(0.0, color="grey", linestyle=":", alpha=0.3)
 
     assert v1.shape == v2.shape
     if v1.dims == ("x", "y"):
@@ -642,27 +653,58 @@ def covariance_direction_plot(
     else:
         theta = identify_principle_axis(C_vv, sI_N=theta_win_N)
 
+    # principle direction line
     mu_l, C_vv_l = _line_sample(data=C_vv, theta=theta, max_dist=max_dist)
-
     (line_1,) = ax.plot(
         mu_l,
         C_vv_l,
         label=r"$\theta^{{p}}={:.1f}^{{\circ}}$" "".format(theta.values * 180.0 / pi),
+        color=line_color,
     )
     width = width_func(C_vv, theta)
-    # put on the twin-axis so that the legend in separate
-    line_w1 = ax.axvline(
-        -0.5 * width, linestyle="--", color=line_1.get_color(), label=r"$L^p$"
-    )
-    ax.axvline(0.5 * width, linestyle="--", color=line_1.get_color())
 
-    mu_l, C_vv_l = _line_sample(data=C_vv, theta=theta + pi / 2.0, max_dist=max_dist)
-    (line_2,) = ax.plot(mu_l, C_vv_l, label=r"$\theta^\bot=\theta^p + 90^{\circ}$")
-    width = width_func(C_vv, theta + pi / 2.0)
-    line_w2 = ax.axvline(
-        -0.5 * width, linestyle="--", color=line_2.get_color(), label=r"$L^{\bot}$"
+    def _make_width_indicator(label, y0, width, color, linestyle="-"):
+        eb = ax.errorbar(
+            x=0.0, xerr=width / 2.0, y=y0, color=color, capsize=4.0, linestyle=linestyle
+        )
+        eb[-1][0].set_linestyle(linestyle)
+        ax.text(
+            s=label,
+            x=0.0,
+            y=y0,
+            verticalalignment="bottom",
+            horizontalalignment="center",
+        )
+
+    # we'll place the width indicator based on the y-range of the plot using
+    # the side of the y=0 line where there is the most space
+    ylim = np.array(ax.get_ylim())
+    i_max = np.argmax(np.abs(ylim))
+    y_max = ylim[i_max]
+    if abs(ylim[[1, 0][i_max]] / ylim[i_max]) > 0.3:
+        y_max = 1.3 * y_max
+    y_ref = sorted([0.4 * y_max, 0.2 * y_max])
+    _make_width_indicator(
+        label="$L^p$", width=width, y0=y_ref[0], color=line_1.get_color(), linestyle="-"
     )
-    ax.axvline(0.5 * width, linestyle="--", color=line_2.get_color())
+
+    # perpendicular direction line
+    mu_l, C_vv_l = _line_sample(data=C_vv, theta=theta + pi / 2.0, max_dist=max_dist)
+    (line_2,) = ax.plot(
+        mu_l,
+        C_vv_l,
+        label=r"$\theta^\bot=\theta^p + 90^{\circ}$",
+        linestyle="--",
+        color=line_1.get_color(),
+    )
+    width = width_func(C_vv, theta + pi / 2.0)
+    _make_width_indicator(
+        label=r"$L^{\bot}$",
+        width=width,
+        y0=y_ref[1],
+        color=line_1.get_color(),
+        linestyle="--",
+    )
 
     if with_45deg_sample:
         mu_l, C_vv_l = _line_sample(
@@ -675,12 +717,11 @@ def covariance_direction_plot(
 
     lines = [line_1, line_2]
     ax.legend(lines, [l.get_label() for l in lines], loc="upper right")
-    lines_w = [line_w1, line_w2]
-    ax.twinx().legend(lines_w, [l.get_label() for l in lines_w], loc="upper left")
     ax.set_xlabel("distance [m]")
     ax.set_ylabel("covariance [{}]".format(C_vv.units))
-    # ax.text(0.05, 0.8, r"$\theta_{{p}}={:.1f}^{{\circ}}$"
-    # "".format(theta.values*180./pi), transform=ax.transAxes)
+    # ax.text(0.05, 0.8, r"$\theta_{{p}}={:.1f}^{{\circ}}$".format(theta.values*180./pi),
+    # transform=ax.transAxes
+    # )
 
     ax.ticklabel_format(style="sci", axis="y", scilimits=(0, 0), useMathText=True)
 
@@ -697,7 +738,7 @@ def covariance_direction_plot(
         )
     )
 
-    return [line_1, line_2, line_w1, line_w2]
+    return [line_1, line_2]
 
 
 def charactistic_scales(

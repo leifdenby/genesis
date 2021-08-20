@@ -313,6 +313,25 @@ def make_marker_plot(x, y, scale=100.0, ax=None, marker="o", **kwargs):
     return ax
 
 
+cmaps_for_colors = {
+    "r": "Reds",
+    "g": "Greens",
+    "b": "Blues",
+    "tab:purple": "Purples",
+    "tab:orange": "Oranges",
+}
+
+
+def get_color_cmap(color):
+    if color not in cmaps_for_colors:
+        if color[0] in cmaps_for_colors:
+            # red => r
+            color = color[0]
+        else:
+            raise NotImplementedError(color)
+    return cmaps_for_colors[color]
+
+
 def multi_jointplot(
     x,
     y,
@@ -321,15 +340,17 @@ def multi_jointplot(
     joint_type="pointhist",
     lgd_ncols=1,
     joint_kwargs=dict(alpha=0.5, marker="."),
+    colors="default",
     **kwargs
 ):
     """
     like seaborn jointplot but making it possible to plot for multiple (up to
     four) datasets
     """
-    sns.set_color_codes()
-    colors = ["b", "r", "g", "orange"]
-    cmaps = ["Blues", "Reds", "Greens", "Oranges"]
+    if colors == "default":
+        colors = ["b", "r", "g", "orange"]
+
+    cmaps = [get_color_cmap(color=c) for c in colors]
 
     if np.any(np.isinf(ds[x])) or np.any(np.isinf(ds[y])):
         ds = ds.copy()
