@@ -113,7 +113,7 @@ class ObjectScaleVsHeightComposition(luigi.Task):
             ds = xr.merge([ds_mean, ds_objects])
             ds.attrs.update(ds_base.attrs)
 
-        if not self.include_mask_profile:
+        if not self.include_mask_profile and "mask" in mean_profile_components:
             mean_profile_components.remove("mask")
 
         # make the scale we're binning on available

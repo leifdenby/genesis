@@ -294,7 +294,9 @@ def plot(
             if line2:
                 lines.append(line2)
 
-        ax.set_title(fix_cumulant_name(cumulant))
+        # set larger size since we're plotting subscripts with subscripts in
+        # the cumulant name
+        ax.set_title(fix_cumulant_name(cumulant), size=16.0)
         ax.set_ylabel(["height [m]", ""][i > 0])
         sns.despine()
 

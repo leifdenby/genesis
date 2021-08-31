@@ -591,6 +591,31 @@ def _find_width_through_cutoff(data, theta, width_peak_fraction=0.5, max_width=5
     return xr.DataArray(width, coords=dict(zt=data.zt), attrs=dict(units="m"))
 
 
+def add_width_indicator_legend(ax):
+    """
+    Render a cumulant width indicator below the bottom right corner of the the
+    axes `ax`
+    """
+    # set the width and height of the axes we'll draw into in inches
+    # so that they're always the same size
+    fig = ax.figure
+    fw, fh = (fig.dpi_scale_trans - fig.transFigure).transform([1.6, 0.5])
+
+    # and we want to attach to the bottom corner of the provided axes
+    fx, fy = (ax.transAxes - fig.transFigure).transform([1.0, 0.0])
+    ax_inset = fig.add_axes([fx - fw, fy - 2 * fh, fw, fh], transform=fig.transFigure)
+
+    labels = [r"$L^p$", r"$L^{\bot}$"]
+    linestyles = ["-", "--"]
+
+    ax_inset.axis("off")
+    for n, (label, ls) in enumerate(zip(labels, linestyles)):
+        w = 0.2
+        eb = ax_inset.errorbar(x=n, y=0.0, xerr=w, color="black", capsize=5.0)
+        eb[-1][0].set_linestyle(ls)
+        ax_inset.text(x=n - 2.5 * w, y=0.0, s=label, va="center")
+
+
 def covariance_direction_plot(
     v1,
     v2,
@@ -604,10 +629,16 @@ def covariance_direction_plot(
     ax=None,
     width_est_method=WidthEstimationMethod.MASS_WEIGHTED,
     line_color="green",
+    width_indicator="full",
 ):
     """
     Compute 2nd-order cumulant between v1 and v2 and sample and perpendicular
     to pricinple axis. `s_N` sets plot window
+
+    width_indicator:
+        `full`: draw width indicator with label
+        `floating_legend`: width indicator with label in legend below axes
+        `no_label`: draw indicator without label
     """
     import matplotlib.pyplot as plt
 
@@ -668,25 +699,31 @@ def covariance_direction_plot(
             x=0.0, xerr=width / 2.0, y=y0, color=color, capsize=4.0, linestyle=linestyle
         )
         eb[-1][0].set_linestyle(linestyle)
-        ax.text(
-            s=label,
-            x=0.0,
-            y=y0,
-            verticalalignment="bottom",
-            horizontalalignment="center",
-        )
+        if width_indicator == "full":
+            ax.text(
+                s=label,
+                x=0.0,
+                y=y0,
+                verticalalignment="bottom",
+                horizontalalignment="center",
+            )
 
-    # we'll place the width indicator based on the y-range of the plot using
-    # the side of the y=0 line where there is the most space
-    ylim = np.array(ax.get_ylim())
-    i_max = np.argmax(np.abs(ylim))
-    y_max = ylim[i_max]
-    if abs(ylim[[1, 0][i_max]] / ylim[i_max]) > 0.3:
-        y_max = 1.3 * y_max
-    y_ref = sorted([0.4 * y_max, 0.2 * y_max])
-    _make_width_indicator(
-        label="$L^p$", width=width, y0=y_ref[0], color=line_1.get_color(), linestyle="-"
-    )
+    if width_indicator is not None:
+        # we'll place the width indicator based on the y-range of the plot using
+        # the side of the y=0 line where there is the most space
+        ylim = np.array(ax.get_ylim())
+        i_max = np.argmax(np.abs(ylim))
+        y_max = ylim[i_max]
+        if abs(ylim[[1, 0][i_max]] / ylim[i_max]) > 0.3:
+            y_max = 1.3 * y_max
+        y_ref = sorted([0.4 * y_max, 0.2 * y_max])
+        _make_width_indicator(
+            label="$L^p$",
+            width=width,
+            y0=y_ref[0],
+            color=line_1.get_color(),
+            linestyle="-",
+        )
 
     # perpendicular direction line
     mu_l, C_vv_l = _line_sample(data=C_vv, theta=theta + pi / 2.0, max_dist=max_dist)
@@ -697,14 +734,17 @@ def covariance_direction_plot(
         linestyle="--",
         color=line_1.get_color(),
     )
-    width = width_func(C_vv, theta + pi / 2.0)
-    _make_width_indicator(
-        label=r"$L^{\bot}$",
-        width=width,
-        y0=y_ref[1],
-        color=line_1.get_color(),
-        linestyle="--",
-    )
+    if width_indicator is not None:
+        width = width_func(C_vv, theta + pi / 2.0)
+        _make_width_indicator(
+            label=r"$L^{\bot}$",
+            width=width,
+            y0=y_ref[1],
+            color=line_1.get_color(),
+            linestyle="--",
+        )
+    if width_indicator == "floating_legend":
+        add_width_indicator_legend(ax=ax)
 
     if with_45deg_sample:
         mu_l, C_vv_l = _line_sample(

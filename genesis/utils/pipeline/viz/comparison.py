@@ -15,7 +15,7 @@ import textwrap
 from ....objects.topology.plots.filamentarity_planarity import (
     plot_reference as fp_reference,
 )
-from ...plot_types import PlotGrid
+from ...plot_types import PlotGrid, get_color_cmap
 from ..data.objects import ObjectTwoScalesComposition
 from ..data import Comparison
 
@@ -85,7 +85,10 @@ def _scales_dist_2d(datasets, plot_parameters, global_parameters):
                 xy1=(0.0, 0.0), xy2=(1.0, 1.0), linestyle="--", color="grey"
             )
 
-    cmaps = ["Blues", "Reds", "Greens", "Oranges"]
+    if "line_colors" in plot_parameters:
+        cmaps = [get_color_cmap(color=c) for c in plot_parameters["line_colors"]]
+    else:
+        cmaps = ["Blues", "Reds", "Greens", "Oranges"]
 
     for (cmap, (task_name, (task, da))) in zip(cmaps, datasets.items()):
         # da = ds.sel(task_name=task_name)

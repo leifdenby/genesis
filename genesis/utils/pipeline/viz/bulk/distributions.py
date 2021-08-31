@@ -26,7 +26,8 @@ class JointDistProfile(luigi.Task):
     cumulative_contours = luigi.Parameter(default="10,90")
     add_mean_ref = luigi.BoolParameter(default=False)
     add_cloudbase_peak_ref = luigi.Parameter(default=False)
-    add_legend = luigi.BoolParameter(default=True)
+    add_legend = luigi.Parameter(default=True)
+    figsize = luigi.ListParameter(default=[4.0, 3.0])
 
     def requires(self):
         reqs = dict(
@@ -118,7 +119,7 @@ class JointDistProfile(luigi.Task):
             plt.savefig(self.output().fn, bbox_inches="tight")
 
     def make_plot(self, ds_3d, ds_cb, ds_3d_levels, mask):
-        fig_w, fig_h = 4.0, 3.0
+        fig_w, fig_h = self.figsize
 
         fig, ax = plt.subplots(figsize=(fig_w, fig_h))
         if self.add_mean_ref:

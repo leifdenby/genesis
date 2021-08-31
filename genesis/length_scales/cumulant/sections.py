@@ -40,7 +40,7 @@ def plot(
     var_names,
     est_method=WidthEstimationMethod.MASS_WEIGHTED,
     figwidth=7.0,
-    add_figlegend=False,
+    figlegend=None,
     line_colors="default",
     cumulant_scale_plot_lim=None,
 ):
@@ -63,14 +63,20 @@ def plot(
 
     loc_x = plticker.MultipleLocator(base=200)
 
-    def sp(ds_, ax1, ax2, line_color):
+    def sp(ds_, ax1, ax2, line_color, add_width_label_legend=False):
         cumulant_analysis.covariance_plot(
             ds_[v1], ds_[v2], log_scale=False, ax=ax1, line_color=line_color
         )
         ax1.set_title("")
 
+        width_indicator = "floating_legend" if add_width_label_legend else "no_label"
         cumulant_analysis.covariance_direction_plot(
-            ds_[v1], ds_[v2], ax=ax2, width_est_method=est_method, line_color=line_color
+            ds_[v1],
+            ds_[v2],
+            ax=ax2,
+            width_est_method=est_method,
+            line_color=line_color,
+            width_indicator=width_indicator,
         )
         ax2.set_title("")
 
@@ -90,7 +96,18 @@ def plot(
 
         for n_d in range(len(datasets)):
             ds_ = datasets[n_d].sel(zt=z_).squeeze().rename(dict(xt="x", yt="y"))
-            sp(ds_, axes[n, n_d * 2], axes[n, n_d * 2 + 1], line_color=line_colors[n_d])
+            if n + 1 == len(z) and n_d + 1 == len(datasets):
+                add_width_label_legend = True
+            else:
+                add_width_label_legend = False
+
+            sp(
+                ds_,
+                axes[n, n_d * 2],
+                axes[n, n_d * 2 + 1],
+                line_color=line_colors[n_d],
+                add_width_label_legend=add_width_label_legend,
+            )
 
         # using fig.text instead of ax.text avoids matplotlib trying to scale
         # the subplot to fit the text
@@ -116,13 +133,14 @@ def plot(
         else f"{label}: perpendicular dir."
         for label in labels
     ]
-    # plt.figlegend(
-    # handles,
-    # labels,
-    # loc="upper right",
-    # bbox_to_anchor=(1.0, 0.0),
-    # ncol=2,
-    # )
+    if figlegend is True:
+        plt.figlegend(
+            handles,
+            labels,
+            loc="upper right",
+            bbox_to_anchor=(1.0, 0.0),
+            ncol=2,
+        )
 
     return fig, axes
 

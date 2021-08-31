@@ -99,18 +99,32 @@ def plot_reference(  # noqa
 
         if marker != "shape":
             ax.plot(x_, y_, marker=marker, label="", **kwargs)
+
+        annotate_kwargs = dict()
         if lm_pt > 1:
             s = "{:.0f}".format(lm_pt)
             dx, dy = -4, 0
             ha = "right"
         elif lm_pt == 1:
             s = "{:.0f}".format(lm_pt)
-            dx, dy = -2, 10
+            dx, dy = -40, 6
             ha = "center"
+            annotate_kwargs["arrowprops"] = dict(
+                arrowstyle="->",
+                shrinkA=0,
+                shrinkB=5,
+                fc="k",
+                ec="k",
+                connectionstyle="arc3,rad=-0.35",
+            )
         else:
             s = "1/{:.0f}".format(1.0 / lm_pt)
-            dx, dy = 0, -14
-            ha = "center"
+            if lm_pt == 0.5:
+                dx, dy = 8, -8
+                ha = "left"
+            else:
+                dx, dy = 0, -14
+                ha = "center"
         if lm_label_sel(lm_pt):
             s = r"$\lambda=$" + s
         ax.annotate(
@@ -120,6 +134,7 @@ def plot_reference(  # noqa
             xytext=(dx, dy),
             textcoords="offset points",
             ha=ha,
+            **annotate_kwargs,
         )
 
     def _pt_transform(coord):
@@ -320,6 +335,7 @@ def fp_plot(ds, lm_range=None, reference_shape="spheroid"):
         linestyle="--",
         marker=".",
         x_pos=0.9,
+        y_pos=0.6,
     )
     ax.set_ylim(-0.01, ds.filamentarity.max())
     ax.set_xlim(-0.01, ds.planarity.max())

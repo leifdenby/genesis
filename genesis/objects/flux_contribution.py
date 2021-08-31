@@ -15,7 +15,7 @@ def _label_from_attrs(da, width=20):
     label = "\n".join(textwrap.wrap(long_name, width=width))
 
     units = f"[{da.units}]"
-    if len(label.split("\n")[-1]) > width:
+    if len(label + " " + units) > width:
         label += f"\n{units}"
     else:
         label += f" {units}"
@@ -55,7 +55,7 @@ def plot(
     bin_var = f"{v}__sum"
     # this will be used on all variables, so lets set it to something simpler
     # here
-    ds[f"{v}__mean"].attrs["long_name"] = "horz. mean\nvertical flux"
+    ds[f"{v}__mean"].attrs["long_name"] = "horz. mean\nvert. flux"
     # make height more meaningful
     ds.zt.attrs["long_name"] = "altitude"
 
@@ -97,6 +97,7 @@ def plot(
     # make pointed ends to the colorbar because we used "robust=True" above
     cb = g.fig.colorbar(pc, cax=cax, orientation="horizontal", extend="both")
     cb.set_label(_label_from_attrs(da_flux_per_bin, width=30))
+    cb.formatter.set_powerlimits((0, 0))
 
     # g.ax_joint.colorbar(pc, bbox_to_anchor=[0.0, -0.2], orientation='horizontal')
 
@@ -116,7 +117,7 @@ def plot(
     lines_profile = da_flux_tot.plot(
         y="zt", ax=g.ax_marg_y, hue="sampling", add_legend=add_profile_legend
     )
-    g.ax_marg_y.set_xlabel(_label_from_attrs(da_flux_tot, width=16))
+    g.ax_marg_y.set_xlabel(_label_from_attrs(da_flux_tot, width=10))
 
     # make the underlying dataarray available later
     setattr(g.ax_marg_y, "_source_data", da_flux_tot)
@@ -138,8 +139,8 @@ def plot(
 
     if add_profile_legend:
         lgd = g.ax_marg_y.get_legend()
-        lgd.set_bbox_to_anchor([1.0, 1.2])
-        lgd._loc = lgd.codes["center left"]
+        lgd.set_bbox_to_anchor([1.0, 1.1])
+        lgd._loc = lgd.codes["lower center"]
 
     # work out the color of the "all objects" or "objects" line from the mean
     # profile plot
@@ -169,7 +170,7 @@ def plot(
     da_flux_per_bin_mean.plot(ax=g.ax_marg_x2, color=objects_line_color)
     g.ax_marg_x2.set_xlabel("")
     g.ax_marg_x2.set_title("")
-    g.ax_marg_x2.set_ylabel(_label_from_attrs(da_flux_per_bin_mean, width=16))
+    g.ax_marg_x2.set_ylabel(_label_from_attrs(da_flux_per_bin_mean, width=10))
 
     if add_height_histogram:
         # add a histogram of the number of objects contributing to the flux at
@@ -183,7 +184,7 @@ def plot(
         )
         ax = g.ax_marg_y2
         N_objs_per_z.plot.step(ax=ax, y="zt", color=objects_line_color)
-        ax.set_xlabel("num objects\ncontributing [1]")
+        ax.set_xlabel("num objects\n[1]")
         ax.set_ylabel("")
         ax.set_title("")
         ax.set_xlim(0, None)
@@ -197,9 +198,11 @@ def plot(
 
     # XXX: quick hack to remove the height profile plot, we really should have
     # a different way of defining what kind of marginal plots we want
-    # if not include_height_profile:
-    # g.ax_marg_y.set_visible(False)
-    # g.fig.set_size_inches(4, 7)
+    if not include_height_profile:
+        figsize = g.fig.get_size_inches()
+        g.ax_marg_y.set_visible(False)
+        g.ax_marg_y2.set_visible(False)
+        g.fig.set_size_inches(*figsize)
 
     g.ax_joint.set_title("")
     g.ax_marg_x.set_title("")
@@ -272,7 +275,7 @@ def plot_with_areafrac(ds, figsize=(12, 8), legend_ncols=3):
     handles = ax.get_lines()
     labels = ds[hue_label].values
     figlegend = fig.legend(
-        handles, labels, loc="center right", title=hue_label, ncol=legend_ncols
+        handles, labels, loc="center left", title=hue_label, ncol=legend_ncols
     )
 
     adjust_fig_to_fit_figlegend(fig=fig, figlegend=figlegend, direction="right")

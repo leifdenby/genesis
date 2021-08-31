@@ -138,10 +138,10 @@ def main(
         ax.legend(
             handles=lines,
             labels=[l.get_label() for l in lines],
-            loc="center left",
+            loc="upper left",
             bbox_to_anchor=(
                 x_loc,
-                0.5,
+                0.9,
             ),
             borderaxespad=0,
         )
