@@ -1,5 +1,6 @@
 from pathlib import Path
 import os
+import datetime
 
 
 import luigi
@@ -31,7 +32,7 @@ from .....objects.projected_2d.aggregation import cloudbase_max_height_by_histog
 from .....objects.projected_2d import CloudType
 
 
-N_parallel_tasks = 1000
+N_parallel_tasks = 100000
 
 
 class Aggregate2DCrossSectionOnTrackedObjects(luigi.Task):
@@ -253,15 +254,16 @@ class Object2DCrossSectionAggregation(luigi.Task):
     """
 
     base_name = luigi.Parameter()
-    label_var = luigi.Parameter(default=None)
+    label_var = luigi.OptionalParameter(default=None)
     var_name = luigi.Parameter()
-    op = luigi.Parameter(default=None)
+    op = luigi.OptionalParameter(default=None)
     dx = luigi.FloatParameter(default=-1.0)
     use_relative_time_axis = luigi.BoolParameter(default=True)
 
     track_without_gal_transform = luigi.BoolParameter(default=False)
     tracking_type = luigi.EnumParameter(enum=TrackingType)
     tracking_timestep_interval = luigi.ListParameter([])
+    times = luigi.ListParameter()
     object_id = luigi.IntParameter()
 
     @property
@@ -286,18 +288,12 @@ class Object2DCrossSectionAggregation(luigi.Task):
             track_without_gal_transform=self.track_without_gal_transform,
         )
 
-        tasks["t_start"] = TrackingVariable2D(
-            var_name=f"sm{self._label_var}tmin", **kwargs
-        )
-        tasks["t_end"] = TrackingVariable2D(
-            var_name=f"sm{self._label_var}tmax", **kwargs
-        )
-
         tasks["t_global"] = TrackingVariable2D(var_name="time", **kwargs)
+        tasks["agg"] = self._build_agg_tasks()
         return tasks
 
     def _build_agg_tasks(self):
-        times = self._get_times()
+        times = self.times
         agg_tasks = {}
 
         for time in times:
@@ -307,6 +303,7 @@ class Object2DCrossSectionAggregation(luigi.Task):
                     base_name=self.base_name,
                     time=time,
                     dz=self.dx,
+                    track_without_gal_transform=self.track_without_gal_transform,
                     tracking_timestep_interval=self.tracking_timestep_interval,
                 )
             else:
@@ -324,26 +321,10 @@ class Object2DCrossSectionAggregation(luigi.Task):
             agg_tasks[time] = agg_task
         return agg_tasks
 
-    def _get_times(self):
-        inputs = self.input()
-        da_tstart = inputs["t_start"].open()
-        da_tend = inputs["t_end"].open()
-
-        obj_var = f"sm{self._label_var}id"
-
-        tstart_obj = da_tstart.sel({obj_var: self.object_id})
-        tend_obj = da_tend.sel({obj_var: self.object_id})
-
-        da_time = self.input()["t_global"].open()
-        times = da_time.sel(time=slice(tstart_obj, tend_obj)).values
-
-        return times
-
     def run(self):
-        agg_tasks = self._build_agg_tasks()
-        agg_output = yield agg_tasks
+        agg_output = self.input()["agg"]
 
-        times = self._get_times()
+        times = self.times
 
         object_id = self.object_id
         das_agg_obj = []
@@ -367,7 +348,12 @@ class Object2DCrossSectionAggregation(luigi.Task):
 
             das_agg_obj.append(da_obj)
 
-        da_agg_obj = xr.concat(das_agg_obj, dim="time").fillna(0)
+        # because we're concatenating we need to convert ints to floats,
+        # otherwise we'll just get the fill value where there should otherwise
+        # be nans
+        if np.issubdtype(das_agg_obj[0], np.integer):
+            das_agg_obj = [da_.astype(float) for da_ in das_agg_obj]
+        da_agg_obj = xr.concat(das_agg_obj, dim="time")
 
         if self.use_relative_time_axis:
             da_time_relative = da_agg_obj.time - da_agg_obj.time.isel(time=0)
@@ -398,7 +384,7 @@ class Object2DCrossSectionAggregation(luigi.Task):
             interval_id,
         ]
 
-        if self.op is not None:
+        if self.op not in [None, "None"]:
             name_parts.insert(-2, self.op + ["", f"__{str(self.dx)}"][self.dx != None])
 
         if not self.use_relative_time_axis:
@@ -418,9 +404,9 @@ class AllObjectsAll2DCrossSectionAggregations(luigi.Task):
     """
 
     base_name = luigi.Parameter()
-    label_var = luigi.Parameter(default=None)
+    label_var = luigi.OptionalParameter(default=None)
     var_name = luigi.Parameter()
-    op = luigi.Parameter(default=None)
+    op = luigi.OptionalParameter(default=None)
     dx = luigi.FloatParameter(default=-1.0)
     use_relative_time_axis = luigi.BoolParameter(default=True)
 
@@ -456,7 +442,56 @@ class AllObjectsAll2DCrossSectionAggregations(luigi.Task):
         tasks["t_start"] = TrackingVariable2D(
             var_name=f"sm{self._label_var}tmin", **kwargs
         )
+        tasks["t_end"] = TrackingVariable2D(
+            var_name=f"sm{self._label_var}tmax", **kwargs
+        )
         return tasks
+
+    @property
+    def da_tstart(self):
+        if not hasattr(self, "_da_tstart"):
+            self._da_tstart = self.input()["t_start"].open()
+        return self._da_tstart
+
+    @property
+    def da_tend(self):
+        if not hasattr(self, "_da_tend"):
+            self._da_tend = self.input()["t_end"].open()
+        return self._da_tend
+
+    @property
+    def da_time(self):
+        if not hasattr(self, "_da_time"):
+            self._da_time = self.input()["t_global"].open()
+        return self._da_time
+
+    def make_object_agg_task(self, object_id):
+        obj_var = f"sm{self._label_var}id"
+
+        def _get_times(object_id):
+            tstart_obj = self.da_tstart.sel({obj_var: object_id})
+            tend_obj = self.da_tend.sel({obj_var: object_id})
+            times = self.da_time.sel(time=slice(tstart_obj, tend_obj)).values
+
+            # super hacky way of sending list of datetimes as luigi parameter
+            times = times.astype("datetime64[s]").astype(datetime.datetime).tolist()
+            times = [t.isoformat() for t in times]
+            return times
+
+        object_times = _get_times(object_id=object_id)
+
+        return Object2DCrossSectionAggregation(
+            var_name=self.var_name,
+            base_name=self.base_name,
+            dx=self.dx,
+            op=self.op,
+            label_var=self.label_var,
+            object_id=object_id,
+            times=object_times,
+            tracking_timestep_interval=self.tracking_timestep_interval,
+            tracking_type=self.tracking_type,
+            track_without_gal_transform=self.track_without_gal_transform,
+        )
 
     def run(self):
         inputs = self.input()
@@ -471,24 +506,14 @@ class AllObjectsAll2DCrossSectionAggregations(luigi.Task):
         agg_tasks = {}
         agg_output_all = {}
 
-        for object_id in object_ids:
-            agg_task = Object2DCrossSectionAggregation(
-                var_name=self.var_name,
-                base_name=self.base_name,
-                dx=self.dx,
-                op=self.op,
-                label_var=self.label_var,
-                object_id=object_id,
-                tracking_timestep_interval=self.tracking_timestep_interval,
-                tracking_type=self.tracking_type,
-                track_without_gal_transform=self.track_without_gal_transform,
-            )
-            agg_tasks[object_id] = agg_task
+        for object_id in tqdm(object_ids, desc="objects", position=0):
+            agg_tasks[object_id] = self.make_object_agg_task(object_id=object_id)
 
             if len(agg_tasks) > N_parallel_tasks:
                 agg_tasks_output = yield agg_tasks
                 agg_output_all.update(agg_tasks_output)
                 agg_tasks = {}
+
         agg_tasks_output = yield agg_tasks
         agg_output_all.update(agg_tasks_output)
 
@@ -497,8 +522,7 @@ class AllObjectsAll2DCrossSectionAggregations(luigi.Task):
             da_agg_obj = agg_output_all[object_id].open()
             das_agg.append(da_agg_obj)
 
-        # fillna(0) required again
-        da = xr.concat(das_agg, dim="object_id").fillna(0).astype(int)
+        da = xr.concat(das_agg, dim="object_id")
 
         da.to_netcdf(self.output().fn)
 
@@ -586,6 +610,7 @@ class EstimateCloudbaseHeightFromTracking(luigi.Task):
     time = NumpyDatetimeParameter()
     dz = luigi.FloatParameter()
     tracking_timestep_interval = luigi.ListParameter(default=[])
+    track_without_gal_transform = luigi.BoolParameter(default=False)
 
     def requires(self):
         reqs = {}
@@ -598,6 +623,7 @@ class EstimateCloudbaseHeightFromTracking(luigi.Task):
             op="histogram",
             dx=self.dz,
             tracking_timestep_interval=self.tracking_timestep_interval,
+            track_without_gal_transform=self.track_without_gal_transform,
         )
         reqs["cldbase"] = TimeCrossSectionSlices2D(
             base_name=self.base_name, var_name="cldbase"
@@ -619,9 +645,23 @@ class EstimateCloudbaseHeightFromTracking(luigi.Task):
         da_zb.to_netcdf(self.output().fn)
 
     def output(self):
-        fn = "z_cb_from_hist_peak.{}.nc".format(
-            str(self.time).replace("-", "").replace(":", "")
-        )
+        name_parts = [
+            "z_cb_from_hist_peak",
+            str(self.time).replace("-", "").replace(":", "").replace(" ", ""),
+            f"dz_{self.dz}",
+        ]
+
+        if self.track_without_gal_transform:
+            name_parts.append("go_track")
+
+        if self.tracking_timestep_interval:
+            interval_id = "tn{}_to_tn{}".format(*self.tracking_timestep_interval)
+        else:
+            interval_id = "__all__"
+
+        name_parts.append(interval_id)
+
+        fn = "{}.nc".format(".".join(name_parts))
         p = get_workdir() / self.base_name / "cross_sections" / "aggregated" / fn
         return XArrayTarget(str(p))
 
@@ -633,6 +673,7 @@ class TrackedObjectFirstRiseExtraction(luigi.Task):
 
     track_without_gal_transform = luigi.BoolParameter(default=False)
     tracking_timestep_interval = luigi.ListParameter([])
+    object_ids = luigi.ListParameter(default=[])
 
     def requires(self):
         task_ztop = AllObjectsAll2DCrossSectionAggregations(
@@ -640,11 +681,10 @@ class TrackedObjectFirstRiseExtraction(luigi.Task):
             label_var=self.label_var,
             var_name=self.var_name,
             op="maximum",
-            dx=-1.0,
-            use_relative_time_axis=True,
             track_without_gal_transform=self.track_without_gal_transform,
             tracking_type=self.tracking_type,
             tracking_timestep_interval=self.tracking_timestep_interval,
+            object_ids=self.object_ids,
         )
 
         task_cloudtype = TrackingVariable2D(
@@ -664,11 +704,9 @@ class TrackedObjectFirstRiseExtraction(luigi.Task):
         da_z = inputs["ztop"].open()
 
         da_cloudtype = (
-            da_cloudtype.rename(smcloudid="object_id").astype(int).drop("smcloud")
+            da_cloudtype.rename(smcloudid="object_id").astype(int)
         )
         da_cloudtype["object_id"] = da_cloudtype.coords["object_id"].astype(int)
-
-        da_z_singlecore = da_z.where(da_cloudtype == CloudType.SINGLE_PULSE, drop=True)
 
         def is_peak(da):
             values = da.values
@@ -684,9 +722,20 @@ class TrackedObjectFirstRiseExtraction(luigi.Task):
             peaks = da_z.where(mask_peaks, drop=True)
             if peaks.count() > 0:
                 t_peak = peaks.isel(**{dim_time: 0})[dim_time] + t_extra
-                return da_z.sel(**{dim_time: slice(None, t_peak)})
+                da_z_to_peak = da_z.sel(**{dim_time: slice(None, t_peak)})
+                # if len(peaks) > 1:
+                    # t_peak2 = peaks.isel(**{dim_time: 1})[dim_time] + t_extra
+                    # da_z_1peak2 = da_z.sel(**{dim_time: slice(t_peak, t_peak2)})
+
+                    # if da_z_1peak2.min() + 100 < da_z_to_peak.max() 
+                        # return np.nan * xr.zeros_like(da_z)
+
+                if t_peak > 5.0:
+                    return da_z_to_peak
+                else:
+                    return np.nan * xr.zeros_like(da_z)
             else:
-                return da_z.where(da_z > 0, drop=True)
+                return np.nan * xr.zeros_like(da_z)
 
         def duration(da):
             return xr.DataArray(int(da.where(da > 0, drop=True).count()))
@@ -697,7 +746,11 @@ class TrackedObjectFirstRiseExtraction(luigi.Task):
         def z_start(da):
             return xr.DataArray(da.isel(time_relative=0).item())
 
-        da_ = da_z_singlecore
+        # da_z_singlecore = da_z.where(da_cloudtype == CloudType.SINGLE_PULSE, drop=True)
+        # da_ = da_z_singlecore
+
+        da_ = da_z
+
         da_["z_start"] = da_.groupby("object_id").apply(z_start)
         da_["duration"] = da_.groupby("object_id").apply(duration)
         da_["unique_values"] = da_.groupby("object_id").apply(unique_values)
@@ -712,7 +765,7 @@ class TrackedObjectFirstRiseExtraction(luigi.Task):
                 ),
                 # include only objects which start with z_max below 800m
                 # (otherwise we haven't tracked these clouds for very long)
-                da_.z_start < 800.0,
+                da_.z_start < 1400.0,
             ),
             drop=True,
         )

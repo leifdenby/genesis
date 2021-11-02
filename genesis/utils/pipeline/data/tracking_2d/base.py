@@ -243,10 +243,12 @@ class PerformObjectTracking2D(luigi.Task):
         else:
             offset_s = "no_offset"
 
-        FN_2D_FORMAT = "{base_name}.tracking.{type_id}" ".{interval_id}.{offset}.nc"
+        FN_2D_FORMAT = "{experiment_name}.tracking.{type_id}" ".{interval_id}.{offset}.nc"
 
+        meta = _get_dataset_meta_info(self.base_name)
+        experiment_name = meta["experiment_name"]
         fn = FN_2D_FORMAT.format(
-            base_name=self.base_name,
+            experiment_name=experiment_name,
             type_id=type_id,
             interval_id=interval_id,
             offset=offset_s,
