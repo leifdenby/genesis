@@ -419,25 +419,26 @@ class ExtractCrossSection2D(luigi.Task):
         return XArrayTarget(str(p))
 
 
-class Extract2DCloudbaseStateFrom3D(luigi.Task):
+class Extract2DFrom3DWith2DCrossSection(luigi.Task):
     """
-    Extract 2D field from 3D field near or below cloud-base from 3D dataset
-    using `cldbase` 2D field. Where `cldbase` indicates the column contains no
-    cloud the value will be nan
+    Extract 2D field from 3D field using the altitude from a 2D cross-section
+    dataset. Where this altitude is nan the extracted field value will be nan
     """
 
     base_name = luigi.Parameter()
     field_name = luigi.Parameter()
     tn_3d = luigi.IntParameter()
+    n_dz_offset = luigi.IntParameter()
+    altitude_var = luigi.Parameter()
 
     def requires(self):
         return dict(
             field=ExtractField3D(
                 base_name=f"{self.base_name}.tn{self.tn_3d}", field_name=self.field_name
             ),
-            cldbase=TimeCrossSectionSlices2D(
+            altitude=TimeCrossSectionSlices2D(
                 base_name=self.base_name,
-                var_name="cldbase",
+                var_name=self.altitude_var,
             ),
         )
 
@@ -451,14 +452,14 @@ class Extract2DCloudbaseStateFrom3D(luigi.Task):
         return v.max(dim="zt", skipna=True)
 
     def run(self):
-        da_cldbase_2d = self.input()["cldbase"].open()
+        da_altitude_2d = self.input()["altitude"].open()
         da_scalar_3d = self.input()["field"].open()
 
         dz = find_vertical_grid_spacing(da_scalar_3d)
-        z_cb = da_cldbase_2d.sel(time=da_scalar_3d.time).squeeze()
+        z_cb = da_altitude_2d.sel(time=da_scalar_3d.time).squeeze()
 
         da_cb = self._extract_from_3d_at_heights_in_2d(
-            da_3d=da_scalar_3d, z_2d=z_cb - dz
+            da_3d=da_scalar_3d, z_2d=z_cb + self.n_dz_offset * dz
         )
         da_cb = da_cb.squeeze()
         da_cb.name = self.field_name
@@ -466,6 +467,30 @@ class Extract2DCloudbaseStateFrom3D(luigi.Task):
         da_cb.to_netcdf(self.output().fn)
 
     def output(self):
-        fn = f"{self.base_name}.{self.field_name}.cldbase.tn{self.tn_3d}.xy.nc"
+        fn = f"{self.base_name}.{self.field_name}.{self.altitude_var}_{self.n_dz_offset}dz.tn{self.tn_3d}.xy.nc"
         p = get_workdir() / f"{self.base_name}.tn{self.tn_3d}" / "cross_sections" / fn
         return XArrayTarget(str(p))
+
+
+class Extract2DCloudbaseStateFrom3D(luigi.Task):
+    """
+    Extract 2D field from 3D field near or below cloud-base from 3D dataset
+    using `cldbase` 2D field. Where `cldbase` indicates the column contains no
+    cloud the value will be nan
+    """
+
+    base_name = luigi.Parameter()
+    field_name = luigi.Parameter()
+    tn_3d = luigi.IntParameter()
+
+    def requires(self):
+        return Extract2DFrom3DWith2DCrossSection(
+            field_name=self.field_name,
+            tn_3d=self.tn_3d,
+            base_name=self.base_name,
+            altitude_var="cldbase",
+            n_dz_offset=-1
+        )
+
+    def output(self):
+        return self.input()
