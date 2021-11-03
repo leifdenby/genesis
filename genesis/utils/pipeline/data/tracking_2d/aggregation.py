@@ -703,9 +703,7 @@ class TrackedObjectFirstRiseExtraction(luigi.Task):
         da_cloudtype = inputs["cloudtype"].open()
         da_z = inputs["ztop"].open()
 
-        da_cloudtype = (
-            da_cloudtype.rename(smcloudid="object_id").astype(int)
-        )
+        da_cloudtype = da_cloudtype.rename(smcloudid="object_id").astype(int)
         da_cloudtype["object_id"] = da_cloudtype.coords["object_id"].astype(int)
 
         def is_peak(da):
@@ -724,11 +722,11 @@ class TrackedObjectFirstRiseExtraction(luigi.Task):
                 t_peak = peaks.isel(**{dim_time: 0})[dim_time] + t_extra
                 da_z_to_peak = da_z.sel(**{dim_time: slice(None, t_peak)})
                 # if len(peaks) > 1:
-                    # t_peak2 = peaks.isel(**{dim_time: 1})[dim_time] + t_extra
-                    # da_z_1peak2 = da_z.sel(**{dim_time: slice(t_peak, t_peak2)})
+                # t_peak2 = peaks.isel(**{dim_time: 1})[dim_time] + t_extra
+                # da_z_1peak2 = da_z.sel(**{dim_time: slice(t_peak, t_peak2)})
 
-                    # if da_z_1peak2.min() + 100 < da_z_to_peak.max() 
-                        # return np.nan * xr.zeros_like(da_z)
+                # if da_z_1peak2.min() + 100 < da_z_to_peak.max()
+                # return np.nan * xr.zeros_like(da_z)
 
                 if t_peak > 5.0:
                     return da_z_to_peak

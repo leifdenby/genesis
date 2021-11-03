@@ -489,7 +489,7 @@ class Extract2DCloudbaseStateFrom3D(luigi.Task):
             tn_3d=self.tn_3d,
             base_name=self.base_name,
             altitude_var="cldbase",
-            n_dz_offset=-1
+            n_dz_offset=-1,
         )
 
     def output(self):
