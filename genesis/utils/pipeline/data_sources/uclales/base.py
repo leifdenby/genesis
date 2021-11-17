@@ -1,5 +1,6 @@
 import xarray as xr
 import numpy as np
+import scipy.optimize
 
 from pathlib import Path
 import os

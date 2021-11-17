@@ -114,7 +114,8 @@ class ExtractCrossSection2DFrom3DTimestep(luigi.Task):
 
     def requires(self):
         bn, tn = self._parse_basename()
-        return Find3DTimesteps(base_name=bn)
+        raise NotImplementedError()
+        # return Find3DTimesteps(base_name=bn)
 
     def run(self):
         da_3d_timesteps = self.input().open()
