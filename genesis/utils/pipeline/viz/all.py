@@ -16,8 +16,9 @@ import shutil
 
 from .... import objects
 from ... import plot_types, figure_metadata
-
 from .. import data
+from ....bulk_statistics import cross_correlation_with_height
+from .bulk import JointDistProfile
 
 figure_metadata.patch_savefig_for_argv_metadata()
 
