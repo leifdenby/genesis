@@ -3,7 +3,7 @@ channels:
   - conda-forge
 dependencies:
   - pip=19.0.1
-  - python=3.6
+  - python>=3.6
   - cartopy
   - jupyter
   - matplotlib
