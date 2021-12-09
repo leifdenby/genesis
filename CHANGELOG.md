@@ -32,7 +32,7 @@
 - Aggregation of properties for projected 2D objects refactored ([c3c8610](https://github.com/leifdenby/genesis/commit/c3c8610c0d504abea9a5aa79779f449a28177322))
 
 
-## [v0.2.0](https://github.com/leifdenby/genesis/tree/v0.2.0) (2020-07-22)
+## [v0.2.0](https://github.com/leifdenby/genesis/tree/v0.2.0)
 
 First release to coincide with publication draft. Contains functionality for
 identifying and characterising 3D coherent structures
