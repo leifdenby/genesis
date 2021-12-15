@@ -2,7 +2,7 @@ import numpy as np
 
 from . import CloudType
 from .object_set import ObjectSet
-from .utils import create_mask_from_object_set, make_filled
+from .utils import create_mask_from_object_set
 
 
 def get_cloud_underside_for_new_formed_clouds(

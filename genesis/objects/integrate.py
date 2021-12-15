@@ -24,7 +24,6 @@ from . import integral_properties, minkowski_scales
 # "faster computation")
 
 
-
 CHUNKS = 200  # forget about using dask for now, np.unique is too slow
 
 FN_OUT_FORMAT = "{base_name}.objects.{objects_name}.integral.{name}.nc"

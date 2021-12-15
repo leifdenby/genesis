@@ -44,9 +44,9 @@ def create_tracking_family_2D_field(ds_tracking):
             for cloud_id in cloud_ids.values:
                 thermal_node = f"t_{int(thermal_id)}"
                 cloud_node = f"c_{int(cloud_id)}"
-                if not thermal_node in g:
+                if thermal_node not in g:
                     g.add_node(thermal_node, color="red", label=thermal_node)
-                if not cloud_node in g:
+                if cloud_node not in g:
                     g.add_node(cloud_node, color="blue")
                 g.add_edge(thermal_node, cloud_node)
         return g

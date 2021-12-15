@@ -1,4 +1,3 @@
-from .object_types import CloudType
 
 
 def present(ds, t0):

@@ -1,4 +1,3 @@
-import inspect
 import operator
 import warnings
 
@@ -87,9 +86,6 @@ class ObjectSet:
                 " available operations: {}"
                 "".format(function_name, ", ".join(available_operations))
             )
-
-        fn_argspec = inspect.getargspec(fn)
-        needed_vars = fn_argspec.args
 
         return fn(ds=self.ds, **kwargs).squeeze()
 

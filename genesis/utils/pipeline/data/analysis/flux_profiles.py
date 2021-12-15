@@ -28,6 +28,7 @@ class DomainMeanVerticalFlux(luigi.Task):
     def output(self):
         fn = "{base_name}.{field_name}__mean_flux.{filetype}".format(
             base_name=self.base_name,
+            field_name=self.field_name,
             filetype="nc",
         )
 

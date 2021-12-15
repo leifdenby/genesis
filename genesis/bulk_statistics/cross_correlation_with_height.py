@@ -11,7 +11,6 @@ import tqdm
 import xarray as xr
 
 from ..utils.plot_types import JointHistPlotError, joint_hist_contoured
-from . import get_dataset
 
 Z_LEVELS_DEFAULT = np.arange(12.5, 650.0, 100.0)
 

@@ -43,7 +43,7 @@ def create_mask_from_object_set(ds_tracking, object_set, t0):
     """
     da_is_present = object_set.get_value("present", t0=t0)
     da_labels = ds_tracking[f"nr{object_set.object_type}"].sel(time=t0)
-    return make_filled(da_labels, da_is_present, object_coord=f"object_id")
+    return make_filled(da_labels, da_is_present, object_coord="object_id")
 
 
 def extract_from_3d_at_heights_in_2d(da_3d, z_2d):

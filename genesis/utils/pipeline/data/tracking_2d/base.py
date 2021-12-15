@@ -4,11 +4,9 @@ import tempfile
 import warnings
 from pathlib import Path
 
-import dask_image.ndmeasure as dmeasure
 import luigi
 import numpy as np
 import xarray as xr
-from tqdm import tqdm
 
 from .....objects.tracking_2d.family import create_tracking_family_2D_field
 from ..base import (NumpyDatetimeParameter, XArrayTarget,
@@ -300,7 +298,7 @@ class TrackingVariable2D(_Tracking2DExtraction):
         var_name = self.var_name
         da_input = self.input().open()
 
-        if not var_name in da_input:
+        if var_name not in da_input:
             available_vars = ", ".join(
                 filter(lambda v: not v.startswith("nr"), list(da_input.data_vars))
             )

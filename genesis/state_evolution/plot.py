@@ -1,6 +1,4 @@
-import matplotlib
-
-matplotlib.use("Agg")  # noqa
+import matplotlib; matplotlib.use("Agg")  # noqa
 
 import os
 import warnings

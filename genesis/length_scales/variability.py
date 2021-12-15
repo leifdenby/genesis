@@ -299,7 +299,7 @@ if __name__ == "__main__":
                     print("Plot saved to {}".format(fn))
 
     if combined:
-        fn = "{}__tn{}.pdf".format(param_name.replace("/", "_"), var_name, tn)
+        fn = "{}_{}_tn{}.pdf".format(param_name.replace("/", "_"), var_name, tn)
 
         plot.savefig(fn)
         print("Plot saved to {}".format(fn))

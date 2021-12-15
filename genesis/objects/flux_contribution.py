@@ -1,4 +1,3 @@
-import math
 import re
 import textwrap
 
@@ -115,7 +114,7 @@ def plot(
         da_flux_tot = da_flux_tot.sel(sampling=mean_profile_components)
     da_flux_tot = da_flux_tot.sortby("sampling", ascending=False)
     da_flux_tot.attrs.update(ds[f"{v}__mean"].attrs)
-    lines_profile = da_flux_tot.plot(
+    _ = da_flux_tot.plot(
         y="zt", ax=g.ax_marg_y, hue="sampling", add_legend=add_profile_legend
     )
     g.ax_marg_y.set_xlabel(_label_from_attrs(da_flux_tot, width=10))

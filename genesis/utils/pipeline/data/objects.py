@@ -648,7 +648,7 @@ class ComputePerObjectAtHeight(luigi.Task):
         if self.op != "num_cells":
             da_field = inputs["field"].open().squeeze()
         else:
-            if self.field_name != None:
+            if self.field_name is not None:
                 raise Exception(
                     f"Field name should not be given when computing `{self.op}`"
                     f" (`{self.field_name}` was provided)"

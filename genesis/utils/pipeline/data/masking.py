@@ -1,12 +1,11 @@
 import os
-import warnings
 from pathlib import Path
 
 import luigi
 import xarray as xr
 
 from ... import make_mask
-from .base import XArrayTarget, _get_dataset_meta_info, get_workdir
+from .base import XArrayTarget, get_workdir
 from .extraction import ExtractCrossSection2D, ExtractField3D
 
 

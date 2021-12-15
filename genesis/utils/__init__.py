@@ -71,7 +71,7 @@ def find_horizontal_grid_spacing(mask):
 
     if not dx == dy:
         raise NotImplementedError(
-            "Only isotropic grids are supported" "(dx,dy)=({},{},{})".format(dx, dy)
+            "Only isotropic grids are supported" "(dx,dy)=({},{})".format(dx, dy)
         )
 
     return dx

@@ -396,7 +396,7 @@ class Extract3DbyStrips(_Merge3DBaseTask):
             da = self.output().open()
             try:
                 self._check_output(da=da)
-            except Exception as e:
+            except Exception:
                 Path(self.output().fn).unlink()
                 raise
         else:

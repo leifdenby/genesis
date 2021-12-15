@@ -148,8 +148,6 @@ def plot(
 FN_FORMAT_PLOT = "cumulant_with_height__{v1}__{v2}.{filetype}"
 
 if __name__ == "__main__":
-    import seaborn as sns
-
     sns.set(style="ticks")
 
     import argparse

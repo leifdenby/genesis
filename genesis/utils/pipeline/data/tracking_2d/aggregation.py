@@ -9,7 +9,6 @@ import numpy as np
 import xarray as xr
 from tqdm import tqdm
 
-from .....objects.projected_2d import CloudType
 from .....objects.projected_2d.aggregation import \
     cloudbase_max_height_by_histogram_peak
 from .....utils import find_horizontal_grid_spacing, find_vertical_grid_spacing
@@ -177,9 +176,8 @@ class Aggregate2DCrossSectionOnTrackedObjects(luigi.Task):
                     da=da_values, tref=tref, base_name=self.base_name
                 )
         elif self.var_name == "area":
-            meta = _get_dataset_meta_info(self.base_name)
             dx = find_horizontal_grid_spacing(da_labels)
-            da_values = xr.ones_like(da_labels)
+            da_values = xr.ones_like(da_labels) * dx**2.0
             da_values.attrs["units"] = f"{da_labels.xt.units}^2"
             da_values.attrs["long_name"] = "area"
         else:
@@ -375,7 +373,7 @@ class Object2DCrossSectionAggregation(luigi.Task):
         ]
 
         if self.op not in [None, "None"]:
-            name_parts.insert(-2, self.op + ["", f"__{str(self.dx)}"][self.dx != None])
+            name_parts.insert(-2, self.op + ["", f"__{str(self.dx)}"][self.dx is not None])
 
         if not self.use_relative_time_axis:
             name_parts.append("absolute_time")
@@ -531,7 +529,7 @@ class AllObjectsAll2DCrossSectionAggregations(luigi.Task):
         ]
 
         if self.op is not None:
-            name_parts.insert(-2, self.op + ["", f"__{str(self.dx)}"][self.dx != None])
+            name_parts.insert(-2, self.op + ["", f"__{str(self.dx)}"][self.dx is not None])
 
         if not self.use_relative_time_axis:
             name_parts.append("absolute_time")

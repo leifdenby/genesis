@@ -52,9 +52,9 @@ def make_filter_fn(prop_name, op_name, s_value):
         op_fn = getattr(np, op.replace("_than", ""))
         value = float(s_value)
 
-        fn = lambda da: da.where(
+        fn = lambda da: da.where( # noqa
             op_fn(getattr(da, prop_name), value), drop=True
-        )  # noqa
+        )
 
     return fn
 

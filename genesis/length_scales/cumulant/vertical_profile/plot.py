@@ -162,7 +162,7 @@ def _plot_scales_profile(ds, ax, p, fill_between_alpha, **kwargs):
         **kwargs,
     )
 
-    if not "color" in kwargs:
+    if "color" not in kwargs:
         kwargs["color"] = line.get_color()
 
     (line2,) = ds.width_perpendicular.plot(

@@ -1,1 +1,1 @@
-from . import analytical, discrete
+from . import analytical, discrete  # noqa

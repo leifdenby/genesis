@@ -2,7 +2,6 @@
 Facilitate creation of comparison plots of data produced from data
 pipeline-tasks called with different sets of parameters
 """
-import importlib
 import textwrap
 import warnings
 
@@ -10,7 +9,6 @@ import luigi
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
-import xarray as xr
 
 from ....objects.topology.plots.filamentarity_planarity import \
     plot_reference as fp_reference
@@ -72,7 +70,7 @@ def _scales_dist_2d(datasets, plot_parameters, global_parameters):
     if "filamentarity_planarity_reference" in annotations:
         try:
             kwargs = dict(annotations["filamentarity_planarity_reference"])
-        except:
+        except KeyError:
             kwargs = {}
         fp_reference(ax=ax_joint, shape="spheroid", color="black", **kwargs)
 
