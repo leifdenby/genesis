@@ -1,5 +1,3 @@
-import matplotlib; matplotlib.use("Agg")  # noqa
-
 import warnings
 
 import luigi

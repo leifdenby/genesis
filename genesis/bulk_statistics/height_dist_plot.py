@@ -23,8 +23,11 @@ import matplotlib.pyplot as plt
 
 import genesis.objects
 
-from . import (get_distribution_in_cross_sections, load_mask,
-               make_cumulative_from_bin_counts)
+from . import (
+    get_distribution_in_cross_sections,
+    load_mask,
+    make_cumulative_from_bin_counts,
+)
 
 if __name__ == "__main__":  # noqa
     import argparse

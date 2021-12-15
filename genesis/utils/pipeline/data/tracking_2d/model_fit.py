@@ -6,8 +6,12 @@ from tqdm import tqdm
 
 from .....objects.models import parcel_rise
 from ..base import XArrayTarget, get_workdir
-from . import (AllObjectsAll2DCrossSectionAggregations, TrackingType,
-               TrackingVariable2D, uclales_2d_tracking)
+from . import (
+    AllObjectsAll2DCrossSectionAggregations,
+    TrackingType,
+    TrackingVariable2D,
+    uclales_2d_tracking,
+)
 
 
 class ParcelRiseModelFit(luigi.Task):

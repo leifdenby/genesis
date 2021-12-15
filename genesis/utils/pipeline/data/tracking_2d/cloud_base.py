@@ -9,10 +9,7 @@ from .....utils import find_vertical_grid_spacing
 from ..base import XArrayTarget, get_workdir
 from ..extraction import ExtractField3D, TimeCrossSectionSlices2D
 from . import uclales_2d_tracking
-from .base import (
-    PerformObjectTracking2D,
-    TrackingType,
-)
+from .base import PerformObjectTracking2D, TrackingType
 
 
 class EstimateCloudUndersideHeight(luigi.Task):

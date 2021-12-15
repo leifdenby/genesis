@@ -3,8 +3,12 @@ from pathlib import Path
 import luigi
 
 from ...data_sources import uclales_2d_tracking
-from ..base import (NumpyDatetimeParameter, XArrayTarget,
-                    _get_dataset_meta_info, get_workdir)
+from ..base import (
+    NumpyDatetimeParameter,
+    XArrayTarget,
+    _get_dataset_meta_info,
+    get_workdir,
+)
 from . import TrackingType
 from .base import TrackingLabels2D, TrackingVariable2D
 

@@ -9,15 +9,22 @@ import numpy as np
 import xarray as xr
 from tqdm import tqdm
 
-from .....objects.projected_2d.aggregation import \
-    cloudbase_max_height_by_histogram_peak
+from .....objects.projected_2d.aggregation import cloudbase_max_height_by_histogram_peak
 from .....utils import find_horizontal_grid_spacing, find_vertical_grid_spacing
 from ...data_sources.uclales import tracking_2d as uclales_2d_tracking
-from ..base import (NumpyDatetimeParameter, XArrayTarget,
-                    _get_dataset_meta_info, get_workdir)
-from ..extraction import (REGEX_INSTANTENOUS_BASENAME, ExtractCrossSection2D,
-                          ExtractField3D, TimeCrossSectionSlices2D,
-                          remove_gal_transform)
+from ..base import (
+    NumpyDatetimeParameter,
+    XArrayTarget,
+    _get_dataset_meta_info,
+    get_workdir,
+)
+from ..extraction import (
+    REGEX_INSTANTENOUS_BASENAME,
+    ExtractCrossSection2D,
+    ExtractField3D,
+    TimeCrossSectionSlices2D,
+    remove_gal_transform,
+)
 from . import TrackingType
 from .base import TrackingLabels2D, TrackingVariable2D
 
@@ -177,7 +184,7 @@ class Aggregate2DCrossSectionOnTrackedObjects(luigi.Task):
                 )
         elif self.var_name == "area":
             dx = find_horizontal_grid_spacing(da_labels)
-            da_values = xr.ones_like(da_labels) * dx**2.0
+            da_values = xr.ones_like(da_labels) * dx ** 2.0
             da_values.attrs["units"] = f"{da_labels.xt.units}^2"
             da_values.attrs["long_name"] = "area"
         else:
@@ -373,7 +380,9 @@ class Object2DCrossSectionAggregation(luigi.Task):
         ]
 
         if self.op not in [None, "None"]:
-            name_parts.insert(-2, self.op + ["", f"__{str(self.dx)}"][self.dx is not None])
+            name_parts.insert(
+                -2, self.op + ["", f"__{str(self.dx)}"][self.dx is not None]
+            )
 
         if not self.use_relative_time_axis:
             name_parts.append("absolute_time")
@@ -529,7 +538,9 @@ class AllObjectsAll2DCrossSectionAggregations(luigi.Task):
         ]
 
         if self.op is not None:
-            name_parts.insert(-2, self.op + ["", f"__{str(self.dx)}"][self.dx is not None])
+            name_parts.insert(
+                -2, self.op + ["", f"__{str(self.dx)}"][self.dx is not None]
+            )
 
         if not self.use_relative_time_axis:
             name_parts.append("absolute_time")

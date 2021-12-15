@@ -11,8 +11,12 @@ from tqdm import tqdm
 
 from ....utils import calc_flux, find_vertical_grid_spacing, transforms
 from ... import mask_functions
-from .base import (NumpyDatetimeParameter, XArrayTarget,
-                   _get_dataset_meta_info, get_workdir)
+from .base import (
+    NumpyDatetimeParameter,
+    XArrayTarget,
+    _get_dataset_meta_info,
+    get_workdir,
+)
 
 if "USE_SCHEDULER" in os.environ:
     from dask.distributed import Client

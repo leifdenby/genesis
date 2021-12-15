@@ -6,6 +6,7 @@ import inspect
 import os
 
 import xarray as xr
+
 # register a progressbar so we can see progress of dask'ed operations with xarray
 from dask.diagnostics import ProgressBar
 

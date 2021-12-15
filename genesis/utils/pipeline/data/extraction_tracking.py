@@ -7,8 +7,12 @@ import xarray as xr
 
 from ....utils.transforms import offset_gal
 from . import ExtractField3D
-from .base import (NumpyDatetimeParameter, XArrayTarget,
-                   _get_dataset_meta_info, get_workdir)
+from .base import (
+    NumpyDatetimeParameter,
+    XArrayTarget,
+    _get_dataset_meta_info,
+    get_workdir,
+)
 
 
 class Single3DShiftedCrop(luigi.Task):
