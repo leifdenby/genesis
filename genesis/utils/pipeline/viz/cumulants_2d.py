@@ -1,7 +1,6 @@
 import luigi
-import xarray as xr
 import matplotlib.pyplot as plt
-
+import xarray as xr
 
 from .... import length_scales
 from .. import data

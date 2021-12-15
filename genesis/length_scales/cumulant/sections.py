@@ -6,12 +6,12 @@ if __name__ == "__main__":  # noqa
 
     matplotlib.use("Agg")
 
-import xarray as xr
-import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.ticker as plticker
-from tqdm import tqdm
+import numpy as np
 import seaborn as sns
+import xarray as xr
+from tqdm import tqdm
 
 from . import calc as cumulant_analysis
 from .calc import WidthEstimationMethod

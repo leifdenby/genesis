@@ -3,9 +3,9 @@ Map a object property onto 3D object field
 """
 import os
 
-import xarray as xr
 import numpy as np
 import tqdm
+import xarray as xr
 
 import genesis.objects
 

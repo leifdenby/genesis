@@ -3,6 +3,7 @@ Facilitate creation of comparison plots of data produced from data
 pipeline-tasks called with different sets of parameters
 """
 import importlib
+import textwrap
 import warnings
 
 import luigi
@@ -10,14 +11,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 import xarray as xr
-import textwrap
 
-from ....objects.topology.plots.filamentarity_planarity import (
-    plot_reference as fp_reference,
-)
+from ....objects.topology.plots.filamentarity_planarity import \
+    plot_reference as fp_reference
 from ...plot_types import PlotGrid, get_color_cmap
-from ..data.objects import ObjectTwoScalesComposition
 from ..data import Comparison
+from ..data.objects import ObjectTwoScalesComposition
 
 
 def _generate_title_from_global_parameters(global_parameters):

@@ -1,6 +1,7 @@
-import luigi
 import subprocess
 from pathlib import Path
+
+import luigi
 
 
 class PlotJoinTask(luigi.Task):

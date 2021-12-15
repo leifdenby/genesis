@@ -2,22 +2,22 @@ import matplotlib
 
 matplotlib.use("Agg")  # noqa
 
-from pathlib import Path
 import re
+import shutil
 import warnings
+from pathlib import Path
 
 import luigi
-import xarray as xr
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 import seaborn as sns
+import xarray as xr
 import yaml
-import shutil
 
 from .... import objects
-from ... import plot_types, figure_metadata
-from .. import data
 from ....bulk_statistics import cross_correlation_with_height
+from ... import figure_metadata, plot_types
+from .. import data
 from .bulk import JointDistProfile
 
 figure_metadata.patch_savefig_for_argv_metadata()

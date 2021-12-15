@@ -1,9 +1,9 @@
-import numpy as np
-from scipy.constants import pi
-import xarray as xr
-
-from collections import OrderedDict
 import warnings
+from collections import OrderedDict
+
+import numpy as np
+import xarray as xr
+from scipy.constants import pi
 
 REQUIRED_DX_PRECISION = 4
 

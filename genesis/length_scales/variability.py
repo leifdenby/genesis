@@ -7,7 +7,6 @@ from tqdm import tqdm
 
 from genesis import utils
 
-
 model_name = "uclales"
 case_name = "rico"
 
@@ -233,9 +232,9 @@ if __name__ == "__main__":
     import matplotlib
 
     matplotlib.use("Agg")
-    import matplotlib.pyplot as plot
-
     import argparse
+
+    import matplotlib.pyplot as plot
 
     argparser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter

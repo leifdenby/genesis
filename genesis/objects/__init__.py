@@ -62,6 +62,6 @@ def make_mask_from_objects_file(filename):
     return mask
 
 
-from . import topology  # noqa
-from . import integrate, identify, filter  # noqa
 from . import flux_contribution  # noqa
+from . import topology  # noqa
+from . import filter, identify, integrate  # noqa

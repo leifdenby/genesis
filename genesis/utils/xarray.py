@@ -1,12 +1,12 @@
-import itertools
 import functools
+import itertools
+import math
 from pathlib import Path
 
-import scipy.stats
 import numpy as np
-import xarray as xr
+import scipy.stats
 import tqdm
-import math
+import xarray as xr
 
 
 def apply_all(ds, fn, dims=None, process_desc=None):

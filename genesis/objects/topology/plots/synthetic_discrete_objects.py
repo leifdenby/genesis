@@ -9,18 +9,17 @@ if __name__ == "__main__":
     matplotlib.use("Agg")
 
 from pathlib import Path
-import numpy as np
-import xarray as xr
-import seaborn as sns
+
 import matplotlib.pyplot as plt
+import numpy as np
+import seaborn as sns
 import tqdm
+import xarray as xr
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
-
-from ..minkowski import discrete as minkowski_discrete
 from ...synthetic.discrete import make_mask
+from ..minkowski import discrete as minkowski_discrete
 from .filamentarity_planarity import plot_reference as plot_fp_ref
-
 
 TEMP_FILENAME_FORMAT = "{h}_{length}_{dx}_{l_shear}_{shape}.{filetype}"
 

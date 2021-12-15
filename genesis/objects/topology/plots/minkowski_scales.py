@@ -5,8 +5,8 @@ if __name__ == "__main__":  # noqa
     matplotlib.use("Agg")
 
 
-import seaborn as sns
 import matplotlib.pyplot as plt
+import seaborn as sns
 
 from genesis.objects import get_data
 

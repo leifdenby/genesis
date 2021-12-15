@@ -3,16 +3,15 @@ Use 2D mask or object tracking to filter out objects and create a new objects
 file
 """
 import os
-import warnings
 import re
-
-import xarray as xr
-import numpy as np
-import tqdm
-
-import genesis.objects
+import warnings
 
 import cloud_identification
+import numpy as np
+import tqdm
+import xarray as xr
+
+import genesis.objects
 
 try:
     import cloud_tracking_analysis
@@ -22,8 +21,8 @@ try:
 except ImportError:
     HAS_CLOUD_TRACKING = False
 
-from . import property_filters
 from ..utils.pipeline.data.tracking_2d import TrackingType
+from . import property_filters
 
 
 def latex_format(filter_defs):

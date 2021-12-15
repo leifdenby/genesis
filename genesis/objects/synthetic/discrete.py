@@ -3,12 +3,13 @@
 Routines for creating masks of parameterised synthetic 3D shapes
 """
 
-import numpy as np
-import xarray as xr
 from collections import OrderedDict
+
 import matplotlib.pyplot as plt
+import numpy as np
 import scipy.integrate
 import scipy.optimize
+import xarray as xr
 
 
 def make_grid(dx, lx=3e3, lz=2e3):

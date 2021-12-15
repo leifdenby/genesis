@@ -1,9 +1,9 @@
-from pathlib import Path
 import warnings
 from collections import OrderedDict
+from pathlib import Path
 
-import xarray as xr
 import numpy as np
+import xarray as xr
 
 FIELD_NAME_MAPPING = dict(
     w="WT",

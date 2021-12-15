@@ -3,10 +3,10 @@ if __name__ == "__main__":  # noqa
 
     matplotlib.use("Agg")
 
-import xarray as xr
 import matplotlib.pyplot as plt
 import numpy as np
 import tqdm
+import xarray as xr
 
 
 def cumsum_cutoff(v, frac=0.9):

@@ -3,10 +3,9 @@ Utilities for labelling 3D objects from a mask
 """
 import os
 
-import xarray as xr
-import numpy as np
-
 import cloud_identification
+import numpy as np
+import xarray as xr
 
 OUT_FILENAME_FORMAT = "{base_name}.objects.{objects_name}.nc"
 

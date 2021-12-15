@@ -1,7 +1,6 @@
+import dask_image.ndmeasure
 import numpy as np
 import xarray as xr
-
-import dask_image.ndmeasure
 
 VAR_MAPPINGS = dict(
     length_m="minkowski",

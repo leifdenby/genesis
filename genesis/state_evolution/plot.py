@@ -2,16 +2,15 @@ import matplotlib
 
 matplotlib.use("Agg")  # noqa
 
-import warnings
 import os
+import warnings
 
-import numpy as np
-import matplotlib.pyplot as plot
 import matplotlib.font_manager
-
-import xarray as xr
-import seaborn as sns
+import matplotlib.pyplot as plot
+import numpy as np
 import scipy.optimize
+import seaborn as sns
+import xarray as xr
 
 try:
     import tephigram

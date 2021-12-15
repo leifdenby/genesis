@@ -1,14 +1,13 @@
-import xarray as xr
+import os
+from pathlib import Path
+
 import numpy as np
 import scipy.optimize
+import xarray as xr
 
-from pathlib import Path
-import os
 from .... import center_staggered_field
-
 from .common import _fix_time_units
 from .extraction import Extract3D
-
 
 FIELD_NAME_MAPPING = dict(
     w="w_zt",

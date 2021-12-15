@@ -3,15 +3,16 @@
 Routines for creating masks of parameterised synthetic 3D shapes
 """
 
-import numpy as np
-import xarray as xr
-import seaborn as sns
-import matplotlib.pyplot as plt
 import tempfile
 
-from genesis.utils.xarray import apply_all
+import matplotlib.pyplot as plt
+import numpy as np
+import seaborn as sns
+import xarray as xr
+
 from genesis.objects.synthetic import discrete, ellipsoid
 from genesis.objects.topology.plots import synthetic_discrete_objects
+from genesis.utils.xarray import apply_all
 
 TEMP_DATA_PATH = tempfile.TemporaryDirectory().name
 

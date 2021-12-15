@@ -21,13 +21,12 @@ With fly camera:
 Axes are x=red, y=green, z=blue.
 """
 
-from itertools import cycle
 import os
+from itertools import cycle
 
 import xarray as xr
-
 from vispy import app, scene
-from vispy.color import get_colormaps, BaseColormap
+from vispy.color import BaseColormap, get_colormaps
 
 
 # create colormaps that work well for translucent and additive volume rendering

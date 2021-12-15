@@ -1,17 +1,14 @@
 # coding: utf-8
+from pathlib import Path
+
+import luigi
 import numpy as np
 import xarray as xr
-import luigi
-from pathlib import Path
 
 from ....utils.transforms import offset_gal
 from . import ExtractField3D
-from .base import (
-    NumpyDatetimeParameter,
-    XArrayTarget,
-    _get_dataset_meta_info,
-    get_workdir,
-)
+from .base import (NumpyDatetimeParameter, XArrayTarget,
+                   _get_dataset_meta_info, get_workdir)
 
 
 class Single3DShiftedCrop(luigi.Task):

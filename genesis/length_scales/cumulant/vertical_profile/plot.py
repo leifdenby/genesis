@@ -8,15 +8,15 @@ if __name__ == "__main__":  # noqa
 
 import warnings
 
-import xarray as xr
-from matplotlib.gridspec import GridSpec
 import matplotlib.lines as mlines
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
+import xarray as xr
+from matplotlib.gridspec import GridSpec
 
-from ..calc import fix_cumulant_name
 from ....utils import wrap_angles
+from ..calc import fix_cumulant_name
 
 # marker for more than x0, x1, x2, ... asymmetry
 ASYMMETRY_MARKERS = ["", "", "_", "^", "s", "p", "h"]

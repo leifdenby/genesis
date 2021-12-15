@@ -1,15 +1,15 @@
-import operator
-import numpy as np
 import inspect
+import operator
 import warnings
+
+import numpy as np
 import xarray as xr
 
-from . import operations
-from . import aggregation
+from . import aggregation, operations
 
 
 def _find_module_operations(module):
-    from inspect import getmembers, isfunction, getargspec
+    from inspect import getargspec, getmembers, isfunction
 
     f = lambda o: isfunction(o[1]) and "ds" in getargspec(o[1]).args  # noqa
     return [o[0] for o in getmembers(module) if f(o)]

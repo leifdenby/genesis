@@ -1,1 +1,1 @@
-from . import discrete, analytical
+from . import analytical, discrete

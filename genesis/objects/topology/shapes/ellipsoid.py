@@ -1,9 +1,9 @@
-import numpy as np
-from scipy.constants import pi
-from scipy.special import ellipkinc, ellipeinc
-from scipy import integrate
-
 import math
+
+import numpy as np
+from scipy import integrate
+from scipy.constants import pi
+from scipy.special import ellipeinc, ellipkinc
 
 
 @np.vectorize

@@ -5,14 +5,14 @@ if __name__ == "__main__":  # noqa
     matplotlib.use("Agg")
 
 
-import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import seaborn as sns
 
+from ....utils import wrap_angles
 from ... import get_data
 from . import filamentarity_planarity
-from ....utils import wrap_angles
 
 
 def ecd(d, **kwargs):

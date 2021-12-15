@@ -1,25 +1,22 @@
-import warnings
-import shutil
 import os
-from pathlib import Path
+import shutil
 import tempfile
+import warnings
+from pathlib import Path
 
-import luigi
-import xarray as xr
-import numpy as np
 import dask_image.ndmeasure as dmeasure
+import luigi
+import numpy as np
+import xarray as xr
 from tqdm import tqdm
 
-from ..extraction import (
-    REGEX_INSTANTENOUS_BASENAME,
-    remove_gal_transform,
-)
-from . import TrackingType, uclales_2d_tracking
-from ..base import get_workdir, _get_dataset_meta_info, XArrayTarget
-from ..extraction import TimeCrossSectionSlices2D
-from ..base import NumpyDatetimeParameter
-from ..masking import MakeMask
 from .....objects.tracking_2d.family import create_tracking_family_2D_field
+from ..base import (NumpyDatetimeParameter, XArrayTarget,
+                    _get_dataset_meta_info, get_workdir)
+from ..extraction import (REGEX_INSTANTENOUS_BASENAME,
+                          TimeCrossSectionSlices2D, remove_gal_transform)
+from ..masking import MakeMask
+from . import TrackingType, uclales_2d_tracking
 
 
 class XArrayTargetUCLALESTracking(XArrayTarget):

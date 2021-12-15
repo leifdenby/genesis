@@ -1,15 +1,10 @@
 # flake8: noqa
 
-from .base import (
-    XArrayTarget,
-    add_datasource,
-    set_workdir,
-    get_datasources,
-    get_workdir,
-    get_data_from_task,
-)
-from .extraction import ExtractField3D, Extract2DCloudbaseStateFrom3D
-from .objects import ComputeFieldDecompositionByHeightAndObjects, ComputeObjectScales
-from .cumulants import ExtractCumulantScaleProfiles
-from .masking import MakeMask
+from .base import (XArrayTarget, add_datasource, get_data_from_task,
+                   get_datasources, get_workdir, set_workdir)
 from .comparison import Comparison
+from .cumulants import ExtractCumulantScaleProfiles
+from .extraction import Extract2DCloudbaseStateFrom3D, ExtractField3D
+from .masking import MakeMask
+from .objects import (ComputeFieldDecompositionByHeightAndObjects,
+                      ComputeObjectScales)

@@ -5,10 +5,9 @@ characteristics scales using Minkowski functionals
 import os
 import warnings
 
-import xarray as xr
-import numpy as np
-
 import cloud_identification
+import numpy as np
+import xarray as xr
 
 
 def calc_scales(object_labels, dx):

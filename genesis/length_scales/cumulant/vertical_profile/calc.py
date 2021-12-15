@@ -4,12 +4,11 @@ in 2D domain-wide cross-sections
 """
 import os
 import warnings
-
-import xarray as xr
-import numpy as np
-from tqdm import tqdm
-
 from collections import OrderedDict
+
+import numpy as np
+import xarray as xr
+from tqdm import tqdm
 
 from .. import calc as cumulant_analysis
 

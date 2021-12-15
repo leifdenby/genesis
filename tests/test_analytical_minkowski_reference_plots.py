@@ -1,11 +1,11 @@
-import pytest
 import matplotlib
+import pytest
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa
-from genesis.objects.topology.plots.filamentarity_planarity import (
-    plot_reference,
-)  # noqa
+
+from genesis.objects.topology.plots.filamentarity_planarity import \
+    plot_reference  # noqa
 
 
 @pytest.mark.parametrize("shape", ["cylinder", "spheroid", "ellipsoid"])

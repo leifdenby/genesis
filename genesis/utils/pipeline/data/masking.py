@@ -6,9 +6,8 @@ import luigi
 import xarray as xr
 
 from ... import make_mask
-from .extraction import ExtractField3D, ExtractCrossSection2D
-from .base import get_workdir, XArrayTarget
-from .base import _get_dataset_meta_info
+from .base import XArrayTarget, _get_dataset_meta_info, get_workdir
+from .extraction import ExtractCrossSection2D, ExtractField3D
 
 
 class MakeMask(luigi.Task):
