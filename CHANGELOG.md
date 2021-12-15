@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.3.1](https://github.com/leifdenby/genesis/tree/v0.3.1)
+
+[Full Changelog](https://github.com/leifdenby/genesis/v0.3.1...v0.3.0)
+
+Fix to ensure correct version number set in package
+
 ## [v0.3.0](https://github.com/leifdenby/genesis/tree/v0.3.0)
 
 [Full Changelog](https://github.com/leifdenby/genesis/v0.3.0...v0.2.0)
