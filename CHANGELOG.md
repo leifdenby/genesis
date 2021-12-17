@@ -1,11 +1,13 @@
 # Changelog
 
-## [unreleased](https://github.com/leifdenby/genesis/tree/HEAD)
+## [v0.3.1](https://github.com/leifdenby/genesis/tree/HEAD)
 
-[Full Changelog](https://github.com/leifdenby/genesis/compare/v0.3.0...HEAD)
+[Full Changelog](https://github.com/leifdenby/genesis/compare/v0.3.0...v0.3.1)
 
 - clean up installation and continuous integration so that package can be
   installed from pypi as `cloud-genesis` [\#8](https://github.com/leifdenby/genesis/pull/8)
+
+- pin pystan version to be lower than `v3.0.0` since the API changed [\#10](https://github.com/leifdenby/genesis/pull/10)
 
 
 ## [v0.3.0](https://github.com/leifdenby/genesis/tree/v0.3.0)
