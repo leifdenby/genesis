@@ -28,7 +28,7 @@ b) try to assign each 3D object to a matching 2D tracked object. The two
 
 import luigi
 
-from ... import objects
+from .... import objects
 from .data import MakeMask, PerformObjectTracking2D, XArrayTarget
 
 
