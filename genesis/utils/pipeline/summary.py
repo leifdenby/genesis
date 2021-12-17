@@ -1,6 +1,6 @@
 import luigi
 
-from . import viz, data
+from . import data, viz
 
 
 class FluxFractionCarriedSummary(viz.FluxFractionCarried):

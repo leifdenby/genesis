@@ -1,12 +1,10 @@
 import os
 
 import numpy as np
-import xarray as xr
-
-import skimage.morphology
 import scipy.ndimage
+import skimage.morphology
+import xarray as xr
 from scipy.constants import pi
-
 
 L_SMOOTHING_DEFUALT = 1000.0
 L_EDGE_DEFAULT = 2000.0

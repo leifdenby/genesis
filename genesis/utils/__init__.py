@@ -1,9 +1,9 @@
-import numpy as np
-from scipy.constants import pi
-import xarray as xr
-
-from collections import OrderedDict
 import warnings
+from collections import OrderedDict
+
+import numpy as np
+import xarray as xr
+from scipy.constants import pi
 
 REQUIRED_DX_PRECISION = 4
 
@@ -71,7 +71,7 @@ def find_horizontal_grid_spacing(mask):
 
     if not dx == dy:
         raise NotImplementedError(
-            "Only isotropic grids are supported" "(dx,dy)=({},{},{})".format(dx, dy)
+            "Only isotropic grids are supported" "(dx,dy)=({},{})".format(dx, dy)
         )
 
     return dx

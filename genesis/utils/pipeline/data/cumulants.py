@@ -1,13 +1,12 @@
 import hashlib
-import warnings
 
-import xarray as xr
 import luigi
+import xarray as xr
 
 from .... import length_scales
+from .base import XArrayTarget, get_workdir
 from .extraction import ExtractField3D
 from .masking import MakeMask
-from .base import get_workdir, XArrayTarget
 
 
 class ExtractCumulantScaleProfile(luigi.Task):

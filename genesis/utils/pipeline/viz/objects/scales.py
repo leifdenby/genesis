@@ -2,11 +2,11 @@
 Tasks for producing plots of object scales
 """
 import luigi
-import yaml
-import xarray as xr
+import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
-import matplotlib.pyplot as plt
+import xarray as xr
+import yaml
 
 from ..... import length_scales, objects
 from .... import plot_types
@@ -695,8 +695,9 @@ class ObjectsScalesJointDist(luigi.Task):
         try:
             plt.savefig(self.output().fn, bbox_inches="tight")
         except IOError:
-            import hues
             import uuid
+
+            import hues
 
             fn = "plot.{}.{}".format(str(uuid.uuid4()), self.file_type)
             hues.warn("filename became to long, saved to `{}`".format(fn))

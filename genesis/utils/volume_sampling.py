@@ -1,18 +1,16 @@
-import numpy as np
-import matplotlib.pyplot as plot
-import matplotlib.patches as mpatches
-
-import scipy.spatial.distance
-from scipy.signal import convolve2d
-
 import itertools
 
+import matplotlib.patches as mpatches
+import matplotlib.pyplot as plot
+import numpy as np
+import scipy.spatial.distance
 import skimage
-import skimage.morphology
-import skimage.filters
-import skimage.segmentation
-import skimage.measure
 import skimage.color
+import skimage.filters
+import skimage.measure
+import skimage.morphology
+import skimage.segmentation
+from scipy.signal import convolve2d
 
 
 def _expand_int_regions(v, s):

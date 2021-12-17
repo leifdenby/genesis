@@ -3,11 +3,11 @@
 
 
 import sys
+
 import numpy as np
 import scipy
-
-from intergrid import Intergrid
 import util as ut
+from intergrid import Intergrid
 
 print(
     "versions: numpy %s  scipy %s  python %s"

@@ -16,32 +16,14 @@ from RICO simulation with UCLALES]" width=60% />
 
 ## Installation
 
-To get started you will need to clone this repository locally
+You can install the newest release from [pypi](https://pypi.org/) using `pip`:
 
 ```bash
-git clone https://github.com/leifdenby/genesis
-cd genesis
+python -m pip install cloud-genesis
 ```
 
-All the necessary dependencies can be installed with
-[conda](https://www.anaconda.com/distribution/). Once conda is installed we can
-create a conda environment and install the dependencies into there:
+## Usage
 
-
-```
-conda env create -n genesis -f environment.yml
-conda activate genesis
-```
-
-Finally you will need to install the object identification code which is in
-a separate repository
-
-```bash
-pip install git+https://github.com/leifdenby/cloud_identification@master
-```
-
-and install the code for the GENESIS toolkit itself:
-
-```bash
-pip install .
-```
+The easiest way to get started with genesis is to check out the training
+material created for the [COMPLETE
+workshop](https://github.com/leifdenby/genesis-complete-workshop-2019).

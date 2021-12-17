@@ -3,13 +3,13 @@
 from .base import (
     XArrayTarget,
     add_datasource,
-    set_workdir,
+    get_data_from_task,
     get_datasources,
     get_workdir,
-    get_data_from_task,
+    set_workdir,
 )
-from .extraction import ExtractField3D, Extract2DCloudbaseStateFrom3D
-from .objects import ComputeFieldDecompositionByHeightAndObjects, ComputeObjectScales
-from .cumulants import ExtractCumulantScaleProfiles
-from .masking import MakeMask
 from .comparison import Comparison
+from .cumulants import ExtractCumulantScaleProfiles
+from .extraction import Extract2DCloudbaseStateFrom3D, ExtractField3D
+from .masking import MakeMask
+from .objects import ComputeFieldDecompositionByHeightAndObjects, ComputeObjectScales

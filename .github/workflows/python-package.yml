@@ -23,31 +23,9 @@ jobs:
       uses: actions/setup-python@v2
       with:
         python-version: ${{ matrix.python-version }}
-    - name: Check formatting with black
-      run: |
-        pip install black==20.8b1
-        # check that formatting is ok with black
-        black --check .    
-    - name: setup-conda
-      uses: s-weigand/setup-conda@v1.0.5
-      with:
-          update-conda: true
-          python-version: ${{ matrix.python-version }}
-          conda-channels: anaconda, conda-forge  
     - name: Install dependencies
       run: |
-        conda env create -n genesis -f environment.yml
-        source activate genesis
-        pip install git+https://github.com/leifdenby/cloud_identification@master
-        pip install flake8 pytest
-    - name: Lint with flake8
-      run: |
-        source activate genesis
-        # stop the build if there are Python syntax errors or undefined names
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-        flake8 . --count --exit-zero --max-line-length=127 --statistics
+        python -m pip install ".[dev]"
     - name: Test with pytest
       run: |
-        source activate genesis
         python -m pytest

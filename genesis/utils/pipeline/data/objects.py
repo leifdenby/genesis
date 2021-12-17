@@ -1,21 +1,19 @@
 import hashlib
-from pathlib import Path
 from functools import partial
+from pathlib import Path
 
-import luigi
-import xarray as xr
-import numpy as np
 import dask_image
+import luigi
+import numpy as np
+import xarray as xr
 
-from .masking import MakeMask
-from .extraction import ExtractField3D
-from .base import get_workdir, XArrayTarget
-from .tracking_2d import PerformObjectTracking2D
-from .... import objects
+from .... import length_scales, objects
 from ....objects import integral_properties
-from .... import length_scales
-
 from ... import make_mask
+from .base import XArrayTarget, get_workdir
+from .extraction import ExtractField3D
+from .masking import MakeMask
+from .tracking_2d import PerformObjectTracking2D
 
 
 def merge_object_datasets(dss):
@@ -650,7 +648,7 @@ class ComputePerObjectAtHeight(luigi.Task):
         if self.op != "num_cells":
             da_field = inputs["field"].open().squeeze()
         else:
-            if self.field_name != None:
+            if self.field_name is not None:
                 raise Exception(
                     f"Field name should not be given when computing `{self.op}`"
                     f" (`{self.field_name}` was provided)"

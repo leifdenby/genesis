@@ -1,14 +1,14 @@
-import luigi
-import matplotlib.pyplot as plt
-import matplotlib.patches as mpl_patches
-import numpy as np
 import datetime
+
+import luigi
+import matplotlib.patches as mpl_patches
+import matplotlib.pyplot as plt
+import numpy as np
 import xarray as xr
+from skimage.color import colorlabel
 
 from .. import data
 from .all import _scale_dist
-
-from skimage.color import colorlabel
 
 label2rgb = colorlabel.label2rgb
 

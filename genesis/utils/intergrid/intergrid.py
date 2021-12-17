@@ -80,12 +80,12 @@ More doc: https://denis-bz.github.com/docs/intergrid.html
 # split class Gridmap ?
 
 
+import collections
 from time import time
 
 # warnings
 import numpy as np
 from scipy.ndimage import map_coordinates, spline_filter
-import collections
 
 __version__ = "2014-05-09 leif denby"  # 9may: fix bug default argument bug
 __author_email__ = "denis-bz-py@t-online.de"  # comments welcome, testcases most welcome

@@ -1,1 +1,1 @@
-from .distributions import JointDistProfile
+from .distributions import JointDistProfile  # noqa

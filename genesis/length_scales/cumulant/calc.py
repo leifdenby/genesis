@@ -2,17 +2,18 @@
 Contains routines to analyse coherent structures in 2D using 2nd-order cumulant
 analysis
 """
-import warnings
 import re
+import warnings
+from enum import Enum
 
 import numpy as np
-from scipy.constants import pi
-import scipy.optimize
 import scipy.integrate
-from ...utils.intergrid import intergrid
-import xarray as xr
-from enum import Enum
+import scipy.optimize
 import skimage.measure
+import xarray as xr
+from scipy.constants import pi
+
+from ...utils.intergrid import intergrid
 
 try:
     import pyfftw.interfaces

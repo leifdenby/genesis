@@ -1,15 +1,14 @@
 import operator
-import numpy as np
-import inspect
 import warnings
+
+import numpy as np
 import xarray as xr
 
-from . import operations
-from . import aggregation
+from . import aggregation, operations
 
 
 def _find_module_operations(module):
-    from inspect import getmembers, isfunction, getargspec
+    from inspect import getargspec, getmembers, isfunction
 
     f = lambda o: isfunction(o[1]) and "ds" in getargspec(o[1]).args  # noqa
     return [o[0] for o in getmembers(module) if f(o)]
@@ -87,9 +86,6 @@ class ObjectSet:
                 " available operations: {}"
                 "".format(function_name, ", ".join(available_operations))
             )
-
-        fn_argspec = inspect.getargspec(fn)
-        needed_vars = fn_argspec.args
 
         return fn(ds=self.ds, **kwargs).squeeze()
 

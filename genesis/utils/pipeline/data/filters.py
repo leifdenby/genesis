@@ -28,8 +28,8 @@ b) try to assign each 3D object to a matching 2D tracked object. The two
 
 import luigi
 
-from .data import MakeMask, XArrayTarget, PerformObjectTracking2D
 from ... import objects
+from .data import MakeMask, PerformObjectTracking2D, XArrayTarget
 
 
 class FilterTriggeringThermalsByMask(luigi.Task):

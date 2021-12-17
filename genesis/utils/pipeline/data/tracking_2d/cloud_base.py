@@ -1,23 +1,15 @@
-import warnings
-
 import luigi
 
-from .....utils import find_vertical_grid_spacing
 from .....objects.projected_2d.extraction import (
-    get_cloud_underside_for_new_formed_clouds,
     get_approximate_cloud_underside,
+    get_cloud_underside_for_new_formed_clouds,
 )
 from .....objects.projected_2d.utils import extract_from_3d_at_heights_in_2d
+from .....utils import find_vertical_grid_spacing
 from ..base import XArrayTarget, get_workdir
 from ..extraction import ExtractField3D, TimeCrossSectionSlices2D
 from . import uclales_2d_tracking
-from .base import (
-    PerformObjectTracking2D,
-    TrackingLabels2D,
-    TrackingType,
-    TrackingVariable2D,
-)
-from .aggregation import EstimateCloudbaseHeightFromTracking
+from .base import PerformObjectTracking2D, TrackingType
 
 
 class EstimateCloudUndersideHeight(luigi.Task):

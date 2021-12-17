@@ -1,9 +1,9 @@
-import pytest
 import numpy as np
+import pytest
 from scipy.constants import pi
 
-from genesis.objects.topology.minkowski import analytical as minkowski_analytical
 from genesis.objects.topology import shapes
+from genesis.objects.topology.minkowski import analytical as minkowski_analytical
 
 
 @pytest.mark.parametrize("shape", ["cylinder", "spheroid", "ellipsoid"])

@@ -1,3 +1,4 @@
 *.pyc
 .*.sw*
 .ipynb_checkpoints/
+genesis.egg-info/

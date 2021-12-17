@@ -1,7 +1,6 @@
 import luigi
-import xarray as xr
 import matplotlib.pyplot as plt
-
+import xarray as xr
 
 from .... import length_scales
 from .. import data
@@ -138,7 +137,7 @@ class CumulantScalesProfile(luigi.Task):
 
         plot_fn = length_scales.cumulant.vertical_profile.plot.plot
 
-        axes = plot_fn(
+        _ = plot_fn(
             data=ds,
             cumulants=cumulants_s,
             plot_type=self.plot_type,

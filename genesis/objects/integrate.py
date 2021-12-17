@@ -1,8 +1,14 @@
 import os
 import warnings
 
-import xarray as xr
+import dask_image.ndmeasure
 import numpy as np
+import xarray as xr
+from scipy.constants import pi
+from tqdm import tqdm
+
+from ..utils import find_grid_spacing
+from . import integral_properties, minkowski_scales
 
 # forget about using dask for now, dask_ndmeasure takes a huge amount of memory
 # try:
@@ -17,13 +23,6 @@ import numpy as np
 # "dask'ed dask-ndmeasure. Install `dask-ndmeasure` for much "
 # "faster computation")
 
-from scipy.constants import pi
-from tqdm import tqdm
-import dask_image.ndmeasure
-
-from . import integral_properties
-from . import minkowski_scales
-from ..utils import find_grid_spacing
 
 CHUNKS = 200  # forget about using dask for now, np.unique is too slow
 

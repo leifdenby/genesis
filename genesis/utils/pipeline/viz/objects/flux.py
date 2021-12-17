@@ -1,13 +1,13 @@
 import re
-
-import luigi
-import xarray as xr
-import matplotlib.pyplot as plt
 from pathlib import Path
 
-from ... import data
+import luigi
+import matplotlib.pyplot as plt
+import xarray as xr
+
 from ..... import objects
 from .....utils.calc_flux import scale_flux_to_watts
+from ... import data
 
 
 class ObjectScaleVsHeightComposition(luigi.Task):

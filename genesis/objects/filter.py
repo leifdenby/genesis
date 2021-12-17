@@ -3,16 +3,14 @@ Use 2D mask or object tracking to filter out objects and create a new objects
 file
 """
 import os
-import warnings
 import re
 
-import xarray as xr
+import cloud_identification
 import numpy as np
 import tqdm
+import xarray as xr
 
 import genesis.objects
-
-import cloud_identification
 
 try:
     import cloud_tracking_analysis
@@ -22,8 +20,8 @@ try:
 except ImportError:
     HAS_CLOUD_TRACKING = False
 
-from . import property_filters
 from ..utils.pipeline.data.tracking_2d import TrackingType
+from . import property_filters
 
 
 def latex_format(filter_defs):
@@ -79,7 +77,7 @@ def parse_defs(filter_defs):
             (tracking_type,) = f_def
 
             m = re.match(
-                "(?P<tracking_type>\w+)__(?P<prop>\w+)__(?P<op>\w+)=(?P<value>\d+)",
+                r"(?P<tracking_type>\w+)__(?P<prop>\w+)__(?P<op>\w+)=(?P<value>\d+)",
                 tracking_type,
             )
             if m is not None:
@@ -168,8 +166,6 @@ def filter_objects_by_tracking(
 
             labels__fake_3d = np.expand_dims(trac_labels_2d, axis=-1).astype(np.uint32)
 
-            labels__copy = np.array(labels__fake_3d)
-
             cloud_identification.filter_labels(
                 labels=labels__fake_3d, idxs_keep=idxs_to_keep
             )
@@ -187,7 +183,9 @@ def filter_objects_by_tracking(
     # should be kept
     da_objects_filtered = da_objects.where(~objects_tracked_2d.isnull())
 
-    filter_nans = lambda v: v[~np.isnan(v)]
+    def filter_nans(v):
+        return v[~np.isnan(v)]
+
     # remove nan values and object with id `0` (which is outside object)
     object_ids_filtered = filter_nans(np.unique(da_objects_filtered))[1:]
 
@@ -241,7 +239,8 @@ def filter_objects_by_tracking_old(
     projected_labels_tracked.name = "projected_labels_tracked"
 
     # find out which object ids exist in this projected region
-    filter_nans = lambda v: v[~np.isnan(v)]
+    def filter_nans(v):
+        return v[~np.isnan(v)]
 
     id3d_tracked_from_projected = filter_nans(np.unique(projected_labels_tracked))
 
@@ -318,7 +317,7 @@ if __name__ == "__main__":
 
     object_file = args.object_file.replace(".nc", "")
 
-    if not "objects" in object_file:
+    if "objects" not in object_file:
         raise Exception()
 
     base_name, objects_mask = object_file.split(".objects.")
@@ -340,7 +339,7 @@ if __name__ == "__main__":
         mask_description = mask_field
 
         ds_mask = xr.open_dataset(fn_mask, decode_times=False)
-        if not mask_field in ds_mask:
+        if mask_field not in ds_mask:
             raise Exception(
                 "Can't find `{}` in mask, loaded mask file:\n{}"
                 "".format(mask_field, str(ds_mask))

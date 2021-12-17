@@ -1,23 +1,22 @@
-import os
-from pathlib import Path
-import warnings
 import importlib
+import os
 import re
+import warnings
+from pathlib import Path
 
 import luigi
-import xarray as xr
 import numpy as np
+import xarray as xr
 from tqdm import tqdm
 
-from ....utils import calc_flux, transforms, find_vertical_grid_spacing
+from ....utils import calc_flux, find_vertical_grid_spacing, transforms
 from ... import mask_functions
 from .base import (
-    get_workdir,
+    NumpyDatetimeParameter,
     XArrayTarget,
     _get_dataset_meta_info,
-    NumpyDatetimeParameter,
+    get_workdir,
 )
-
 
 if "USE_SCHEDULER" in os.environ:
     from dask.distributed import Client
@@ -83,7 +82,7 @@ class XArrayTarget3DExtraction(XArrayTarget):
     def _ensure_coord_units(self, da):
         coord_names = ["xt", "yt"]
         for v in coord_names:
-            if not "units" in da[v].attrs:
+            if "units" not in da[v].attrs:
                 warnings.warn(
                     f"The coordinate `{v}` for `{da.name}` is missing "
                     "units which are required for the cumulant calculation. "
@@ -365,7 +364,7 @@ class ExtractCrossSection2D(luigi.Task):
 
     def _ensure_has_coord(self, da, coord):
         assert coord in ["xt", "yt"]
-        if not coord in da.coords:
+        if coord not in da.coords:
             meta = _get_dataset_meta_info(self.base_name)
             dx = meta.get("dx")
             if dx is None:
@@ -398,7 +397,7 @@ class ExtractCrossSection2D(luigi.Task):
             tref = da_timedep.isel(time=0).time
             da = remove_gal_transform(da=da, tref=tref, base_name=self.base_name)
 
-        if "longname" in da.attrs and not "long_name" in da.attrs:
+        if "longname" in da.attrs and "long_name" not in da.attrs:
             da.attrs["long_name"] = da.attrs["longname"]
             del da.attrs["longname"]
 

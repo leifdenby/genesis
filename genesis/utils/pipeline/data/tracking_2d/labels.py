@@ -2,6 +2,7 @@ from pathlib import Path
 
 import luigi
 
+from ...data_sources import uclales_2d_tracking
 from ..base import (
     NumpyDatetimeParameter,
     XArrayTarget,
@@ -10,7 +11,6 @@ from ..base import (
 )
 from . import TrackingType
 from .base import TrackingLabels2D, TrackingVariable2D
-from ...data_sources import uclales_2d_tracking
 
 
 class DerivedLabels2D(luigi.Task):

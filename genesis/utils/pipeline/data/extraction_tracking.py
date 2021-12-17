@@ -1,8 +1,9 @@
 # coding: utf-8
+from pathlib import Path
+
+import luigi
 import numpy as np
 import xarray as xr
-import luigi
-from pathlib import Path
 
 from ....utils.transforms import offset_gal
 from . import ExtractField3D

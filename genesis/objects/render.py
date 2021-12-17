@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 import os
-import xarray as xr
-import numpy as np
-from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 unused import
+
 import matplotlib.pyplot as plt
+import numpy as np
+import xarray as xr
+from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 unused import
 
 from ..utils import find_grid_spacing
 

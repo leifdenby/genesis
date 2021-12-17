@@ -2,11 +2,11 @@
 Routines for plotting annotated outlines of 3D shapes with prescribed
 characteristic scales
 """
-import matplotlib.pyplot as plt
-from matplotlib.patches import Ellipse, Arc
-import numpy as np
+from math import cos, sin, sqrt
 
-from math import sqrt, cos, sin
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.patches import Arc, Ellipse
 
 
 def cylinder(ax, x_c, y_c, l, r, color, r_label="r", h_label="h"):

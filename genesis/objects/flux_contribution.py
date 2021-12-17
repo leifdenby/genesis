@@ -1,13 +1,13 @@
-import seaborn as sns
-import numpy as np
-import xarray as xr
-import matplotlib.pyplot as plt
-import math
 import re
 import textwrap
 
-from ..utils.plot_types import adjust_fig_to_fit_figlegend, PlotGrid
-from ..utils.xarray import scalar_density_2d, _make_equally_spaced_bins
+import matplotlib.pyplot as plt
+import numpy as np
+import seaborn as sns
+import xarray as xr
+
+from ..utils.plot_types import PlotGrid, adjust_fig_to_fit_figlegend
+from ..utils.xarray import _make_equally_spaced_bins, scalar_density_2d
 
 
 def _label_from_attrs(da, width=20):
@@ -114,7 +114,7 @@ def plot(
         da_flux_tot = da_flux_tot.sel(sampling=mean_profile_components)
     da_flux_tot = da_flux_tot.sortby("sampling", ascending=False)
     da_flux_tot.attrs.update(ds[f"{v}__mean"].attrs)
-    lines_profile = da_flux_tot.plot(
+    _ = da_flux_tot.plot(
         y="zt", ax=g.ax_marg_y, hue="sampling", add_legend=add_profile_legend
     )
     g.ax_marg_y.set_xlabel(_label_from_attrs(da_flux_tot, width=10))

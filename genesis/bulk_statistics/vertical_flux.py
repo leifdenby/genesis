@@ -21,10 +21,9 @@ if __name__ == "__main__":  # noqa
 
 import matplotlib.pyplot as plt
 
-from . import load_mask, scale_field
-from . import get_dataset
-
 import genesis.objects
+
+from . import get_dataset, load_mask, scale_field
 
 
 def main(args=None, ax=None):

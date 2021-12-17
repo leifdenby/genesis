@@ -1,14 +1,13 @@
-import re
-from pathlib import Path
-from datetime import datetime
 import os
+import re
+from datetime import datetime
+from pathlib import Path
 
+import dateutil.parser
+import luigi
 import numpy as np
 import xarray as xr
-import luigi
 import yaml
-import dateutil.parser
-
 
 DATA_SOURCES = None
 _WORKDIR = Path("data")

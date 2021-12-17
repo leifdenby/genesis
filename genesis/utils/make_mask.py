@@ -1,16 +1,16 @@
 """
 Create mask files which can be used elsewhere
 """
+import argparse
 import inspect
 import os
-import argparse
 
 import xarray as xr
 
-from . import mask_functions
-
 # register a progressbar so we can see progress of dask'ed operations with xarray
 from dask.diagnostics import ProgressBar
+
+from . import mask_functions
 
 ProgressBar().register()
 

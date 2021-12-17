@@ -21,11 +21,13 @@ if __name__ == "__main__":  # noqa
 
 import matplotlib.pyplot as plt
 
-from . import get_distribution_in_cross_sections, load_mask
-from . import make_cumulative_from_bin_counts
-
 import genesis.objects
 
+from . import (
+    get_distribution_in_cross_sections,
+    load_mask,
+    make_cumulative_from_bin_counts,
+)
 
 if __name__ == "__main__":  # noqa
     import argparse

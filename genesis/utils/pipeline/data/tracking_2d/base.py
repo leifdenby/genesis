@@ -1,25 +1,27 @@
-import warnings
-import shutil
 import os
-from pathlib import Path
+import shutil
 import tempfile
+import warnings
+from pathlib import Path
 
 import luigi
-import xarray as xr
 import numpy as np
-import dask_image.ndmeasure as dmeasure
-from tqdm import tqdm
+import xarray as xr
 
+from .....objects.tracking_2d.family import create_tracking_family_2D_field
+from ..base import (
+    NumpyDatetimeParameter,
+    XArrayTarget,
+    _get_dataset_meta_info,
+    get_workdir,
+)
 from ..extraction import (
     REGEX_INSTANTENOUS_BASENAME,
+    TimeCrossSectionSlices2D,
     remove_gal_transform,
 )
-from . import TrackingType, uclales_2d_tracking
-from ..base import get_workdir, _get_dataset_meta_info, XArrayTarget
-from ..extraction import TimeCrossSectionSlices2D
-from ..base import NumpyDatetimeParameter
 from ..masking import MakeMask
-from .....objects.tracking_2d.family import create_tracking_family_2D_field
+from . import TrackingType, uclales_2d_tracking
 
 
 class XArrayTargetUCLALESTracking(XArrayTarget):
@@ -303,7 +305,7 @@ class TrackingVariable2D(_Tracking2DExtraction):
         var_name = self.var_name
         da_input = self.input().open()
 
-        if not var_name in da_input:
+        if var_name not in da_input:
             available_vars = ", ".join(
                 filter(lambda v: not v.startswith("nr"), list(da_input.data_vars))
             )

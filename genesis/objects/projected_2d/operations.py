@@ -1,6 +1,3 @@
-from .object_types import CloudType
-
-
 def present(ds, t0):
     """
     Return clouds that are present at time `t0`

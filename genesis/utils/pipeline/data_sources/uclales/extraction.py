@@ -2,16 +2,14 @@
 luigi-based pipeline for extracting full-domain 3D fields for single variables
 at single timestep from per-core column output from the UCLALES model
 """
-from pathlib import Path
-import subprocess
 import signal
+import subprocess
+from pathlib import Path
 
 import luigi
 import xarray as xr
 
-from ...data.base import (
-    XArrayTarget,
-)
+from ...data.base import XArrayTarget
 from .common import _fix_time_units as fix_time_units
 
 PARTIALS_3D_PATH = Path("partials_xr/3d")
@@ -398,7 +396,7 @@ class Extract3DbyStrips(_Merge3DBaseTask):
             da = self.output().open()
             try:
                 self._check_output(da=da)
-            except Exception as e:
+            except Exception:
                 Path(self.output().fn).unlink()
                 raise
         else:

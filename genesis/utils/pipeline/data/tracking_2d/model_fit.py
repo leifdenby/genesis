@@ -1,18 +1,17 @@
-import luigi
-from tqdm import tqdm
-import xarray as xr
 from pathlib import Path
 
+import luigi
+import xarray as xr
+from tqdm import tqdm
+
+from .....objects.models import parcel_rise
+from ..base import XArrayTarget, get_workdir
 from . import (
-    TrackingType,
     AllObjectsAll2DCrossSectionAggregations,
+    TrackingType,
     TrackingVariable2D,
     uclales_2d_tracking,
 )
-
-from ..base import get_workdir, XArrayTarget
-
-from .....objects.models import parcel_rise
 
 
 class ParcelRiseModelFit(luigi.Task):

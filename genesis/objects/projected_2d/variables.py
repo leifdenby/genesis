@@ -2,9 +2,9 @@
 functions for deriving more variables than the cloud-tracking code currently
 calculates
 """
+import dask_image.ndmeasure as dmeasure
 import numpy as np
 import xarray as xr
-import dask_image.ndmeasure as dmeasure
 
 
 def per_object_histogram(da_nrobj, da, bin_size):

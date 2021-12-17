@@ -12,9 +12,9 @@ if __name__ == "__main__":  # noqa
 
 import matplotlib.pyplot as plt
 
-from . import load_mask
-
 import genesis.objects
+
+from . import load_mask
 
 
 def main(args=None, ax=None):

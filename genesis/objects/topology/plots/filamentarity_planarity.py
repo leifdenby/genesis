@@ -1,15 +1,16 @@
-from . import shapes as plot_shapes
-from ..minkowski import analytical as minkowski_analytical
-from ....utils.plot_types import multi_jointplot
-from ....utils import xarray as xarray_utils
-
-from mpl_toolkits.axes_grid1.inset_locator import inset_axes
-import matplotlib.pyplot as plt
-from matplotlib.projections import get_projection_class
-import seaborn as sns
-import numpy as np
-import xarray as xr
 import warnings
+
+import matplotlib.pyplot as plt
+import numpy as np
+import seaborn as sns
+import xarray as xr
+from matplotlib.projections import get_projection_class
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+
+from ....utils import xarray as xarray_utils
+from ....utils.plot_types import multi_jointplot
+from ..minkowski import analytical as minkowski_analytical
+from . import shapes as plot_shapes
 
 
 def plot_reference(  # noqa

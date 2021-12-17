@@ -3,10 +3,10 @@
 
 
 import sys
-import numpy as np
-from scipy import __version__
 
 import intergrid  # http://denis-bz.github.com/docs/intergrid.html
+import numpy as np
+from scipy import __version__
 
 # from grids import productgrid, func_at
 

@@ -2,10 +2,11 @@
 create a local cache for pyStan models, based on
 https://pystan.readthedocs.io/en/latest/avoiding_recompilation.html#automatically-reusing-models
 """
-import pystan
 import pickle
 from hashlib import md5
 from pathlib import Path
+
+import pystan
 
 
 def StanModel_cache(model_code, model_name=None, **kwargs):

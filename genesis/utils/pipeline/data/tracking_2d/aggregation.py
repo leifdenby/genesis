@@ -1,36 +1,32 @@
-from pathlib import Path
-import os
 import datetime
-
-
-import luigi
-import xarray as xr
-import numpy as np
-import dask_image.ndmeasure as dmeasure
-from tqdm import tqdm
+import os
 from hashlib import md5
+from pathlib import Path
 
+import dask_image.ndmeasure as dmeasure
+import luigi
+import numpy as np
+import xarray as xr
+from tqdm import tqdm
 
-from .....utils import find_vertical_grid_spacing, find_horizontal_grid_spacing
+from .....objects.projected_2d.aggregation import cloudbase_max_height_by_histogram_peak
+from .....utils import find_horizontal_grid_spacing, find_vertical_grid_spacing
 from ...data_sources.uclales import tracking_2d as uclales_2d_tracking
 from ..base import (
-    get_workdir,
-    _get_dataset_meta_info,
-    XArrayTarget,
     NumpyDatetimeParameter,
+    XArrayTarget,
+    _get_dataset_meta_info,
+    get_workdir,
 )
 from ..extraction import (
+    REGEX_INSTANTENOUS_BASENAME,
     ExtractCrossSection2D,
     ExtractField3D,
-    REGEX_INSTANTENOUS_BASENAME,
-    remove_gal_transform,
     TimeCrossSectionSlices2D,
+    remove_gal_transform,
 )
-from .base import TrackingVariable2D, TrackingLabels2D
 from . import TrackingType
-from .....objects.projected_2d.aggregation import cloudbase_max_height_by_histogram_peak
-from .....objects.projected_2d import CloudType
-
+from .base import TrackingLabels2D, TrackingVariable2D
 
 N_parallel_tasks = 100000
 
@@ -187,9 +183,8 @@ class Aggregate2DCrossSectionOnTrackedObjects(luigi.Task):
                     da=da_values, tref=tref, base_name=self.base_name
                 )
         elif self.var_name == "area":
-            meta = _get_dataset_meta_info(self.base_name)
             dx = find_horizontal_grid_spacing(da_labels)
-            da_values = xr.ones_like(da_labels)
+            da_values = xr.ones_like(da_labels) * dx ** 2.0
             da_values.attrs["units"] = f"{da_labels.xt.units}^2"
             da_values.attrs["long_name"] = "area"
         else:
@@ -385,7 +380,9 @@ class Object2DCrossSectionAggregation(luigi.Task):
         ]
 
         if self.op not in [None, "None"]:
-            name_parts.insert(-2, self.op + ["", f"__{str(self.dx)}"][self.dx != None])
+            name_parts.insert(
+                -2, self.op + ["", f"__{str(self.dx)}"][self.dx is not None]
+            )
 
         if not self.use_relative_time_axis:
             name_parts.append("absolute_time")
@@ -541,7 +538,9 @@ class AllObjectsAll2DCrossSectionAggregations(luigi.Task):
         ]
 
         if self.op is not None:
-            name_parts.insert(-2, self.op + ["", f"__{str(self.dx)}"][self.dx != None])
+            name_parts.insert(
+                -2, self.op + ["", f"__{str(self.dx)}"][self.dx is not None]
+            )
 
         if not self.use_relative_time_axis:
             name_parts.append("absolute_time")

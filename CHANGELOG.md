@@ -1,8 +1,16 @@
 # Changelog
 
+## [unreleased](https://github.com/leifdenby/genesis/tree/HEAD)
+
+[Full Changelog](https://github.com/leifdenby/genesis/compare/v0.3.0...HEAD)
+
+- clean up installation and continuous integration so that package can be
+  installed from pypi as `cloud-genesis` [\#8](https://github.com/leifdenby/genesis/pull/8)
+
+
 ## [v0.3.0](https://github.com/leifdenby/genesis/tree/v0.3.0)
 
-[Full Changelog](https://github.com/leifdenby/genesis/v0.3.0...v0.2.0)
+[Full Changelog](https://github.com/leifdenby/genesis/compare/v0.2.0...v0.3.0)
 
 **added features**:
 
