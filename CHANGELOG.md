@@ -4,7 +4,9 @@
 
 [Full Changelog](https://github.com/leifdenby/genesis/v0.3.1...v0.3.0)
 
-Fix to ensure correct version number set in package
+- clean up installation and continuous integration so that package can be
+  installed from pypi as `cloud-genesis` [\#8](https://github.com/leifdenby/genesis/pull/8)
+
 
 ## [v0.3.0](https://github.com/leifdenby/genesis/tree/v0.3.0)
 
