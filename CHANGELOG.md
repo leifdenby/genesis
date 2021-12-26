@@ -1,6 +1,15 @@
 # Changelog
 
-## [v0.3.1](https://github.com/leifdenby/genesis/tree/HEAD)
+## [v0.3.2](https://github.com/leifdenby/genesis/tree/v0.3.2)
+
+[Full Changelog](https://github.com/leifdenby/genesis/compare/v0.3.1...v0.3.2)
+
+- set up automatic deploy of new releases on pypi and pinned
+  `cloud-identification` version to `v0.3.0` (which has recently been added to
+  pypi).
+  [\#11](https://github.com/leifdenby/genesis/pull/11)
+
+## [v0.3.1](https://github.com/leifdenby/genesis/tree/v0.3.1)
 
 [Full Changelog](https://github.com/leifdenby/genesis/compare/v0.3.0...v0.3.1)
 
