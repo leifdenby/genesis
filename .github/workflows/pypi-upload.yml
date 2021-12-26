@@ -1,3 +1,4 @@
+name: build (and upload to release to pypi)
 
 on:
   workflow_dispatch:
