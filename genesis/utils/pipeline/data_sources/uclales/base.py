@@ -4,10 +4,10 @@ from pathlib import Path
 import numpy as np
 import scipy.optimize
 import xarray as xr
+from uclales.output import Extract
 
 from .... import center_staggered_field
 from .common import _fix_time_units
-from .extraction import Extract3D
 
 FIELD_NAME_MAPPING = dict(
     w="w_zt",
@@ -121,22 +121,43 @@ class RawDataPathDoesNotExist(Exception):
 
 
 def _build_block_extraction_task(dataset_meta, field_name):
-    if field_name in ["u", "v", "w"]:
-        var_name = field_name
-    else:
-        var_name = FIELD_NAME_MAPPING[field_name]
 
     raw_data_path = Path(dataset_meta["path"]) / "raw_data"
+
+    task_kwargs = dict(
+        source_path=raw_data_path,
+        file_prefix=dataset_meta["experiment_name"],
+        tn=dataset_meta["timestep"],
+        kind="3d"
+    )
+
+    if field_name in ["u", "v", "w"]:
+        task_kwargs["var_name"] = field_name
+    elif field_name in FIELD_NAME_MAPPING:
+        task_kwargs["var_name"] = FIELD_NAME_MAPPING[field_name]
 
     if not raw_data_path.exists():
         raise RawDataPathDoesNotExist
 
-    task = Extract3D(
-        source_path=raw_data_path,
-        file_prefix=dataset_meta["experiment_name"],
-        var_name=var_name,
-        tn=dataset_meta["timestep"],
-    )
+    task = Extract(**task_kwargs)
+    return task
+
+
+def build_runtime_cross_section_extraction_task(dataset_meta, var_name, orientation, base_name, dest_path):
+    raw_data_path = Path(dataset_meta["path"]) / "raw_data"
+
+    task_kwargs = {}
+    task_kwargs["var_name"] = var_name
+    task_kwargs["kind"] = "2d"
+    task_kwargs["orientation"] = orientation
+    task_kwargs["dest_path"] = dest_path
+    task_kwargs["file_prefix"] = base_name
+    task_kwargs["source_path"] = raw_data_path
+
+    if not raw_data_path.exists():
+        raise RawDataPathDoesNotExist
+
+    task = Extract(**task_kwargs)
     return task
 
 

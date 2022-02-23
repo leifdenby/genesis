@@ -243,6 +243,24 @@ class TimeCrossSectionSlices2D(luigi.Task):
 
     FN_FORMAT = "{exp_name}.out.xy.{var_name}.nc"
 
+    @staticmethod
+    def _get_data_loader_module(meta):
+        model_name = meta.get("model")
+        if model_name is None:
+            model_name = "UCLALES"
+
+        module_name = ".data_sources.{}".format(model_name.lower().replace("-", "_"))
+        return importlib.import_module(module_name, package="genesis.utils.pipeline")
+
+    def requires(self):
+        meta = _get_dataset_meta_info(self.base_name)
+        data_loader = self._get_data_loader_module(meta=meta)
+        fn = getattr(data_loader, "build_runtime_cross_section_extraction_task")
+        # TODO remove hardcoded orientation
+        dest_path = get_workdir() / self.base_name / "cross_sections" / "runtime_slices"
+        task = fn(dataset_meta=meta, var_name=self.var_name, orientation="xy", dest_path=str(dest_path), base_name=self.base_name)
+        return task
+
     def _extract_and_symlink_local_file(self):
         meta = _get_dataset_meta_info(self.base_name)
 

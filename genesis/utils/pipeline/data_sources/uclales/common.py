@@ -11,6 +11,11 @@ def _fix_time_units(da):
         # I fixed UCLALES to CF valid output, this is output from a fixed
         # version
         pass
+    elif da.attrs["units"] == "s":
+        # the cross-section files output by UCLALES don't have a reference time
+        # for the time units
+        da.attrs["units"] = "seconds since 2000-01-01 00:00:00"
+        modified = True
     elif da.attrs["units"].startswith("seconds since 2000-00-00"):
         da.attrs["units"] = da.attrs["units"].replace(
             "seconds since 2000-00-00",
