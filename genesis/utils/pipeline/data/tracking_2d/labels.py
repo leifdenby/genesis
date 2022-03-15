@@ -2,7 +2,7 @@ from pathlib import Path
 
 import luigi
 
-from ...data_sources import uclales_2d_tracking
+from ...data_sources.uclales import tracking_2d as uclales_2d_tracking
 from ..base import (
     NumpyDatetimeParameter,
     XArrayTarget,

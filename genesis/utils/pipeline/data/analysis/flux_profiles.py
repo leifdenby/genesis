@@ -1,7 +1,7 @@
 import luigi
 import numpy as np
 
-from ..base import WORKDIR, XArrayTarget
+from ..base import XArrayTarget, get_workdir
 from ..extraction import ExtractField3D
 
 
@@ -32,6 +32,6 @@ class DomainMeanVerticalFlux(luigi.Task):
             filetype="nc",
         )
 
-        p = WORKDIR / self.base_name / fn
+        p = get_workdir() / self.base_name / fn
         target = XArrayTarget(str(p))
         return target
