@@ -11,6 +11,7 @@ from tqdm import tqdm
 
 from ....utils import calc_flux, find_vertical_grid_spacing, transforms
 from ... import mask_functions
+from ..data_sources.uclales.common import _fix_time_units
 from .base import (
     NumpyDatetimeParameter,
     XArrayTarget,
@@ -30,45 +31,6 @@ COMPOSITE_FIELD_METHODS = dict(
     flux=(calc_flux.compute_vertical_flux, ["w"]),
     _prefix__d=(calc_flux.get_horz_devition, []),
 )
-
-
-def fix_time_units(da):
-    modified = False
-    if np.issubdtype(da.dtype, np.datetime64):
-        # already converted since xarray has managed to parse the time in
-        # CF-format
-        pass
-    elif da.attrs["units"].startswith("seconds since 2000-01-01"):
-        # I fixed UCLALES to CF valid output, this is output from a fixed
-        # version
-        pass
-    elif da.attrs["units"].startswith("seconds since 2000-00-00"):
-        da.attrs["units"] = da.attrs["units"].replace(
-            "seconds since 2000-00-00",
-            "seconds since 2000-01-01",
-        )
-        modified = True
-    elif da.attrs["units"].startswith("seconds since 0-00-00"):
-        # 2D fields have strange time units...
-        da.attrs["units"] = da.attrs["units"].replace(
-            "seconds since 0-00-00",
-            "seconds since 2000-01-01",
-        )
-        modified = True
-    elif da.attrs["units"].startswith("seconds since 0-0-0"):
-        # 2D fields have strange time units...
-        da.attrs["units"] = da.attrs["units"].replace(
-            "seconds since 0-0-0",
-            "seconds since 2000-01-01",
-        )
-        modified = True
-    elif da.attrs["units"] == "day as %Y%m%d.%f":
-        da = (da * 24 * 60 * 60).astype(int)
-        da.attrs["units"] = "seconds since 2000-01-01 00:00:00"
-        modified = True
-    else:
-        raise NotImplementedError(da.attrs["units"])
-    return da, modified
 
 
 class XArrayTarget3DExtraction(XArrayTarget):
@@ -228,7 +190,7 @@ class XArrayTarget2DCrossSection(XArrayTarget):
     def open(self, *args, **kwargs):
         kwargs["decode_times"] = False
         da = super().open(*args, **kwargs)
-        da["time"], _ = fix_time_units(da["time"])
+        da["time"], _ = _fix_time_units(da["time"])
 
         # xr.decode_cf only works on datasets
         ds = xr.decode_cf(da.to_dataset())
