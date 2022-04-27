@@ -468,6 +468,8 @@ class AllObjectsAll2DCrossSectionAggregations(luigi.Task):
         def _get_times(object_id):
             tstart_obj = self.da_tstart.sel({obj_var: object_id})
             tend_obj = self.da_tend.sel({obj_var: object_id})
+            if tstart_obj == tend_obj:
+                return []
             times = self.da_time.sel(time=slice(tstart_obj, tend_obj)).values
 
             # super hacky way of sending list of datetimes as luigi parameter
