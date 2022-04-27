@@ -395,7 +395,7 @@ class ExtractCrossSection2D(luigi.Task):
 
         fn = ".".join(name_parts)
 
-        p = get_workdir() / self.base_name / "cross_sections" / "runtime_slices" / fn
+        p = get_workdir() / self.base_name / "cross_sections" / "runtime_slices" / "by_time" / fn
         return XArrayTarget(str(p))
 
 
