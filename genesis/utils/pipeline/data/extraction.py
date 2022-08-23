@@ -221,7 +221,13 @@ class TimeCrossSectionSlices2D(luigi.Task):
         # TODO remove hardcoded orientation
         base_name = meta.get("experiment_name", self.base_name)
         dest_path = get_workdir() / self.base_name / "cross_sections" / "runtime_slices"
-        task = fn(dataset_meta=meta, var_name=self.var_name, orientation="xy", dest_path=str(dest_path), base_name=base_name)
+        task = fn(
+            dataset_meta=meta,
+            var_name=self.var_name,
+            orientation="xy",
+            dest_path=str(dest_path),
+            base_name=base_name,
+        )
         return task
 
     def _extract_and_symlink_local_file(self):
@@ -395,7 +401,14 @@ class ExtractCrossSection2D(luigi.Task):
 
         fn = ".".join(name_parts)
 
-        p = get_workdir() / self.base_name / "cross_sections" / "runtime_slices" / "by_time" / fn
+        p = (
+            get_workdir()
+            / self.base_name
+            / "cross_sections"
+            / "runtime_slices"
+            / "by_time"
+            / fn
+        )
         return XArrayTarget(str(p))
 
 

@@ -128,7 +128,7 @@ def _build_block_extraction_task(dataset_meta, field_name):
         source_path=raw_data_path,
         file_prefix=dataset_meta["experiment_name"],
         tn=dataset_meta["timestep"],
-        kind="3d"
+        kind="3d",
     )
 
     if field_name in ["u", "v", "w"]:
@@ -143,7 +143,9 @@ def _build_block_extraction_task(dataset_meta, field_name):
     return task
 
 
-def build_runtime_cross_section_extraction_task(dataset_meta, var_name, orientation, base_name, dest_path):
+def build_runtime_cross_section_extraction_task(
+    dataset_meta, var_name, orientation, base_name, dest_path
+):
     raw_data_path = Path(dataset_meta["path"]) / "raw_data"
 
     task_kwargs = {}
