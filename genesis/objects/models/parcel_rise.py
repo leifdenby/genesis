@@ -50,7 +50,7 @@ def plot_ballistic(object_id, da_):
 
 def parcel_rise(t, p):
     x0, v0, a0 = p
-    return x0 + v0 * t + 0.5 * a0 * 1.0e-3 * t ** 2.0
+    return x0 + v0 * t + 0.5 * a0 * 1.0e-3 * t**2.0
 
 
 def fit_model(z, t, verbose=False):

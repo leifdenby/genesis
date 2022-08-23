@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased](https://github.com/leifdenby/genesis/tree/HEAD)
+
+[Full Changelog](https://github.com/leifdenby/genesis/compare/HEAD...v0.3.2)
+
+*maintenance*
+
+- update `black` to `22.3.0` to fix issue with `click` package when running
+  `pre-commit` [\#14](https://github.com/leifdenby/genesis/pull/14)
+
+
 ## [v0.3.2](https://github.com/leifdenby/genesis/tree/v0.3.2)
 
 [Full Changelog](https://github.com/leifdenby/genesis/compare/v0.3.1...v0.3.2)

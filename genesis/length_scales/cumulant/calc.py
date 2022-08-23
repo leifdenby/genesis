@@ -203,8 +203,8 @@ def identify_principle_axis(C, sI_N=100):
 
     I_func = lambda x, y, m: np.array(  # noqa
         [
-            [np.sum(m * y ** 2.0), np.sum(m * x * y)],
-            [np.sum(m * y * x), np.sum(x ** 2.0 * m)],
+            [np.sum(m * y**2.0), np.sum(m * x * y)],
+            [np.sum(m * y * x), np.sum(x**2.0 * m)],
         ]
     )
 

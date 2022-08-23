@@ -65,7 +65,7 @@ def calc_scales(object_labels, dx):
         attrs=dict(units="1"),
     )
 
-    volume = V0 * dx ** 3.0
+    volume = V0 * dx**3.0
     ds["volume"] = xr.DataArray(
         data=volume,
         coords=dict(

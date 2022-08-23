@@ -40,8 +40,8 @@ def test_mink_scales_near_spherical(shape):
     else:
         raise NotImplementedError(shape)
 
-    A_approx = 4.0 * pi * l0 ** 2.0
-    V_approx = 4.0 / 3.0 * pi * l0 ** 3.0
+    A_approx = 4.0 * pi * l0**2.0
+    V_approx = 4.0 / 3.0 * pi * l0**3.0
 
     fn = getattr(getattr(shapes, shape), "calc_minkowski_functionals")
     mink_functionals = fn(**kwargs)

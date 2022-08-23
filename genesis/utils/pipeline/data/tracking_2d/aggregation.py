@@ -184,7 +184,7 @@ class Aggregate2DCrossSectionOnTrackedObjects(luigi.Task):
                 )
         elif self.var_name == "area":
             dx = find_horizontal_grid_spacing(da_labels)
-            da_values = xr.ones_like(da_labels) * dx ** 2.0
+            da_values = xr.ones_like(da_labels) * dx**2.0
             da_values.attrs["units"] = f"{da_labels.xt.units}^2"
             da_values.attrs["long_name"] = "area"
         else:

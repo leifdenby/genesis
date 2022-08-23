@@ -145,7 +145,7 @@ def plot_reference(  # noqa
     if plot_ellipsoid_lines:
         ellipsoids = []
         for lm_pt in lm_[lm_ > 1.0]:
-            calc_kwargs["N_points"] = int(N_points_calc / 5 * int(lm_pt ** 0.4))
+            calc_kwargs["N_points"] = int(N_points_calc / 5 * int(lm_pt**0.4))
             kwargs["linestyle"] = ":"
             if len(ellipsoids) == 0:
                 kwargs["label"] = (
@@ -189,7 +189,7 @@ def plot_reference(  # noqa
 
                 # if lm_pt == lm_[lm_ >= 1.0][-1]:
                 ax.annotate(
-                    fr"$\gamma={int(gamma_)}$",
+                    rf"$\gamma={int(gamma_)}$",
                     (ds_.planarity, ds_.filamentarity),
                     color=kwargs["color"],
                     zorder=1.0,

@@ -26,19 +26,19 @@ def make_grid(dx, lx=3e3, lz=2e3):
 
 # shearing function
 def f_shear(ls, h0):
-    return lambda h: ls / h0 ** 2.0 * h ** 2
+    return lambda h: ls / h0**2.0 * h**2
 
 
 def len_fn_approx(h, ls, h0):
     "approximate distance along length"
-    return np.sqrt(h ** 2.0 + f_shear(ls, h0)(h) ** 2.0)
+    return np.sqrt(h**2.0 + f_shear(ls, h0)(h) ** 2.0)
 
 
 def len_fn(h, ls, h0):
     "numerically integrated distance along length"
     # ax^2 + bc + c
     def dldh(h_):
-        return np.sqrt(1.0 + (ls / h0 ** 2.0 * 2.0 * h_) ** 2.0)
+        return np.sqrt(1.0 + (ls / h0**2.0 * 2.0 * h_) ** 2.0)
 
     return scipy.integrate.quad(dldh, 0, h)[0]
 
@@ -67,8 +67,8 @@ def make_plume_mask(grid, r0, h, shear_distance=0.0):
 
     ds = grid.copy()
 
-    a = shear_distance / h ** 2
-    ds["x_c"] = 0.0 * ds.z + a * ds.z ** 2.0
+    a = shear_distance / h**2
+    ds["x_c"] = 0.0 * ds.z + a * ds.z**2.0
     ds["y_c"] = 0.0 * ds.z
     ds["xy_dist"] = np.sqrt((ds.x - ds.x_c) ** 2.0 + (ds.y - ds.y_c) ** 2.0)
     ds["r"] = r0 + 0.0 * ds.z
@@ -101,8 +101,8 @@ def make_thermal_mask(grid, r0, h, z_offset=0.0, shear_distance=0.0):
 
     z_c = s * h / 2.0 + z_offset
 
-    a = shear_distance / h ** 2
-    ds["x_c"] = 0.0 * ds.z + a * ds.z ** 2.0
+    a = shear_distance / h**2
+    ds["x_c"] = 0.0 * ds.z + a * ds.z**2.0
     ds["y_c"] = 0.0 * ds.z
     ds["xy_dist"] = np.sqrt((ds.x - ds.x_c) ** 2.0 + (ds.y - ds.y_c) ** 2.0)
     ds["z_dist"] = np.abs(ds.z - z_c)
