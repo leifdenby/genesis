@@ -30,7 +30,7 @@ def make_mask(grid, a=2, b=4, c=1, theta=0.0, phi=0.0):
     x, y, z = [np.asarray(comp) for comp in grid]
     x_, y_, z_ = rotate_points(grid, theta=theta, phi=phi)
 
-    return x_ ** 2.0 / a ** 2.0 + y_ ** 2.0 / b ** 2.0 + z_ ** 2.0 / c ** 2.0 < 1.0
+    return x_**2.0 / a**2.0 + y_**2.0 / b**2.0 + z_**2.0 / c**2.0 < 1.0
 
 
 def plot_shape_mask(ds):

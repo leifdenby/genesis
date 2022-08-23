@@ -23,7 +23,7 @@ def _patch_average_splitting(d, s, shuffle_mask=False):
     i, j = np.meshgrid(np.arange(Nx), np.arange(Ny), indexing="ij")
 
     def make_mask(s):
-        m = 2 ** s
+        m = 2**s
         patch_size = int(N / m)
         mask = (i / (patch_size)) + m * (j / (patch_size))
         if np.any(np.isnan(mask)):
@@ -109,7 +109,7 @@ def calc_variability_vs_lengthscale(d, dx, retained_target=0.90, method="coarse"
             _out.append((patch_size * dx, mean_std_err))
     elif method == "windowed":
         for s in np.linspace(0, 12.0, 48.0):
-            patch_size = int(N * 2.0 ** -s)
+            patch_size = int(N * 2.0**-s)
             if patch_size / 10 == 0:
                 continue
             d_patch_std_err = _patch_average(d=d, patch_size=patch_size)
@@ -148,7 +148,7 @@ def find_variability_lengthscale(
         r = mean_std_err / d_std_err
 
         if r < retained_target:
-            dp_coarse = N / 2 ** (s - 1) - N / 2 ** s
+            dp_coarse = N / 2 ** (s - 1) - N / 2**s
             break
         else:
             _out.append((patch_size * dx, mean_std_err))

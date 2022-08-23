@@ -18,7 +18,7 @@ def calc_minkowski_functionals(a, b, c):
     # surface area, eqn. 9 in Poelaert et al 2011
     # sqrt = np.sqrt
     # e = sqrt(1.0 - c ** 2.0 / a ** 2.0)
-    m = (a ** 2 * (b ** 2 - c ** 2)) / (b ** 2 * (a ** 2 - c ** 2))
+    m = (a**2 * (b**2 - c**2)) / (b**2 * (a**2 - c**2))
 
     # F = scipy.special.ellipkinc
     # E = scipy.special.ellipeinc
@@ -39,7 +39,7 @@ def calc_minkowski_functionals(a, b, c):
 
     phi = arccos(c / a)
     temp = ellipeinc(phi, m) * sin(phi) ** 2 + ellipkinc(phi, m) * cos(phi) ** 2
-    S = 2 * pi * (c ** 2 + a * b * temp / sin(phi))
+    S = 2 * pi * (c**2 + a * b * temp / sin(phi))
     V1 = S / 6.0
 
     V2 = _calc_mean_curvature_integral(a=a, b=b, c=c) / (3.0 * pi)
@@ -81,7 +81,6 @@ try:
             _integral, 0.0, pi, lambda x: 0.0, lambda x: 2.0 * pi, args=(a, b, c)
         )[0]
 
-
 except ImportError:
     import warnings
 
@@ -99,17 +98,17 @@ except ImportError:
         # Poelaert eqn 2
         def R(phi, theta):
             return sqrt(
-                a ** 2.0 * cos(theta) ** 2.0
-                + b ** 2.0 * sin(theta) ** 2.0 * cos(phi) ** 2.0
-                + c ** 2.0 * sin(theta) ** 2.0 * sin(phi) ** 2.0
+                a**2.0 * cos(theta) ** 2.0
+                + b**2.0 * sin(theta) ** 2.0 * cos(phi) ** 2.0
+                + c**2.0 * sin(theta) ** 2.0 * sin(phi) ** 2.0
             )
 
         # Poelaert eqn 3
         def H(phi, theta):
             return (a * b * c) / sqrt(
-                b ** 2.0 * c ** 2.0 * cos(theta) ** 2.0
-                + c ** 2.0 * a ** 2.0 * sin(theta) ** 2.0 * cos(phi) ** 2.0
-                + a ** 2.0 * b ** 2.0 * sin(theta) ** 2.0 * sin(phi) ** 2.0
+                b**2.0 * c**2.0 * cos(theta) ** 2.0
+                + c**2.0 * a**2.0 * sin(theta) ** 2.0 * cos(phi) ** 2.0
+                + a**2.0 * b**2.0 * sin(theta) ** 2.0 * sin(phi) ** 2.0
             )
 
         def integral(phi, theta):
@@ -126,7 +125,7 @@ except ImportError:
                 0.5
                 * H(theta=theta, phi=phi) ** 2.0
                 * (
-                    (a ** 2.0 + b ** 2.0 + c ** 2.0 - R(theta=theta, phi=phi) ** 2.0)
+                    (a**2.0 + b**2.0 + c**2.0 - R(theta=theta, phi=phi) ** 2.0)
                     / (a * b * c)
                 )
                 * sin(theta)

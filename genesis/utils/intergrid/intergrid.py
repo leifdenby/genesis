@@ -164,7 +164,7 @@ class Intergrid:
 
     # ...............................................................................
     def _map_to_uniform_grid(self, X):
-        """ clip, map X linear / nonlinear  inplace """
+        """clip, map X linear / nonlinear  inplace"""
         np.clip(X, self.loclip, self.hiclip, out=X)
         # X nonlinear maps inplace --
         for j, map in enumerate(self.maps):

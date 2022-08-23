@@ -161,7 +161,7 @@ def plot(
     g.ax_marg_x.set_yscale("log")
     p10_max = np.ceil(np.log10(np.max(Nobj_bin_counts)))
     g.ax_marg_x.yaxis.set_ticks(10.0 ** np.arange(0.0, p10_max))
-    g.ax_marg_x.set_ylim(1, 10.0 ** p10_max)
+    g.ax_marg_x.set_ylim(1, 10.0**p10_max)
 
     # aggregate flux contribution with x
     nz = da_flux_per_bin.zt.count()

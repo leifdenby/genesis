@@ -70,7 +70,7 @@ newgrid = productgrid(xnew, ynew)  # shape (Nxnew * Nynew, 2)
 
 
 def func(X):  # ncycle
-    r = np.sqrt(np.sum(X ** 2, axis=-1))
+    r = np.sqrt(np.sum(X**2, axis=-1))
     return np.sin(2 * np.pi * ncycle * r) * 100
 
     # exact func on new grid, to compare with interpolated --

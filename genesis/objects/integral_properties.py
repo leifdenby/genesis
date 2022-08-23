@@ -63,7 +63,7 @@ def calc_com_incline_and_orientation_angle(
         dx_mean = np.nanmean(dx * A_by_z)
         dy_mean = np.nanmean(dy * A_by_z)
 
-        dl_mean = np.sqrt(dx_mean ** 2.0 + dy_mean ** 2.0)
+        dl_mean = np.sqrt(dx_mean**2.0 + dy_mean**2.0)
         dz_mean = np.nanmean(dz * A_by_z)
 
         theta = np.arctan2(dl_mean, dz_mean)
@@ -125,7 +125,7 @@ def calc_xy_proj_length(da_mask):
     lx = x_max - x_min
     ly = y_max - y_min
 
-    da_length = np.sqrt(lx ** 2.0 + ly ** 2.0)
+    da_length = np.sqrt(lx**2.0 + ly**2.0)
     da_length.attrs["long_name"] = "xy-projected length"
     da_length.attrs["units"] = x_3d.units
     return da_length
@@ -266,7 +266,7 @@ def calc_xy_proj_length__dask(da_objs):
     lx = x_max - x_min
     ly = y_max - y_min
 
-    l_vals = np.sqrt(lx ** 2.0 + ly ** 2.0)
+    l_vals = np.sqrt(lx**2.0 + ly**2.0)
     da_l = xr.DataArray(data=l_vals, coords=[idx], dims=["object_id"])
     da_l.attrs["long_name"] = "xy-projected length"
     da_l.attrs["units"] = x_3d.units
