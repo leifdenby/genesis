@@ -96,7 +96,7 @@ def plot_orientation_triangle(ax, x_cl, y_cl, z_cl, phi, theta):
     # surface arc
     xl = x_cl.max() - x_cl.min()
     yl = y_cl.max() - y_cl.min()
-    l_max = np.sqrt(xl ** 2.0 + yl ** 2.0)
+    l_max = np.sqrt(xl**2.0 + yl**2.0)
     r_srf_arc = 0.2 * float(l_max)
 
     t_ = np.linspace(0.0, np.deg2rad(phi), 100)

@@ -97,14 +97,14 @@ def test_plot_shape_mask():
     lx = ds.lx
 
     a, b = lx / 4.0, lx / 2.0
-    ds["mask"] = ds.x ** 2.0 / a ** 2.0 + ds.y ** 2.0 / b ** 2.0 + ds.z ** 2.0 < 1.0
+    ds["mask"] = ds.x**2.0 / a**2.0 + ds.y**2.0 / b**2.0 + ds.z**2.0 < 1.0
 
     ds.sel(z=0, method="nearest").mask.plot()
     plt.gca().set_aspect(1)
 
     a, b = lx / 4.0, lx / 2.0
     ds["mask"] = (
-        ds.x_3d ** 2.0 / a ** 2.0 + ds.y_3d ** 2.0 / b ** 2.0 + ds.z_3d ** 2.0 < 1.0
+        ds.x_3d**2.0 / a**2.0 + ds.y_3d**2.0 / b**2.0 + ds.z_3d**2.0 < 1.0
     )
 
     ds.sel(z=0, method="nearest").mask.plot()

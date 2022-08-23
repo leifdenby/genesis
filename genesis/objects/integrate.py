@@ -62,7 +62,7 @@ def _integrate_scalar(objects, da, operator):
     if operator == "volume_integral":
         # fn = ndimage.sum
         fn = dask_image.ndmeasure.sum
-        s = dx ** 3.0
+        s = dx**3.0
         operator_units = "m^3"
     elif operator == "maximum_pos_z":
         fn = dask_image.ndmeasure.maximum_position

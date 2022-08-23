@@ -113,11 +113,11 @@ def spheroid(
     # arcs connecting to y-axis (into page) and widths associated
     # y-axis length projection into xz plane
     c = y_axis_3d_len
-    l_yz_axis = sqrt(c ** 2.0 / 2.0)
+    l_yz_axis = sqrt(c**2.0 / 2.0)
     # ellipsoid minor axis in projected x-plane
-    l_yz_arc = sqrt(l ** 2.0 * c ** 2.0 / (2 * l ** 2.0 - c ** 2.0))
+    l_yz_arc = sqrt(l**2.0 * c**2.0 / (2 * l**2.0 - c**2.0))
     # ellipsoid minor axis in projected y-plane
-    l_xy_arc = sqrt(r ** 2.0 * c ** 2.0 / (2 * r ** 2.0 - c ** 2.0))
+    l_xy_arc = sqrt(r**2.0 * c**2.0 / (2 * r**2.0 - c**2.0))
 
     # add background white oval incase there are some lines behind
     b_pad = 0.05

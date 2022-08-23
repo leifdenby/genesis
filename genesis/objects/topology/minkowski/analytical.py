@@ -85,7 +85,7 @@ def _calc_ellipsoid_scales(lm, r0=300.0, N_points=100):
 
     b = b_min + (c - b_min) * scaling_fn(np.linspace(0.0, 1.0, N_points))
 
-    a = r0 ** 3.0 / (b * c)
+    a = r0**3.0 / (b * c)
 
     gamma = b / a
 
@@ -120,10 +120,10 @@ def _calc_lambda_parameterised_scale(shape, r0=300.0, N_points=100):
     volume (same a sphere of radius r0) with axis r, and lambda*r
     """
     # V = 4/3*pi*r^3
-    v0 = 4.0 / 3.0 * pi * r0 ** 3.0
+    v0 = 4.0 / 3.0 * pi * r0**3.0
     m = np.linspace(-6.0, 6.0, N_points)
     i = np.arange(len(m))
-    lm = 2.0 ** m
+    lm = 2.0**m
 
     if shape == "cylinder":
         # V = h*pi*r**2 and h=lambda*r, r=r
