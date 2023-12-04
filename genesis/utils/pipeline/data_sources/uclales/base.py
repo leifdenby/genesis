@@ -120,15 +120,18 @@ class RawDataPathDoesNotExist(Exception):
     pass
 
 
-def _build_block_extraction_task(dataset_meta, field_name):
+def _build_block_extraction_task(dataset_meta, field_name, output_path):
 
     raw_data_path = Path(dataset_meta["path"]) / "raw_data"
+    dest_path = Path(dataset_meta["path"]) / "3d_blocks" / "full_domain"
 
     task_kwargs = dict(
         source_path=raw_data_path,
         file_prefix=dataset_meta["experiment_name"],
         tn=dataset_meta["timestep"],
         kind="3d",
+        dest_path=dest_path,
+        fix_units=True,
     )
 
     if field_name in ["u", "v", "w"]:
@@ -205,6 +208,7 @@ def extract_field_to_filename(dataset_meta, path_out, field_name, **kwargs):  # 
                 task = _build_block_extraction_task(
                     dataset_meta=dataset_meta,
                     field_name=field_name,
+                    output_path=path_out,
                 )
                 # if the source file doesn't exist we return a task to create
                 # it, next time we pass here the file should exist and we can
@@ -212,8 +216,13 @@ def extract_field_to_filename(dataset_meta, path_out, field_name, **kwargs):  # 
                 if not task.output().exists():
                     return task
 
-                da = task.output().open(decode_times=False)
-                can_symlink = False
+                try:
+                    da = task.output().open()
+                except ValueError:
+                    da = task.output().open(decode_times=False)
+                    can_symlink = False
+                # set `path_in` so that we ensure we try symlinking the right file
+                path_in = Path(task.output().path)
 
             except RawDataPathDoesNotExist:
                 raise Exception(
@@ -310,40 +319,63 @@ def _calc_qv__norain(qt, qc):
     return qv
 
 
-@np.vectorize
-def _calc_temperature_single(q_l, p, theta_l):
+# @numba.jit(numba.float64(numba.float64, numba.float64, numba.float64), nopython=True)
+def _calc_theta_l(T, p, q_l):
+    # constants from UCLALES
+    L_v = 2.5 * 1.0e6  # [J/kg]
+    p_theta = 1.0e5
+    cp_d = 1.004 * 1.0e3  # [J/kg/K]
+    R_d = 287.04  # [J/kg/K]
+    # XXX: this is *not* the *actual* liquid potential temperature (as
+    # given in B. Steven's notes on moist thermodynamics), but instead
+    # reflects the form used in UCLALES where in place of the mixture
+    # heat-capacity the dry-air heat capacity is used
+    return T * (p_theta / p) ** (R_d / cp_d) * np.exp(-L_v * q_l / (cp_d * T))
+
+
+def _calc_temperature_single(q_l, p, theta_l, T_rtol=1.0e-6, T_abstol=1.0e-6):
     # constants from UCLALES
     cp_d = 1.004 * 1.0e3  # [J/kg/K]
     R_d = 287.04  # [J/kg/K]
-    L_v = 2.5 * 1.0e6  # [J/kg]
     p_theta = 1.0e5
 
     # XXX: this is *not* the *actual* liquid potential temperature (as
     # given in B. Steven's notes on moist thermodynamics), but instead
     # reflects the form used in UCLALES where in place of the mixture
     # heat-capacity the dry-air heat capacity is used
-    def temp_func(T):
-        return theta_l - T * (p_theta / p) ** (R_d / cp_d) * np.exp(
-            -L_v * q_l / (cp_d * T)
-        )
+    def temp_func(T, theta_l, p, q_l):
+        return theta_l - _calc_theta_l(T=T, p=p, q_l=q_l)
 
-    if np.all(q_l == 0.0):
+    if q_l == 0.0:
         # no need for root finding
         return theta_l / ((p_theta / p) ** (R_d / cp_d))
 
     # XXX: brentq solver requires bounds, I don't expect we'll get below -100C
     T_min = -100.0 + 273.0
     T_max = 50.0 + 273.0
-    T = scipy.optimize.brentq(f=temp_func, a=T_min, b=T_max)
+    T = scipy.optimize.brentq(f=temp_func, a=T_min, b=T_max, args=(theta_l, p, q_l), xtol=T_abstol, rtol=T_rtol)
 
     # check that we're within 1.0e-4
-    assert np.all(np.abs(temp_func(T)) < 1.0e-4)
+    assert np.all(np.abs(temp_func(T, theta_l, p, q_l)) < 1.0e-4)
 
     return T
 
 
 def _calc_temperature(qc, qr, p, theta_l):
+    if not qc.dims == qr.dims == p.dims == theta_l.dims:
+        expvars = [qc, qr, p, theta_l]
+        s = "\n\t".join([f"{v.name}: {list(v.dims)}" for v in expvars])
+        raise Exception("Incompatible dims:\n\t" + s)
+
+    raise Exception("Use julia implementation")
+    """
+
     q_l = qc + qr
+
+    q_l = q_l.isel(**kws)
+    p = p.isel(**kws)
+    theta_l = theta_l.isel(**kws)
+
     arr_temperature = np.vectorize(_calc_temperature_single)(
         q_l=q_l, p=p, theta_l=theta_l
     )
@@ -352,6 +384,9 @@ def _calc_temperature(qc, qr, p, theta_l):
         arr_temperature,
         dims=p.dims,
         attrs=dict(longname="temperature", units="K"),
+        coords=p.coords,
+        name="abstemp"
     )
 
     return da_temperature
+    """

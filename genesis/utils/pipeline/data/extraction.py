@@ -36,9 +36,16 @@ COMPOSITE_FIELD_METHODS = dict(
 class XArrayTarget3DExtraction(XArrayTarget):
     def open(self, *args, **kwargs):
         ds = super(XArrayTarget3DExtraction, self).open(*args, **kwargs)
-        if len(ds.coords) == 0:
+        if len(ds.coords) == 0 and len(ds.dims) == 0:
             raise Exception(f"{self.fn} doesn't contain any data")
         ds = self._ensure_coord_units(ds)
+
+        if isinstance(ds, xr.Dataset) and len(ds.variables) == 0:
+            raise Exception(
+                f"Stored 3D file for `{self.path}` is empty, please delete so"
+                "it can be recreated"
+            )
+
         return ds
 
     def _ensure_coord_units(self, da):
@@ -60,6 +67,8 @@ class ExtractField3D(luigi.Task):
     base_name = luigi.Parameter()
     field_name = luigi.Parameter()
 
+    # follows filename of uclales-utils given that we put ".tn{tn}" into "var_name
+    # SINGLE_VAR_FILENAME_FORMAT_3D = "{file_prefix}.{var_name}.tn{tn}.nc"
     FN_FORMAT = "{experiment_name}.{field_name}.nc"
 
     @staticmethod
@@ -171,19 +180,7 @@ class ExtractField3D(luigi.Task):
 
         p = get_workdir() / self.base_name / fn
 
-        t = XArrayTarget3DExtraction(str(p))
-
-        if t.exists():
-            data = t.open()
-            if isinstance(data, xr.Dataset):
-                if len(data.variables) == 0:
-                    warnings.warn(
-                        "Stored file for `{}` is empty, deleting..."
-                        "".format(self.field_name)
-                    )
-                    p.unlink()
-
-        return t
+        return XArrayTarget3DExtraction(str(p))
 
 
 class XArrayTarget2DCrossSection(XArrayTarget):

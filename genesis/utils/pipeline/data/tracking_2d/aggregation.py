@@ -167,6 +167,7 @@ class Aggregate2DCrossSectionOnTrackedObjects(luigi.Task):
     def run(self):
         da_labels = self.input()["tracking_labels"].open().fillna(0).astype(int)
 
+        op = self.op
         if self.var_name in ["xt", "yt"]:
             if self.var_name in "xt":
                 _, da_values = xr.broadcast(da_labels.xt, da_labels.yt)
@@ -187,18 +188,19 @@ class Aggregate2DCrossSectionOnTrackedObjects(luigi.Task):
             da_values = xr.ones_like(da_labels) * dx**2.0
             da_values.attrs["units"] = f"{da_labels.xt.units}^2"
             da_values.attrs["long_name"] = "area"
+            op = "sum_labels"
         else:
             da_values = self.input()["field"].open()
 
-        if self.op == "histogram":
+        if op == "histogram":
             da_out = self._aggregate_as_hist(
                 da_values=da_values,
                 da_labels=da_labels,
             )
             name = f"{self.var_name}__hist_{self.dx}"
-        elif self.op in vars(dmeasure):
+        elif op in vars(dmeasure):
             da_out = self._aggregate_generic(
-                da_values=da_values, da_labels=da_labels, op=self.op
+                da_values=da_values, da_labels=da_labels, op=op
             )
             name = f"{self.var_name}__{self.op}"
         else:
