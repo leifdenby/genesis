@@ -389,7 +389,8 @@ class ExtractCrossSection2D(luigi.Task):
 
     def run(self):
         da_timedep = self.input().open()
-        da = da_timedep.sel(time=self.time).squeeze()
+        dt = da_timedep.isel(time=1).time - da_timedep.isel(time=0).time
+        da = da_timedep.sel(time=self.time, method="nearest", tolerance=dt.data*0.1).squeeze()
         self._ensure_has_coord(da=da, coord="xt")
         self._ensure_has_coord(da=da, coord="yt")
 
