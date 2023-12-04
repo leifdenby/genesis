@@ -11,6 +11,7 @@ from tqdm import tqdm
 
 from ....utils import calc_flux, find_vertical_grid_spacing, transforms
 from ... import mask_functions
+from ..data_sources.uclales.common import _fix_time_units
 from .base import (
     NumpyDatetimeParameter,
     XArrayTarget,
@@ -32,51 +33,19 @@ COMPOSITE_FIELD_METHODS = dict(
 )
 
 
-def fix_time_units(da):
-    modified = False
-    if np.issubdtype(da.dtype, np.datetime64):
-        # already converted since xarray has managed to parse the time in
-        # CF-format
-        pass
-    elif da.attrs["units"].startswith("seconds since 2000-01-01"):
-        # I fixed UCLALES to CF valid output, this is output from a fixed
-        # version
-        pass
-    elif da.attrs["units"].startswith("seconds since 2000-00-00"):
-        da.attrs["units"] = da.attrs["units"].replace(
-            "seconds since 2000-00-00",
-            "seconds since 2000-01-01",
-        )
-        modified = True
-    elif da.attrs["units"].startswith("seconds since 0-00-00"):
-        # 2D fields have strange time units...
-        da.attrs["units"] = da.attrs["units"].replace(
-            "seconds since 0-00-00",
-            "seconds since 2000-01-01",
-        )
-        modified = True
-    elif da.attrs["units"].startswith("seconds since 0-0-0"):
-        # 2D fields have strange time units...
-        da.attrs["units"] = da.attrs["units"].replace(
-            "seconds since 0-0-0",
-            "seconds since 2000-01-01",
-        )
-        modified = True
-    elif da.attrs["units"] == "day as %Y%m%d.%f":
-        da = (da * 24 * 60 * 60).astype(int)
-        da.attrs["units"] = "seconds since 2000-01-01 00:00:00"
-        modified = True
-    else:
-        raise NotImplementedError(da.attrs["units"])
-    return da, modified
-
-
 class XArrayTarget3DExtraction(XArrayTarget):
     def open(self, *args, **kwargs):
         ds = super(XArrayTarget3DExtraction, self).open(*args, **kwargs)
-        if len(ds.coords) == 0:
+        if len(ds.coords) == 0 and len(ds.dims) == 0:
             raise Exception(f"{self.fn} doesn't contain any data")
         ds = self._ensure_coord_units(ds)
+
+        if isinstance(ds, xr.Dataset) and len(ds.variables) == 0:
+            raise Exception(
+                f"Stored 3D file for `{self.path}` is empty, please delete so"
+                "it can be recreated"
+            )
+
         return ds
 
     def _ensure_coord_units(self, da):
@@ -98,6 +67,8 @@ class ExtractField3D(luigi.Task):
     base_name = luigi.Parameter()
     field_name = luigi.Parameter()
 
+    # follows filename of uclales-utils given that we put ".tn{tn}" into "var_name
+    # SINGLE_VAR_FILENAME_FORMAT_3D = "{file_prefix}.{var_name}.tn{tn}.nc"
     FN_FORMAT = "{experiment_name}.{field_name}.nc"
 
     @staticmethod
@@ -209,26 +180,14 @@ class ExtractField3D(luigi.Task):
 
         p = get_workdir() / self.base_name / fn
 
-        t = XArrayTarget3DExtraction(str(p))
-
-        if t.exists():
-            data = t.open()
-            if isinstance(data, xr.Dataset):
-                if len(data.variables) == 0:
-                    warnings.warn(
-                        "Stored file for `{}` is empty, deleting..."
-                        "".format(self.field_name)
-                    )
-                    p.unlink()
-
-        return t
+        return XArrayTarget3DExtraction(str(p))
 
 
 class XArrayTarget2DCrossSection(XArrayTarget):
     def open(self, *args, **kwargs):
         kwargs["decode_times"] = False
         da = super().open(*args, **kwargs)
-        da["time"], _ = fix_time_units(da["time"])
+        da["time"], _ = _fix_time_units(da["time"])
 
         # xr.decode_cf only works on datasets
         ds = xr.decode_cf(da.to_dataset())
@@ -242,6 +201,31 @@ class TimeCrossSectionSlices2D(luigi.Task):
     var_name = luigi.Parameter()
 
     FN_FORMAT = "{exp_name}.out.xy.{var_name}.nc"
+
+    @staticmethod
+    def _get_data_loader_module(meta):
+        model_name = meta.get("model")
+        if model_name is None:
+            model_name = "UCLALES"
+
+        module_name = ".data_sources.{}".format(model_name.lower().replace("-", "_"))
+        return importlib.import_module(module_name, package="genesis.utils.pipeline")
+
+    def requires(self):
+        meta = _get_dataset_meta_info(self.base_name)
+        data_loader = self._get_data_loader_module(meta=meta)
+        fn = getattr(data_loader, "build_runtime_cross_section_extraction_task")
+        # TODO remove hardcoded orientation
+        base_name = meta.get("experiment_name", self.base_name)
+        dest_path = get_workdir() / self.base_name / "cross_sections" / "runtime_slices"
+        task = fn(
+            dataset_meta=meta,
+            var_name=self.var_name,
+            orientation="xy",
+            dest_path=str(dest_path),
+            base_name=base_name,
+        )
+        return task
 
     def _extract_and_symlink_local_file(self):
         meta = _get_dataset_meta_info(self.base_name)
@@ -414,7 +398,14 @@ class ExtractCrossSection2D(luigi.Task):
 
         fn = ".".join(name_parts)
 
-        p = get_workdir() / self.base_name / "cross_sections" / "runtime_slices" / fn
+        p = (
+            get_workdir()
+            / self.base_name
+            / "cross_sections"
+            / "runtime_slices"
+            / "by_time"
+            / fn
+        )
         return XArrayTarget(str(p))
 
 

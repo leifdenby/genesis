@@ -203,6 +203,10 @@ class PerformObjectTracking2D(luigi.Task):
                 )
 
         else:
+            print(
+                f"Didn't find tracking output in `{self.output().path}`"
+                ", trying to run tracking utility"
+            )
             dataset_name = meta["experiment_name"]
 
             if self.run_in_temp_dir:
